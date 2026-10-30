@@ -6,11 +6,11 @@ import { poseHuman, seatHuman } from '../world/humans.js';
 import { makeHandGel } from './hand.js';
 
 // ------------------------------------------------------------------------------------------------------------------
-// THE OPENING (about 55 s). Every visual state is derived from the clock `t`, so skipping lands on the same playable state.
+// THE OPENING (about 62 s). Every visual state is derived from the clock `t`, so skipping lands on the same playable state.
 //
 //  1 WAKE         0.0  restrained in the containment cell, hands in the clamps; the display names the specimen
 //                 4.2  the researcher at his console; the scanner rolls into position; its probe comes for the face
-//  2 HOME         13.3 origin-world diagram -> memory of the home planet -> back in the cell
+//  2 HOME         13.3 origin-world diagram -> zoom into the planet -> its people -> the ship and beam (the taking) -> back in the cell
 //  3 FAILURE      19.8 scanner to full power; internal structures react; readings escalate; a service line burns out;
 //                 the seal loses power; the researcher's emergency shutdown fails; the alien notices the seam and forces the door
 //  4 SECURITY     30.4 breach announced; an officer opens the bulkhead and aims in; the bulkhead slams on his hand; the pistol is knocked loose
@@ -25,14 +25,14 @@ const YAW_P = Math.atan2(-pdx, -pdz), PITCH_P = Math.atan2(pdy, Math.hypot(pdx, 
 const ROUTE_YAW = Math.atan2(PLAYER_START.x + 3.5, PLAYER_START.z - 0.06);
 
 const T = {
-  end: 55.5,
+  end: 62.5,
   researcher: 4.2, scanIn: 6.2, probe: 8.6, probeOut: 11.2, orbit: 11.0,
-  memIn: 13.3, memOut: 18.8,
-  power: 19.8, react: 21.6, spark: 23.2, sealDown: 23.8, standUp: 24.0, shutdown: 25.6, runOff: 27.2,
-  seam: 26.4, push: 28.2, shatter: 29.0, swing: 29.0,
-  breachAI: 30.4, bulkheadOpen: 31.0, aim: 32.2, bulkheadShut: 33.2, strike: 33.6, retreat: 34.2,
-  walk: 35.0, reach: 38.0, contact: 39.2, envelop: 39.4, breakApart: 40.6, realign: 43.2, form: 44.8, settle: 46.4,
-  aiRoute: 46.4, lookRoute: 47.6, goal: 51.2,
+  memIn: 13.3, memOut: 25.8,
+  power: 26.8, react: 28.6, spark: 30.2, sealDown: 30.8, standUp: 31.0, shutdown: 32.6, runOff: 34.2,
+  seam: 33.4, push: 35.2, shatter: 36.0, swing: 36.0,
+  breachAI: 37.4, bulkheadOpen: 38.0, aim: 39.2, bulkheadShut: 40.2, strike: 40.6, retreat: 41.2,
+  walk: 42.0, reach: 45.0, contact: 46.2, envelop: 46.4, breakApart: 47.6, realign: 50.2, form: 51.8, settle: 53.4,
+  aiRoute: 53.4, lookRoute: 54.6, goal: 58.2,
 };
 const KEYS = [
   [0.0, CX, EYE, CZ, 0.0, -0.46],
@@ -45,27 +45,27 @@ const KEYS = [
   [8.6, CX, EYE, CZ, -0.06, 0.4],
   [9.4, CX, EYE, CZ, 0.0, 0.3],
   [11.0, CX, EYE, CZ, 0.0, 0.32],
-  [19.0, CX, EYE, CZ, 0.0, 0.32],
-  [20.8, CX, EYE, CZ, 0.0, -0.3],
-  [22.8, CX, EYE, CZ, 0.0, -0.34],
-  [23.8, CX, EYE, CZ, 0.45, 0.72],
-  [24.8, CX, EYE, CZ, 0.4, 0.5],
-  [25.8, CX, EYE, CZ, -1.38, 0.03],
-  [26.4, CX, EYE, CZ, -1.38, 0.03],
-  [27.4, CX, EYE, CZ, -0.42, 0.26],
-  [28.2, CX, EYE, CZ, -0.4, 0.27],
-  [29.2, CX, EYE, CZ - 0.3, -0.18, 0.2],
-  [30.6, CX, EYE, CZ - 1.4, 0.0, 0.04],
-  [34.0, CX, EYE, CZ - 1.4, 0.0, 0.0],
-  [35.2, CX, EYE, CZ - 1.5, -0.12, -0.14],
-  [36.6, 0.15, 1.5, 6.4, -0.1, -0.3],
-  [38.0, P1.x, P1.y, P1.z, YAW_P, PITCH_P],
-  [45.6, P1.x, P1.y, P1.z, YAW_P, PITCH_P],
-  [46.6, PLAYER_START.x, EYE, PLAYER_START.z, 0.0, 0.0],
-  [47.8, PLAYER_START.x, EYE, PLAYER_START.z, 0.0, 0.02],
-  [48.8, PLAYER_START.x, EYE, PLAYER_START.z, ROUTE_YAW, 0.04],
-  [51.0, PLAYER_START.x, EYE, PLAYER_START.z, ROUTE_YAW, 0.04],
-  [53.0, PLAYER_START.x, EYE, PLAYER_START.z, 0.0, 0.0],
+  [26.0, CX, EYE, CZ, 0.0, 0.32],
+  [27.8, CX, EYE, CZ, 0.0, -0.3],
+  [29.8, CX, EYE, CZ, 0.0, -0.34],
+  [30.8, CX, EYE, CZ, 0.45, 0.72],
+  [31.8, CX, EYE, CZ, 0.4, 0.5],
+  [32.8, CX, EYE, CZ, -1.38, 0.03],
+  [33.4, CX, EYE, CZ, -1.38, 0.03],
+  [34.4, CX, EYE, CZ, -0.42, 0.26],
+  [35.2, CX, EYE, CZ, -0.4, 0.27],
+  [36.2, CX, EYE, CZ - 0.3, -0.18, 0.2],
+  [37.6, CX, EYE, CZ - 1.4, 0.0, 0.04],
+  [41.0, CX, EYE, CZ - 1.4, 0.0, 0.0],
+  [42.2, CX, EYE, CZ - 1.5, -0.12, -0.14],
+  [43.6, 0.15, 1.5, 6.4, -0.1, -0.3],
+  [45.0, P1.x, P1.y, P1.z, YAW_P, PITCH_P],
+  [52.6, P1.x, P1.y, P1.z, YAW_P, PITCH_P],
+  [53.6, PLAYER_START.x, EYE, PLAYER_START.z, 0.0, 0.0],
+  [54.8, PLAYER_START.x, EYE, PLAYER_START.z, 0.0, 0.02],
+  [55.8, PLAYER_START.x, EYE, PLAYER_START.z, ROUTE_YAW, 0.04],
+  [58.0, PLAYER_START.x, EYE, PLAYER_START.z, ROUTE_YAW, 0.04],
+  [60.0, PLAYER_START.x, EYE, PLAYER_START.z, 0.0, 0.0],
   [T.end, PLAYER_START.x, EYE, PLAYER_START.z, 0.0, 0.0],
 ];
 const ease = (t, a, b) => smooth(seg(t, a, b));
@@ -193,10 +193,15 @@ export class Opening {
 
     // ---- 2 HOME ----
     once('memIn', T.memIn, () => { a.play('memory', { vol: 0.9 }); ui.flash('#cfe9f2', 0.7); this.memoryEl(true); });
-    once('think1', T.memIn + 1.2, () => this.say('Home.', '', 2.6, true));
+    // the memory: the world on the display, its people, the ship, the beam
+    once('m1', T.memIn + 2.0, () => this.say('Home.', '', 2.4, true));
+    once('m2', T.memIn + 3.7, () => this.say('My people.', '', 2.0, true));
+    once('m3', T.memIn + 5.3, () => { a.play('groan', { vol: 0.8 }); this.say('Then the sky opened. They came in a ship.', '', 3.0, true); });
+    once('m4', T.memIn + 8.3, () => { a.play('surge', { vol: 0.7 }); });
+    once('m5', T.memIn + 8.9, () => this.say('They took me from my world.', '', 3.0, true));
     if (this.memoryShown) this.memory.draw(t - T.memIn);
     once('memOut', T.memOut, () => { a.play('memoryOut', { vol: 0.9 }); ui.flash('#cfe9f2', 0.5); this.memoryEl(false); c.display.set('record'); });
-    once('think2', T.memOut + 0.8, () => this.say('I have to get back.', '', 2.6, true));
+    once('think2', T.memOut + 0.8, () => this.say('I have to get home.', '', 2.8, true));
 
     // ---- 3 FAILURE ----
     once('power', T.power, () => { this.say('Scanner to full power.', 'RESEARCHER', 2.0); a.play('servo', { vol: 0.5 }); });
