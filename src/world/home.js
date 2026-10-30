@@ -76,7 +76,7 @@ export class HomeWorld {
     const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.frustumCulled = false; this.group.add(m); return m; };
     const spireMat = new THREE.MeshStandardMaterial({ color: 0x1f6a64, roughness: 0.5, emissive: 0x0b3b3a, emissiveIntensity: 0.9 });
     this.tipMat = new THREE.MeshBasicMaterial({ color: 0xb8ffe6, fog: true });
-    const NS = 34, spires = mk(node('Spire').geometry, spireMat, NS), tips = mk(node('SpireTip').geometry, this.tipMat, NS);
+    const NS = 60, spires = mk(node('Spire').geometry, spireMat, NS), tips = mk(node('SpireTip').geometry, this.tipMat, NS);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
     for (let i = 0, k = 0; k < NS && i < 400; i++) {
       const a = R() * Math.PI * 2, d = 9 + R() * 50, x = Math.cos(a) * d, z = Math.sin(a) * d;
@@ -86,9 +86,9 @@ export class HomeWorld {
       m4.compose(v.set(x, 0, z), q, sc.set(s, s, s)); spires.setMatrixAt(k, m4); tips.setMatrixAt(k, m4); k++;
     }
     const stalkGeo = node('Stalk').geometry, bulbGeo = node('StalkBulb').geometry;
-    const NK = 300, stalks = mk(stalkGeo, spireMat, NK), bulbs = mk(bulbGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), NK);
+    const NK = 700, stalks = mk(stalkGeo, spireMat, NK), bulbs = mk(bulbGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), NK);
     const col = new THREE.Color();
-    for (let c = 0, k = 0; c < 40 && k < NK; c++) {
+    for (let c = 0, k = 0; c < 90 && k < NK; c++) {
       const a = R() * Math.PI * 2, d = 4 + R() * 38, cx = Math.cos(a) * d, cz = Math.sin(a) * d;
       for (let j = 0; j < 7 && k < NK; j++) {
         const x = cx + (R() - 0.5) * 2.2, z = cz + (R() - 0.5) * 2.2;
@@ -107,6 +107,16 @@ export class HomeWorld {
       m4.compose(v.set(path(x, z) ? x + 6 : x, 0, z), q, sc.set(s, s * (0.6 + R() * 0.6), s)); rocks.setMatrixAt(i, m4);
     }
     this.flora = [spires, tips, stalks, bulbs, rocks];
+
+    // ---- drifting spores and low mist: the air feels alive
+    const NP = 260, pp = new Float32Array(NP * 3);
+    for (let i = 0; i < NP; i++) { pp[i * 3] = (R() - 0.5) * 50; pp[i * 3 + 1] = 0.3 + R() * 5; pp[i * 3 + 2] = (R() - 0.5) * 50 - 4; }
+    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pp, 3));
+    this.spores = new THREE.Points(pg, new THREE.PointsMaterial({ color: 0xbfffe8, size: 0.09, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
+    this.spores.frustumCulled = false; this.group.add(this.spores); this.sporeBase = pp.slice();
+    const mistTex = canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(150,255,230,0.35)'); gr.addColorStop(1, 'rgba(150,255,230,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
+    const mistMat = new THREE.MeshBasicMaterial({ map: mistTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
+    for (const [x, z, sz] of [[-6, -2, 9], [6, -8, 11], [-2, -14, 12], [0, 3, 8], [11, -2, 9], [-12, -9, 10]]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(sz, sz).rotateX(-Math.PI / 2), mistMat); m.position.set(x, 0.35, z); this.group.add(m); }
 
     // ---- the one who waits
     const gel = makeHandGel({ color: 0x1fa08c, rim: 0xe6fff6, alpha: 0.62 });
@@ -229,6 +239,7 @@ export class HomeWorld {
   update(dt, t, camPos) {
     if (!this.shown) return;
     this.sky.position.copy(camPos);
+    { const a = this.spores.geometry.attributes.position, b = this.sporeBase; for (let i = 0; i < a.count; i++) { a.array[i * 3] = b[i * 3] + Math.sin(t * 0.3 + i) * 0.6; a.array[i * 3 + 1] = b[i * 3 + 1] + ((t * 0.12 + i * 0.37) % 1) * 0.8 + Math.sin(t * 0.7 + i * 2) * 0.15; a.array[i * 3 + 2] = b[i * 3 + 2] + Math.cos(t * 0.25 + i) * 0.6; } a.needsUpdate = true; }
     this.tipMat.color.setScalar(0.8 + 0.2 * Math.sin(t * 1.3)).multiply(new THREE.Color(0xb8ffe6)).addScalar(0.15);
   }
 }

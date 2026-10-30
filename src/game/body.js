@@ -41,7 +41,7 @@ export class AlienBody {
       this.sats.push({ m, a: i * 1.6, r: 0.27 + i * 0.03, h: 0.35 + i * 0.12 });
     }
 
-    this.legGel = makeTentacleGel({ color: 0x0a4a46, rim: 0x7ff0e0, alpha: 0.5, length: 1.5, r0: 0.04, r1: 0.007 });
+    this.legGel = makeTentacleGel({ color: 0x0a4a46, rim: 0x7ff0e0, alpha: 0.5, length: 1.5, r0: 0.075, r1: 0.02 });
     this.legs = LEGS.map((d) => {
       const leg = {
         d,
@@ -50,7 +50,7 @@ export class AlienBody {
         chain: new SpringChain(N, 360, 90, 0.8),
         ideal: Array.from({ length: N }, () => new THREE.Vector3()),
         c1: new THREE.Vector3(), c2: new THREE.Vector3(), root: new THREE.Vector3(),
-        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: (t) => lerp(0.046, 0.007, Math.pow(t, 0.7)) * (1 + 0.1 * Math.sin(t * 10)), material: this.legGel }),
+        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: (t) => lerp(0.085, 0.022, Math.pow(t, 0.8)) * (1 + 0.12 * Math.sin(t * 9)), material: this.legGel }),
       };
       leg.mesh.mesh.renderOrder = 2;
       scene.add(leg.mesh.mesh);

@@ -63,9 +63,9 @@ body.sphere((0, 0, 2.42), 0.1, 'GelCore', scale=(1, 1, 1.3), seg=14)            
 for a in (0.0, 2.1, 4.2):                                                         # three short crest fronds
     body.tube([(0, 0, 2.44), (cos(a) * 0.07, sin(a) * 0.07, 2.6), (cos(a) * 0.15, sin(a) * 0.15, 2.7)], lambda t: 0.014 * (1 - t * 0.7), 'GelCore', seg=6, samples=10)
 body.sphere((0, 0, 1.55), 0.12, 'GelCore', seg=12)                                # chest nucleus
-for i in range(6):                                                                # skirt tendrils
-    a = i / 6 * 2 * pi + 0.3
-    body.tube([(cos(a) * 0.2, sin(a) * 0.2, 0.9), (cos(a) * 0.42, sin(a) * 0.42, 0.55), (cos(a) * 0.62, sin(a) * 0.62, 0.05)], lambda t: 0.04 * (1 - t * 0.8) + 0.008, 'Gel', seg=8, samples=16)
+for i in range(8):                                                                # eight stout, tapering tentacles (octopus-like)
+    a = i / 8 * 2 * pi + 0.3
+    body.tube([(cos(a) * 0.22, sin(a) * 0.22, 1.0), (cos(a) * 0.5, sin(a) * 0.5, 0.55), (cos(a) * 0.72, sin(a) * 0.72, 0.06)], lambda t: 0.12 * (1 - t) ** 0.9 + 0.025, 'Gel', seg=12, samples=24)
 body.build()
 
 arm_root = (-0.0, 0.0, 1.78)
