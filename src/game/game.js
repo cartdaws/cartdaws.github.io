@@ -348,6 +348,8 @@ export class Game {
         if (t >= 0 && t < best) best = t;
       }
     }
+    const it = this.opening.target;                    // the maintenance lock: the crosshair sees it like any target
+    if (it && it.alive) { const t = raySphere(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, it.c.x, it.c.y, it.c.z, it.r, best); if (t >= 0 && t < best) best = t; }
     for (const b of this.barrels) {
       if (b.state === 'destroyed') continue;
       const s = b.hitSpheres[0];

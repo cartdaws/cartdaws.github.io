@@ -774,7 +774,6 @@ export class Intro {
     g.ui.setObjective('SHOOT THE JAMMED LOCK'); this.f = { _obj: 'SHOOT THE JAMMED LOCK' };
     g.ui.showHud(true);
     document.body.classList.remove('intro-cross');
-    g.ui.hint(this.tr('LEFT CLICK TO FIRE: SHOOT THE LOCK', 'TAP FIRE: SHOOT THE LOCK'), 5);
     g.input.pressed.clear(); g.input.fireGuardUntil = performance.now() + 300;
     if (!skipped) this.say('Automated security deployed on all research decks.', 'SHIP AI', 3.4);
   }
@@ -786,7 +785,7 @@ export class Intro {
       this.lockLens.color.setRGB(1, 0.2 + 0.15 * Math.sin(t * 10), 0.1);
       this.lockHalo.lookAt(g.camera.position);
       const d = Math.hypot(p.pos.x - LOCK_POS.x, p.pos.z - LOCK_POS.z);
-      if (d < 11 && !f.shotHint) { f.shotHint = true; ui.hint(this.tr('LEFT CLICK: FIRE AT THE LOCK', 'TAP FIRE: SHOOT THE LOCK'), 4); }
+      if (d < 11 && !f.shotHint && ui.subT <= 0) { f.shotHint = true; ui.hint(this.tr('LEFT CLICK: FIRE AT THE LOCK', 'TAP FIRE: SHOOT THE LOCK'), 4); }
     }
     // jump hint at the barrier
     if (this.barrier.visible && this.barrierBox && this.barrierBox.enabled) {
@@ -800,8 +799,8 @@ export class Intro {
       const weak = g.enemies.find((e) => e.alive && e.weak && !e.absorbing);
       if (weak && !f.tutWeak) {
         f.tutWeak = weak; weak.tutMark = true; g.enemyFreeze = 4.5; f.tutT = 0;
+        g.ui.clearHints();
         g.ui.hint(this.tr('DISABLED. GET CLOSE, THEN RIGHT CLICK TO ABSORB IT', 'DISABLED. GET CLOSE, THEN TAP ABSORB'), 5);
-        g.ui.setObjective('ABSORB THE DISABLED ROBOT');
       }
       if (f.tutWeak && f.tutWeak.alive) {
         f.tutT += dt; g.enemyFreeze = Math.max(g.enemyFreeze, f.tutT < 6 ? 0.5 : 0);
