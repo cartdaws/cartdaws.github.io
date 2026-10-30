@@ -24,10 +24,12 @@
       <div class="dash"><span class="label">DASH</span><div class="bar"><div id="dashFill"></div></div></div>
     </div>
     <div id="objective"></div>
-    <div id="banner"></div>
     <div id="hint"></div>
   </div>
 
+  <canvas id="memory" class="hidden"></canvas>
+  <div id="subtitle" class="hidden"><b></b><span></span></div>
+  <div id="banner"></div>
   <div id="fade"></div>
   <div id="skip" class="hidden">SPACE &mdash; SKIP</div>
 
@@ -55,7 +57,8 @@
 
   <div id="menu-complete" class="menu hidden">
     <h2>First encounter complete</h2>
-    <button id="btn-replay" class="primary">REPLAY</button>
+    <button id="btn-replay" class="primary">REPLAY ENCOUNTER</button>
+    <button id="btn-intro">REPLAY FROM THE START</button>
   </div>
 
   <script type="module" src="/src/main.js"></script>

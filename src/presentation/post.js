@@ -38,7 +38,7 @@ const GradeShader = {
       float edge = smoothstep(0.08, 0.5, r);
       c += vec3(0.55, 0.02, 0.0) * edge * (uHit * 0.55 + uHurt * uPulse * 0.6);
       c *= 1.0 - uHit * 0.25;
-      c += (hash(vUv * 900.0) - 0.5) * 0.035 * (1.0 - uMode); // film grain
+      c += (hash(vUv * 900.0) - 0.5) * 0.016 * (1.0 - uMode); // film grain
       gl_FragColor = vec4(max(c, 0.0), 1.0);
     }`,
 };
@@ -71,7 +71,7 @@ export class PostFX {
     vm.clear = false;
     vm.clearDepth = true;
     this.composer.addPass(vm);
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.25, 0.5, 0.97);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.12, 0.4, 1.0);
     this.composer.addPass(this.bloom);
     this.grade = new ShaderPass(GradeShader);
     this.composer.addPass(this.grade);

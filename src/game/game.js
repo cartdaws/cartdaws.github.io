@@ -23,8 +23,9 @@ const STEP = 1 / 60;
 const BASE_FOV = 78;
 
 export class Game {
-  constructor(canvas, armGeos) {
+  constructor(canvas, armGeos, kit) {
     this.canvas = canvas;
+    this.kit = kit;
     this.arena = ARENA;
     const debug = location.search.includes('debug');
 
@@ -42,7 +43,7 @@ export class Game {
     this.camera.rotation.order = 'YXZ';
 
     this.world = new CollisionWorld();
-    this.level = buildLevel(this.scene, this.world);
+    this.level = buildLevel(this.scene, this.world, this.kit);
     this.nav = new NavGrid(this.world, ARENA);
     this.waypoints = this.buildWaypoints();
     this.effects = new Effects(this.scene);
@@ -57,6 +58,7 @@ export class Game {
     this.projectiles = new Projectiles(this);
     this.encounter = new Encounter(this);
     this.opening = new Opening(this);
+    this.opening.resetProps();
 
     this.enemies = [];
     this.barrels = [];
@@ -90,6 +92,7 @@ export class Game {
     this.ui.fade(0);
     this.level.emergencyOn = true;
     this.viewmodel.cineW = 1;
+    this.viewmodel.restrain = 1;
 
     if (debug) { window.__g = this; window.__THREE = THREE; }
     this.last = performance.now();
@@ -129,6 +132,7 @@ export class Game {
     $('btn-restart').onclick = () => this.restart();
     $('btn-retry').onclick = () => this.restart();
     $('btn-replay').onclick = () => this.restart();
+    $('btn-intro').onclick = () => this.replayFromStart();
     for (const id of ['btn-gfx', 'btn-gfx2']) $(id).onclick = () => this.toggleGfx();
     $('set-volume').oninput = (e) => { this.audio.setVolume(+e.target.value); this.saveSettings(); };
     $('set-sens').oninput = (e) => { this.sens = +e.target.value; this.saveSettings(); };
@@ -189,6 +193,7 @@ export class Game {
     this.level.emergencyOn = false;
     this.ui.showHud(true);
     this.ui.clearTransient();
+    this.ui.setObjective('REACH THE HANGAR');
     this.ui.hint('WASD — MOVE', 3);
     this.ui.hint('SPACE — JUMP     SHIFT — DASH', 3.5);
     this.ui.hint('LEFT CLICK — FIRE  (HOLD TO KEEP FIRING)', 4);
@@ -223,6 +228,19 @@ export class Game {
     this.resetEncounter();
     this.paused = false;
     this.ui.hideMenus();
+    this.lockRetries = 0;
+    this.input.lock();
+  }
+
+  // Full replay: encounter, doors and props back to the beginning, then the opening plays again.
+  replayFromStart() {
+    this.audio.init();
+    this.resetEncounter();
+    this.ui.hideMenus();
+    this.paused = false;
+    this.cinePose = this.opening.pose;
+    this.state = 'opening';
+    this.opening.start();
     this.lockRetries = 0;
     this.input.lock();
   }

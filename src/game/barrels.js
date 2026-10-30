@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { M } from '../world/materials.js';
+import { M, kitMaterial } from '../world/materials.js';
 import { rand } from '../core/util.js';
 
 const BLAST_RADIUS = 6.5;
@@ -22,19 +22,13 @@ export class Barrel {
     this.mat = M.drum.clone();
     this.mat.emissive = new THREE.Color(0xff6a10);
     this.mat.emissiveIntensity = 0;
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.42, 1.05, 20), this.mat);
-    body.position.y = 0.55;
-    this.group.add(body);
-    for (const y of [0.1, 1.0]) {
-      const rim = new THREE.Mesh(new THREE.TorusGeometry(0.43, 0.025, 6, 20), M.dark);
-      rim.rotation.x = Math.PI / 2; rim.position.y = y;
-      this.group.add(rim);
+    // body and fittings come from the environment kit; the drum surface keeps the hazard-label material so it can flash
+    const kit = game.kit;
+    for (const part of kit.parts.barrel_explosive) {
+      const m = new THREE.Mesh(part.geometry, part.matName === 'Drum' ? this.mat : kitMaterial(part.matName));
+      this.group.add(m);
+      if (part.matName === 'Drum') this.body = m;
     }
-    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.06, 16), M.amber);
-    cap.position.y = 1.1;
-    this.group.add(cap);
-    this.cap = cap;
-    this.body = body;
     this.box = game.world.addCentered(x, 0.55, z, 0.84, 1.1, 0.84, { tag: 'barrel' });
     this.remnant = null;
   }

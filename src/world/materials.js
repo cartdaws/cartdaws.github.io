@@ -134,11 +134,11 @@ function makeAtlas(cellSize, drawCell) {
 function tone(base, v) { const k = 1 + (R() - 0.5) * v; return [base[0] * k, base[1] * k * (1 + (R() - 0.5) * 0.05), base[2] * k * (1 + (R() - 0.5) * 0.06)]; }
 
 function wallCell(g, s, i) {
-  const base = tone([62, 69, 72], 0.28);
+  const base = tone([62, 69, 72], 0.2);
   g.fillStyle = rgb(base); g.fillRect(0, 0, s, s);
   grain(g, s, i % 2 === 0, 0.06);
   speckle(g, s, s * 5, 0.07);
-  const layout = i % 16;
+  const layout = [6, 10, 12, 13].includes(i % 16) ? 0 : i % 16;
   const inset = s * 0.05;
   switch (layout) {
     case 0: g.fillStyle = rgb(base, 0.82); g.fillRect(inset * 2, inset * 2, s - inset * 4, s - inset * 4); for (const [x, y] of [[0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]]) bolt(g, x * s, y * s); break;
@@ -168,7 +168,7 @@ function floorCell(g, s, i) {
   g.fillStyle = rgb(base); g.fillRect(0, 0, s, s);
   grain(g, s, R() < 0.5, 0.05);
   speckle(g, s, s * 7, 0.08);
-  const layout = i % 16;
+  const layout = [8, 9, 11, 14].includes(i % 16) ? 0 : i % 16;
   switch (layout) {
     case 0: for (const [x, y] of [[0.1, 0.1], [0.9, 0.1], [0.1, 0.9], [0.9, 0.9]]) bolt(g, x * s, y * s, 4); g.strokeStyle = 'rgba(255,255,255,0.1)'; g.strokeRect(s * 0.06, s * 0.06, s * 0.88, s * 0.88); break;
     case 1: g.strokeStyle = 'rgba(200,205,205,0.2)'; g.lineWidth = 5; for (let y = 0; y < s; y += s / 8) for (let x = 0; x < s; x += s / 8) { const o = ((y / (s / 8)) | 0) % 2 ? s / 16 : 0; g.beginPath(); g.moveTo(x + o + 4, y + s / 10); g.lineTo(x + o + s / 10, y + 4); g.stroke(); g.beginPath(); g.moveTo(x + o + 4, y + 4); g.lineTo(x + o + s / 10, y + s / 10); g.stroke(); } break;
@@ -197,7 +197,7 @@ function machineCell(g, s, i) {
   g.fillStyle = rgb(base); g.fillRect(0, 0, s, s);
   grain(g, s, true, 0.05);
   speckle(g, s, s * 5, 0.07);
-  const layout = i % 16;
+  const layout = [6, 10, 13].includes(i % 16) ? 0 : i % 16;
   const vents = (x, y, w, h, n) => { g.fillStyle = 'rgba(6,7,8,0.9)'; g.fillRect(x, y, w, h); for (let k = 0; k < n; k++) { g.fillStyle = rgb(base, 1.25); g.fillRect(x + 3, y + 5 + k * (h - 8) / n, w - 6, (h - 8) / n * 0.45); } };
   switch (layout) {
     case 0: vents(s * 0.12, s * 0.12, s * 0.76, s * 0.4, 8); break;
@@ -320,19 +320,31 @@ function worldMat(atlasTex, { tile, seed, roughness = 0.6, metalness = 0.5, colo
 
 // Untextured level materials still get large-scale dirt and mottling so a shared colour doesn't read as a clone.
 function dirtyMat(color, o = {}) {
-  return patchMaterial(new THREE.MeshStandardMaterial({ color, roughness: 0.65, metalness: 0.55, map: WHITE, ...o }), { atlas: false, seed: Math.random() * 40 });
+  return patchMaterial(new THREE.MeshStandardMaterial({ color, roughness: 0.85, metalness: 0.08, map: WHITE, ...o }), { atlas: false, seed: Math.random() * 40 });
 }
 const WHITE = (() => { const t = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; return t; })();
 
 const glow = (color, intensity = 1.4) => new THREE.MeshStandardMaterial({ color: 0x000000, emissive: color, emissiveIntensity: intensity });
 const tiled = (map, o = {}) => new THREE.MeshStandardMaterial({ map, roughness: 0.62, metalness: 0.5, ...o });
 
+// Window and containment glass: unlit tint with a view-angle sheen, so panes read as glass without hot specular spots from nearby lamps.
+function makeGlass() {
+  const m = new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, side: THREE.DoubleSide,
+    uniforms: { uTint: { value: new THREE.Color(0x7ea6b3) } },
+    vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+    fragmentShader: 'uniform vec3 uTint; varying vec3 vN; varying vec3 vV; void main(){ vec3 n = normalize(vN), v = normalize(vV); float f = pow(1.0 - abs(dot(n, v)), 3.0); float sheen = smoothstep(-0.2, 1.0, n.y) * 0.1; vec3 c = uTint * (0.30 + sheen) + vec3(0.55, 0.72, 0.8) * f * 0.45; gl_FragColor = vec4(pow(c, vec3(2.2)), 0.1 + f * 0.4); }',
+  });
+  m.userData.noSnap = true;
+  return m;
+}
+
 export const M = {
-  floor: worldMat(floorAtlas, { tile: 1.6, seed: 3.1, roughness: 0.45, metalness: 0.6 }),
-  wall: worldMat(wallAtlas, { tile: 2.2, seed: 7.7, roughness: 0.6, metalness: 0.45 }),
-  machine: worldMat(machineAtlas, { tile: 1.5, seed: 12.3, roughness: 0.55, metalness: 0.6 }),
-  machineB: worldMat(machineAtlas, { tile: 1.5, seed: 21.9, roughness: 0.55, metalness: 0.6, color: 0xd6b57a }),
-  machineC: worldMat(machineAtlas, { tile: 1.5, seed: 33.2, roughness: 0.45, metalness: 0.65, color: 0x9db3c4 }),
+  floor: worldMat(floorAtlas, { tile: 1.6, seed: 3.1, roughness: 0.88, metalness: 0.06 }),
+  wall: worldMat(wallAtlas, { tile: 2.2, seed: 7.7, roughness: 0.9, metalness: 0.05, color: 0xc2ccd4 }),
+  machine: worldMat(machineAtlas, { tile: 1.5, seed: 12.3, roughness: 0.85, metalness: 0.08 }),
+  machineB: worldMat(machineAtlas, { tile: 1.5, seed: 21.9, roughness: 0.85, metalness: 0.08, color: 0xd6b57a }),
+  machineC: worldMat(machineAtlas, { tile: 1.5, seed: 33.2, roughness: 0.85, metalness: 0.08, color: 0x9db3c4 }),
   hazard: tiled(hazardTex, { roughness: 0.8, metalness: 0.2 }),
   drum: tiled(drumTex, { roughness: 0.5 }),
   grayDrum: dirtyMat(0x3d474b, { roughness: 0.6 }),
@@ -341,13 +353,39 @@ export const M = {
   light: dirtyMat(0x6c7578, { roughness: 0.5 }),
   rubber: new THREE.MeshStandardMaterial({ color: 0x0e1011, roughness: 0.9, metalness: 0.1 }),
   crate: dirtyMat(0x4a463a, { roughness: 0.85, metalness: 0.15 }),
-  glass: new THREE.MeshPhysicalMaterial({ color: 0x8fb8c4, transparent: true, opacity: 0.14, roughness: 0.05, metalness: 0, depthWrite: false, side: THREE.DoubleSide }),
+  glass: makeGlass(),
   cyan: glow(0x35d8f0, 1.5), amber: glow(0xff9a2a, 1.6), red: glow(0xff2a1a, 2.0), green: glow(0x35e87a, 1.5),
   screen: glow(0x2fb8e0, 1.0), screenWarm: glow(0xffa83a, 1.0),
   white: glow(0xdfeeff, 1.5),
   fluid: new THREE.MeshStandardMaterial({ color: 0x0a2a24, emissive: 0x1ab88c, emissiveIntensity: 0.8, transparent: true, opacity: 0.75, roughness: 0.2 }),
   scorch: new THREE.MeshBasicMaterial({ color: 0x050505, transparent: true, opacity: 0.8, depthWrite: false }),
 };
+
+// Materials for the Blender-made environment kit (matched by the material names exported from art/make_kit.py).
+const KIT = {};
+const kitFlat = (hex, o = {}) => dirtyMat(hex, { roughness: 0.86, metalness: 0.06, ...o });
+export function kitMaterial(name) {
+  if (KIT[name]) return KIT[name];
+  let m;
+  switch (name) {
+    case 'PaintStructural': m = kitFlat(0x6d7a84); break;
+    case 'PaintEquipment': m = kitFlat(0xb0b7ba); break;
+    case 'PaintDark': m = kitFlat(0x2a3034); break;
+    case 'MetalBare': m = kitFlat(0x868d91, { roughness: 0.6, metalness: 0.35 }); break;
+    case 'Rubber': m = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.95, metalness: 0.02 }); break;
+    case 'Hazard': m = kitFlat(0xbc9718); break;
+    case 'SafetyOrange': m = kitFlat(0xbf571e); break;
+    case 'Fabric': m = kitFlat(0x303a4a, { roughness: 0.95 }); break;
+    case 'Canister': m = kitFlat(0x556368); break;
+    case 'Screen': m = new THREE.MeshStandardMaterial({ color: 0x050809, emissive: 0x2a9fb8, emissiveIntensity: 0.6, roughness: 0.4 }); break;
+    case 'Status': m = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0x35e87a, emissiveIntensity: 1.3 }); break;
+    case 'Glass': m = M.glass; break;
+    case 'Drum': m = M.drum; break;
+    default: m = kitFlat(0x808080);
+  }
+  m.userData.noSnap = true;
+  return (KIT[name] = m);
+}
 
 // Large static level surfaces must not vertex-snap: moving a far corner by a pixel swims the whole plane.
 for (const k of Object.keys(M)) if (k !== 'drum' && k !== 'grayDrum') M[k].userData.noSnap = true;

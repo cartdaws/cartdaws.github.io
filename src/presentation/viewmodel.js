@@ -22,6 +22,7 @@ class Arm {
     this.p1 = new THREE.Vector3(); this.p2 = new THREE.Vector3(); this.tipT = new THREE.Vector3();
     this.endDir = new THREE.Vector3(); this.dir0 = new THREE.Vector3();
     this.phase = side > 0 ? 0 : 2.1;
+    this.restrainPos = new THREE.Vector3(side * 0.52, -0.5, -0.32);
 
     this.mesh = new TentacleMesh({ rings: 34, radial: 18, radius: (t) => lerp(0.14, 0.038, Math.pow(t, 0.8)) * (1 + 0.08 * Math.sin(t * 9)), material: vm.tgel });
     this.mesh.mesh.renderOrder = 2;
@@ -118,6 +119,7 @@ class Arm {
     tt.y += vm.swayY * 0.6 + Math.sin(t * 1.5 + this.phase) * 0.004 - vm.dashK * 0.1;
     tt.z += vm.lagZ + vm.dashK * 0.1 + rec * 0.08;
     tt.y += rec * 0.014;
+    if (vm.restrain > 0) tt.lerp(this.restrainPos, vm.restrain);
     const reach = weapon ? vm.reachW : 0;
     if (reach > 0) tt.lerp(vm.reachTarget, reach);
 
@@ -288,6 +290,8 @@ export class ViewModel {
     this.cineW = 0; // > 0 while the opening owns the arms
     this.reachW = 0; // right tip pulled toward reachTarget (camera-local)
     this.reachTarget = new THREE.Vector3();
+    this.restrain = 0; // 1 = both arms held in the cell's restraint clamps
+    this.leftHidden = false;
     this.pistol = null;
 
     this.recoil = 0; this.recoilVel = 0; this.pulse = 0;
@@ -338,8 +342,8 @@ export class ViewModel {
     const cine = this.cineW > 0;
     this.right.update(dt, c);
     this.left.update(dt, c);
-    this.left.setVisible(!cine);
-    for (const f of this.feelers) { f.update(dt, c); f.mesh.mesh.visible = !cine; }
+    this.left.setVisible(!this.leftHidden);
+    for (const f of this.feelers) { f.update(dt, c); f.mesh.mesh.visible = !cine && this.restrain < 0.5; }
   }
 
   render(renderer, camera) {

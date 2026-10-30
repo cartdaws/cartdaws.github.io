@@ -178,6 +178,33 @@ export class Audio {
       case 'land':
         this.tone(o, { type: 'sine', f0: 100, f1: 45, dur: 0.14, vol: 0.28 });
         break;
+      case 'vitals': // heart-monitor tick
+        this.tone(o, { type: 'sine', f0: 1040, f1: 1040, dur: 0.09, vol: 0.12 });
+        break;
+      case 'surge': // electrical overload rising
+        this.tone(o, { type: 'sawtooth', f0: 70, f1: 640, dur: 2.4, vol: 0.2, attack: 1.2, filter: { type: 'lowpass', f: 1800 } });
+        this.noise(o, { dur: 2.4, vol: 0.18, type: 'bandpass', f0: 800, f1: 5200, q: 1.5, attack: 0.6 });
+        break;
+      case 'alert': // console alarm double beep
+        this.tone(o, { type: 'square', f0: 1320, f1: 1320, dur: 0.1, vol: 0.1 });
+        this.tone(o, { type: 'square', f0: 1320, f1: 1320, dur: 0.1, vol: 0.1, delay: 0.16 });
+        break;
+      case 'crack':
+        this.noise(o, { dur: 0.12, vol: 0.5, type: 'highpass', f0: 4000, f1: 2200 });
+        this.tone(o, { type: 'triangle', f0: 3400, f1: 900, dur: 0.1, vol: 0.12 });
+        break;
+      case 'shatter':
+        this.noise(o, { dur: 0.9, vol: 0.7, type: 'highpass', f0: 2500, f1: 900, attack: 0.002 });
+        this.noise(o, { dur: 0.5, vol: 0.4, type: 'bandpass', f0: 5200, q: 2 });
+        this.tone(o, { type: 'sine', f0: 140, f1: 50, dur: 0.5, vol: 0.5 });
+        break;
+      case 'announce': // ship AI chime
+        this.tone(o, { type: 'sine', f0: 660, f1: 660, dur: 0.35, vol: 0.14 });
+        this.tone(o, { type: 'sine', f0: 880, f1: 880, dur: 0.5, vol: 0.14, delay: 0.22 });
+        break;
+      case 'step':
+        this.noise(o, { dur: 0.06, vol: 0.2, type: 'lowpass', f0: 500, f1: 200 });
+        break;
       case 'heartbeat':
         this.tone(o, { type: 'sine', f0: 70, f1: 38, dur: 0.16, vol: 0.9 });
         this.tone(o, { type: 'sine', f0: 62, f1: 34, dur: 0.18, vol: 0.7, delay: 0.2 });

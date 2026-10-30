@@ -13,6 +13,8 @@ export class UI {
     this.dirEl = $('dmgdir');
     this.dirT = 0;
     this.bannerEl = $('banner');
+    this.subEl = $('subtitle');
+    this.subT = 0;
     this.hintEl = $('hint');
     this.hintQueue = [];
     this.hintTimer = 0;
@@ -65,9 +67,19 @@ export class UI {
     $('health').classList.toggle('critical', sev > 0.4);
   }
 
+  // Subtitles for story-critical speech; speaker is a short label ('SHIP AI'), thought=true for the alien's own voice.
+  subtitle(text, speaker = '', dur = 3, thought = false) {
+    this.subEl.querySelector('b').textContent = speaker;
+    this.subEl.querySelector('span').textContent = text;
+    this.subEl.classList.toggle('thought', thought);
+    this.subEl.classList.remove('hidden');
+    this.subT = dur;
+  }
+  clearSubtitle() { this.subT = 0; this.subEl.classList.add('hidden'); }
+
   banner(text, color, dur) {
     this.bannerEl.textContent = text;
-    this.bannerEl.className = color;
+    this.bannerEl.className = color; // e.g. 'green goal'
     this.bannerT = dur;
     this.bannerDur = dur;
   }
@@ -83,12 +95,14 @@ export class UI {
     this.bannerT = 0; this.hitT = 0; this.vigT = 0;
     this.dirEl.style.opacity = 0; this.dirT = 0;
     this.setLowHealth(0, 0);
+    this.clearSubtitle();
   }
 
   update(dt) {
     if (this.hitT > 0) { this.hitT -= dt; if (this.hitT <= 0) this.hitEl.style.opacity = 0; else this.hitEl.style.opacity = Math.min(1, this.hitT * 8); }
     if (this.vigT > 0) { this.vigT -= dt; this.vig.style.opacity = Math.max(0, this.vigT / 0.5) * (this.vigPeak ?? 1); }
     else if (this.vig.style.opacity !== '0') this.vig.style.opacity = 0;
+    if (this.subT > 0) { this.subT -= dt; if (this.subT <= 0) this.subEl.classList.add('hidden'); }
     if (this.dirT > 0) { this.dirT -= dt; this.dirEl.style.opacity = Math.max(0, this.dirT / 1.1); }
     if (this.bannerT > 0) {
       this.bannerT -= dt;

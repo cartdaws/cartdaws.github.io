@@ -20,7 +20,7 @@ export class Encounter {
     g.audio.stopSiren();
     g.level.doors.entrance.open(true);
     g.level.doors.exit.close(true);
-    g.ui.setObjective('');
+    g.ui.setObjective('REACH THE HANGAR');
   }
 
   playerInside() {
@@ -65,6 +65,8 @@ export class Encounter {
     g.audio.play('lockdown', { vol: 0.9 });
     g.audio.startSiren();
     g.ui.banner('LOCKDOWN', 'red', 2.4);
+    g.audio.play('announce', { vol: 0.8 });
+    g.ui.subtitle('Intruder in the Robotics Deck. Sealing the workshop.', 'SHIP AI', 3.2);
     g.ui.hint('Red drums are explosive', 4);
     g.addShake(0.25);
     // Enemies visibly power up during the warning.
@@ -86,6 +88,6 @@ export class Encounter {
     g.audio.play('unlock', { vol: 1 });
     g.audio.play('door', { vol: 0.8 });
     g.ui.banner('EXIT UNLOCKED', 'green', 2.6);
-    g.ui.setObjective('PROCEED TO EXIT');
+    g.ui.setObjective('REACH THE HANGAR');
   }
 }
