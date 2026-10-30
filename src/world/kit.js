@@ -5,7 +5,8 @@ import { kitMaterial } from './materials.js';
 // Loads the Blender-authored environment kit (art/make_kit.py -> public/models/kit.glb).
 // Every asset is a list of meshes sharing the game's own materials. COL_<name> objects are gameplay colliders, never rendered.
 export class Kit {
-  constructor(parts, colliders) {
+  constructor(parts, colliders, nodes) {
+    this.nodes = nodes || {};
     this.parts = parts; // name -> [{ geometry, matName }]
     this.colliders = colliders; // name -> { w, d, h } footprint
   }
@@ -29,6 +30,15 @@ export class Kit {
     return out;
   }
 
+  // Clone of a whole glTF node with its child hierarchy and pivots intact (scanner arm, hinged door). Materials come from the game.
+  instance(name) {
+    const src = this.nodes[name];
+    if (!src) throw new Error('kit node missing: ' + name);
+    const g = src.clone(true);
+    g.traverse((o) => { if (o.isMesh) { o.material = kitMaterial((o.material && o.material.name) || 'PaintStructural'); o.userData.keep = true; } });
+    return g;
+  }
+
   // Footprint of the gameplay collider after a quarter-turn rotation.
   footprint(name, rotY = 0) {
     const c = this.colliders[name];
@@ -47,11 +57,12 @@ export class Kit {
 
 export async function loadKit() {
   const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/kit.glb');
-  const parts = {}, colliders = {};
+  const parts = {}, colliders = {}, nodes = {};
   gltf.scene.updateMatrixWorld(true);
   const roots = [];
   gltf.scene.traverse((o) => { if (o.parent === gltf.scene) roots.push(o); });
   for (const node of roots) {
+    nodes[node.name] = node;
     const meshes = [];
     node.traverse((o) => { if (o.isMesh) meshes.push(o); });
     if (!meshes.length) continue;
@@ -63,5 +74,5 @@ export async function loadKit() {
     }
     parts[node.name] = meshes.map((m) => ({ geometry: m.geometry, matName: (m.material && m.material.name) || 'PaintStructural' }));
   }
-  return new Kit(parts, colliders);
+  return new Kit(parts, colliders, nodes);
 }

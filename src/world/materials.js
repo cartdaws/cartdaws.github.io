@@ -369,7 +369,7 @@ export function kitMaterial(name) {
   let m;
   switch (name) {
     case 'PaintStructural': m = kitFlat(0x6d7a84); break;
-    case 'PaintEquipment': m = kitFlat(0xb0b7ba); break;
+    case 'PaintEquipment': m = kitFlat(0x9aa2a6); break;
     case 'PaintDark': m = kitFlat(0x2a3034); break;
     case 'MetalBare': m = kitFlat(0x868d91, { roughness: 0.6, metalness: 0.35 }); break;
     case 'Rubber': m = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.95, metalness: 0.02 }); break;

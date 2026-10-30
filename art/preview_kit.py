@@ -2,10 +2,10 @@
 import bpy, sys, math
 from mathutils import Vector
 out = sys.argv[sys.argv.index('--') + 1]
-objs = [o for o in bpy.data.objects if o.type == 'MESH' and not o.name.startswith('COL_') and not o.name.startswith('LENS_')]
+objs = [o for o in bpy.data.objects if o.type == 'MESH' and o.parent is None and not o.name.startswith('COL_') and not o.name.startswith('LENS_') and not o.name.startswith('SCREEN')]
 objs.sort(key=lambda o: o.name)
 # lay out in a grid in the XY plane, turn each to show its front (-Y) towards the camera
-cols = 9
+cols = 8
 gap = 4.4
 for i, o in enumerate(objs):
     o.location = ((i % cols) * gap, -(i // cols) * gap * 1.6, 0)

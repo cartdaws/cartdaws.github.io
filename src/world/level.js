@@ -113,7 +113,7 @@ export function buildLevel(scene, world, kit) {
   for (const z of [3.0, 6.4]) deco(-6, 6, 4.34, 4.5, z - 0.16, z + 0.16, dark);
 
   // lighting: functional ceiling panels over the work areas; a red emergency lamp for the breach
-  const chamberLights = [light(0, 4.1, 2.6, 0xc6dcf0, 80, 16), light(0, 4.1, 6.4, 0xb8d4ec, 75, 15)];
+  const chamberLights = [light(0, 4.1, 2.6, 0xc6dcf0, 56, 16), light(0, 4.1, 6.4, 0xb8d4ec, 52, 15)];
   light(0, 2.4, 5.2, 0x7ab8d4, 26, 7); // spill from the specimen display
   for (const [x, z] of [[-2.8, 2.6], [2.8, 2.6], [-2.8, 6.6], [2.8, 6.6]]) panel(x, z, 4.4, 1.6, 0.5);
   L.cut.chamberLights = chamberLights;
@@ -123,8 +123,17 @@ export function buildLevel(scene, world, kit) {
   // containment cell: plinth, posts, emitter crown, service spine, restraint arms (Blender kit)
   L.cut.cellParts = kit.place(scene, 'cell_frame', { x: CELL.x, z: CELL.z, rotY: PI });
   L.cut.cellGlass = kit.place(scene, 'cell_glass', { x: CELL.x, z: CELL.z, rotY: PI });
-  L.cut.cellFront = kit.place(scene, 'cell_front', { x: CELL.x, z: CELL.z, rotY: PI });
-  for (const m of [...L.cut.cellGlass, ...L.cut.cellFront]) m.renderOrder = 3;
+  // hinged door: pivot sits on the hinge axis so the cutscene can swing it open about its real hinge
+  const hinge = new THREE.Group();
+  hinge.position.set(CELL.x - 0.6, 0, CELL.z - 1.04);
+  hinge.rotation.y = PI;
+  hinge.add(kit.instance('cell_front'));
+  scene.add(hinge);
+  L.cut.cellDoor = hinge;
+  L.cut.cellFront = [hinge];
+  L.cut.setDoorOpen = (a) => { hinge.rotation.y = PI + a; };
+  for (const m of L.cut.cellGlass) m.renderOrder = 3;
+  hinge.traverse((o) => { if (o.isMesh) o.renderOrder = 3; });
   world.add(CELL.x - 1.45, 0, CELL.z - 1.45, CELL.x + 1.45, 4.5, CELL.z + 1.45, { tag: 'cell' });
   // keep-out marking on the floor around the cell
   for (const [x0, x1, z0, z1] of [[-2.4, 2.4, 6.6, 6.78], [-2.4, 2.4, 10.82, 11], [-2.4, -2.22, 6.6, 11], [2.22, 2.4, 6.6, 11]]) deco(x0, x1, 0.012, 0.03, z0, z1, M.hazard);
@@ -146,12 +155,12 @@ export function buildLevel(scene, world, kit) {
   for (const m of kit.place(scene, 'display_hanging', { x: 0, z: 4.4 })) m.userData.keep = true;
   for (const m of kit.place(scene, 'SCREEN_display_hanging', { x: 0, z: 4.4 })) m.material = display.material;
 
-  // ceiling-rail scanner arm over the cell approach; swings aside in the breach
-  const arm = new THREE.Group();
-  arm.position.set(-1.9, 4.38, 6.2);
-  scene.add(arm);
-  for (const m of kit.place(arm, 'scanner_arm', {})) m.userData.keep = true;
-  L.cut.scannerArm = arm;
+  // ceiling-rail scanner: rail -> carriage -> link -> head -> probe, each with its own pivot (driven by the opening)
+  const scan = kit.instance('scanner_rail');
+  scan.position.set(0, 4.36, 7.7);
+  scene.add(scan);
+  L.cut.scanner = { root: scan, carriage: scan.getObjectByName('scanner_carriage'), link: scan.getObjectByName('scanner_link'), head: scan.getObjectByName('scanner_head'), probe: scan.getObjectByName('scanner_probe') };
+  L.cut.scannerArm = scan;
 
   // examination table with cuffs against the west wall, instrument cart beside it
   kit.solid(scene, world, 'restraint_bed', -4.7, 5.2, PI / 2);
@@ -324,11 +333,11 @@ export function buildLevel(scene, world, kit) {
     const status = kitMaterial('Status');
     if (L.surge > 0.01) { // chamber lamps stutter, status lights strobe
       const k = Math.random() < 0.35 * L.surge ? 0.12 : 0.85 + Math.random() * 0.2;
-      chamberLights[0].intensity = 80 * k; chamberLights[1].intensity = 75 * (Math.random() < 0.3 * L.surge ? 0.1 : 1);
+      chamberLights[0].intensity = 56 * k; chamberLights[1].intensity = 52 * (Math.random() < 0.3 * L.surge ? 0.1 : 1);
       lampMat.emissiveIntensity = 1.5 * k;
       status.emissiveIntensity = 1.3 + 2.4 * L.surge * (0.5 + 0.5 * Math.sin(t * 30));
     } else {
-      chamberLights[0].intensity = 80; chamberLights[1].intensity = 75; lampMat.emissiveIntensity = 1.5; status.emissiveIntensity = 1.3;
+      chamberLights[0].intensity = 56; chamberLights[1].intensity = 52; lampMat.emissiveIntensity = 1.5; status.emissiveIntensity = 1.3;
     }
     const strobe = 0.5 + 0.5 * Math.sin(t * 7);
     if (L.emergencyOn) L.emergency.intensity = 30 * strobe; else L.emergency.intensity = 0;

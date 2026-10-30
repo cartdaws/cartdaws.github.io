@@ -22,8 +22,8 @@ export class Door {
 
     this.lampMat = new THREE.MeshStandardMaterial({ color: 0, emissive: LAMP.green, emissiveIntensity: 2.4 });
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
-      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.5, 0.1), this.lampMat);
-      lamp.position.set(x + sx * (w / 2 + 0.12), 2.2, z + sz * (d / 2 + 0.12));
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.34, 0.03), this.lampMat);
+      lamp.position.set(x + sx * (w / 2 + 0.13), 2.1, z + sz * 0.41);
       scene.add(lamp);
     }
 

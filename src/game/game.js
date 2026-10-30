@@ -23,7 +23,7 @@ const STEP = 1 / 60;
 const BASE_FOV = 78;
 
 export class Game {
-  constructor(canvas, armGeos, kit) {
+  constructor(canvas, armGeos, kit, handAsset) {
     this.canvas = canvas;
     this.kit = kit;
     this.arena = ARENA;
@@ -52,7 +52,7 @@ export class Game {
     this.input = new Input(canvas);
     this.input.fake = location.search.includes('nolock');
     this.player = new Player(this);
-    this.viewmodel = new ViewModel(armGeos);
+    this.viewmodel = new ViewModel(handAsset);
     this.body = new AlienBody(this.scene, this.world, this.player, armGeos);
     this.weapon = new Shardcaster(this);
     this.projectiles = new Projectiles(this);
