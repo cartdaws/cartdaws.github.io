@@ -3,10 +3,10 @@ import { lerp, damp, clamp, angleDiff } from '../core/util.js';
 import { makeGel } from '../world/materials.js';
 import { TentacleMesh, makeTentacleGel, updateTentacleGels, bezier, SpringChain } from '../presentation/tentacle.js';
 
-const LEGS = [ // angle from forward (rad), reach (m), gait group
-  { a: -0.66, reach: 2.5, g: 0 }, { a: 0.66, reach: 2.5, g: 1 },
-  { a: -1.57, reach: 1.9, g: 1 }, { a: 1.57, reach: 1.9, g: 0 },
-  { a: -2.55, reach: 2.0, g: 0 }, { a: 2.55, reach: 2.0, g: 1 },
+const LEGS = [ // angle from forward (rad), reach (m), gait group: short, slim legs so the body never fills the view
+  { a: -0.66, reach: 1.45, g: 0 }, { a: 0.66, reach: 1.45, g: 1 },
+  { a: -1.57, reach: 1.15, g: 1 }, { a: 1.57, reach: 1.15, g: 0 },
+  { a: -2.55, reach: 1.2, g: 0 }, { a: 2.55, reach: 1.2, g: 1 },
 ];
 const N = 10;
 const _o = new THREE.Vector3(), _v = new THREE.Vector3();
@@ -22,24 +22,26 @@ export class AlienBody {
     this.lean = new THREE.Vector2();
 
     const bellGel = makeGel({ color: 0x0a4a46, rim: 0x7ff0e0, alpha: 0.2 });
-    this.bell = new THREE.Mesh(geos.Mantle, bellGel);
-    this.bell.scale.set(0.95, 1.0, 0.95);
+    this.bell = new THREE.Mesh(geos.BodyBell, bellGel);
+    this.bell.position.y = -0.18;
+    this.bell.scale.set(1, 1, 1);
     this.bell.renderOrder = 2;
     this.group.add(this.bell);
 
     const organ = makeGel({ color: 0x0f6a60, rim: 0xc6fff6, alpha: 0.5 });
-    this.core = new THREE.Mesh(geos.Organ, organ);
-    this.core.scale.setScalar(0.13);
-    this.core.position.y = 0.55;
+    this.core = new THREE.Mesh(geos.BodyCore, organ);
+    this.core.scale.setScalar(1);
+    this.core.position.y = 0.05;
     this.group.add(this.core);
     this.sats = [];
     for (let i = 0; i < 4; i++) {
       const m = (() => { const o = new THREE.Mesh(geos.Organ, organ); o.scale.setScalar(0.05 + i * 0.01); return o; })();
       this.group.add(m);
+      m.visible = false; // the floating organs read as stray rocks from above
       this.sats.push({ m, a: i * 1.6, r: 0.27 + i * 0.03, h: 0.35 + i * 0.12 });
     }
 
-    this.legGel = makeTentacleGel({ color: 0x0a4a46, rim: 0x7ff0e0, alpha: 0.5, length: 2.4, r0: 0.11, r1: 0.012 });
+    this.legGel = makeTentacleGel({ color: 0x0a4a46, rim: 0x7ff0e0, alpha: 0.5, length: 1.5, r0: 0.04, r1: 0.007 });
     this.legs = LEGS.map((d) => {
       const leg = {
         d,
@@ -48,7 +50,7 @@ export class AlienBody {
         chain: new SpringChain(N, 360, 90, 0.8),
         ideal: Array.from({ length: N }, () => new THREE.Vector3()),
         c1: new THREE.Vector3(), c2: new THREE.Vector3(), root: new THREE.Vector3(),
-        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: (t) => lerp(0.15, 0.015, Math.pow(t, 0.75)) * (1 + 0.1 * Math.sin(t * 10)), material: this.legGel }),
+        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: (t) => lerp(0.046, 0.007, Math.pow(t, 0.7)) * (1 + 0.1 * Math.sin(t * 10)), material: this.legGel }),
       };
       leg.mesh.mesh.renderOrder = 2;
       scene.add(leg.mesh.mesh);
@@ -87,15 +89,15 @@ export class AlienBody {
     this.lean.x = damp(this.lean.x, clamp(lz * 0.02, -0.25, 0.25), 6, dt);
     this.lean.y = damp(this.lean.y, clamp(-lx * 0.02, -0.25, 0.25), 6, dt);
     const breathe = 1 + Math.sin(t * 1.8) * 0.025 + Math.sin(t * 7) * 0.006 * Math.min(1, speed);
-    this.group.position.set(p.pos.x, p.pos.y + 0.52, p.pos.z);
+    this.group.position.set(p.pos.x, p.pos.y + 0.5, p.pos.z);
     this.group.rotation.set(this.lean.x, this.yaw, this.lean.y, 'YXZ');
-    this.bell.scale.set(0.95 * breathe, 1.0 / breathe, 0.95 * breathe);
-    this.core.scale.setScalar(0.13 * (1 + Math.sin(t * 2.4) * 0.12));
+    this.bell.scale.set(breathe, 1.0 / breathe, breathe);
+    this.core.scale.setScalar(1 + Math.sin(t * 2.4) * 0.12);
     this.core.rotation.y = t * 0.2;
     for (const s of this.sats) s.m.position.set(Math.cos(t * 0.7 + s.a) * s.r, s.h + Math.sin(t * 1.3 + s.a) * 0.05, Math.sin(t * 0.7 + s.a) * s.r);
 
     // Gait: two alternating tripods.
-    const stepDist = 0.5 + Math.min(0.45, speed * 0.06);
+    const stepDist = 0.36 + Math.min(0.32, speed * 0.045);
     let stepping = [false, false];
     for (const leg of this.legs) if (leg.stepT >= 0) stepping[leg.d.g] = true;
     const lead = clamp(0.22 + speed * 0.01, 0.2, 0.32);
@@ -128,14 +130,14 @@ export class AlienBody {
 
       // Spine of the tentacle: out and up from the bell, arching down to the foot.
       const { a } = leg.d;
-      const rx = Math.sin(a) * 0.3, rz = -Math.cos(a) * 0.3;
+      const rx = Math.sin(a) * 0.2, rz = -Math.cos(a) * 0.2;
       const cyb = Math.cos(this.yaw), syb = Math.sin(this.yaw);
-      leg.root.set(p.pos.x + rx * cyb + rz * syb, p.pos.y + 0.62, p.pos.z - rx * syb + rz * cyb);
+      leg.root.set(p.pos.x + rx * cyb + rz * syb, p.pos.y + 0.5, p.pos.z - rx * syb + rz * cyb);
       const dx = leg.foot.x - leg.root.x, dz = leg.foot.z - leg.root.z, hd = Math.hypot(dx, dz) || 1;
       const ox = dx / hd, oz = dz / hd;
       const lift = Math.max(0, leg.foot.y - (this.world.groundHeight(leg.foot.x, leg.foot.z, p.pos.y + 0.4, 0.2)));
-      leg.c1.set(leg.root.x + ox * hd * 0.35, leg.root.y + 0.5 + hd * 0.18, leg.root.z + oz * hd * 0.35);
-      leg.c2.set(leg.foot.x - ox * hd * 0.2, leg.foot.y + 0.55 + hd * 0.12 + lift * 0.5, leg.foot.z - oz * hd * 0.2);
+      leg.c1.set(leg.root.x + ox * hd * 0.35, leg.root.y + 0.28 + hd * 0.14, leg.root.z + oz * hd * 0.35);
+      leg.c2.set(leg.foot.x - ox * hd * 0.2, leg.foot.y + 0.3 + hd * 0.1 + lift * 0.5, leg.foot.z - oz * hd * 0.2);
       for (let i = 0; i < N; i++) bezier(leg.root, leg.c1, leg.c2, leg.foot, i / (N - 1), leg.ideal[i]);
       for (let i = 1; i < N - 1; i++) {
         const w = i / (N - 1), amp = 0.02 * Math.sin(w * Math.PI) * (1 + Math.min(1, speed));
