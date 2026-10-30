@@ -244,6 +244,10 @@ export class Audio {
         this.noise(o, { dur: 0.06, vol: 0.3, type: 'highpass', f0: 3000, delay: 0.17 });
         this.noise(o, { dur: 0.05, vol: 0.2, type: 'highpass', f0: 3000, delay: 0.32 });
         break;
+      case 'swallow': // wet pull as gel draws something in
+        this.tone(o, { type: 'sine', f0: 210, f1: 70, dur: 0.28, vol: 0.32, filter: { type: 'lowpass', f: 500 } });
+        this.noise(o, { dur: 0.22, vol: 0.14, type: 'bandpass', f0: 500, f1: 200, q: 3 });
+        break;
       case 'heartbeat':
         this.tone(o, { type: 'sine', f0: 70, f1: 38, dur: 0.16, vol: 0.9 });
         this.tone(o, { type: 'sine', f0: 62, f1: 34, dur: 0.18, vol: 0.7, delay: 0.2 });

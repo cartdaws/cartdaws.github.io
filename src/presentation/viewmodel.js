@@ -103,7 +103,7 @@ class HandArm {
     this.setKey('Grip', clamp(curl * (1 - f * 0.9), 0, 1));
     this.setKey('Weapon', clamp(f * (1 - 0.55 * rec), 0, 1));
     this.setKey('Spread', clamp(rec * 1.2, 0, 1));
-    this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35, 0, 1.2));
+    this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35 + (this.weapon ? vm.bulge : 0), 0, 1.4));
 
     this.palmCore.scale.setScalar(1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6);
     if (!this.weapon) return;
@@ -131,7 +131,7 @@ class HandArm {
       m.visible = vm.frag > 0.01;
       m.position.lerpVectors(fr.sp, fr.ap, vm.crystal);
       m.quaternion.slerpQuaternions(fr.sq, fr.aq, vm.crystal);
-      m.scale.lerpVectors(fr.ss, fr.as, vm.crystal).multiplyScalar(vm.frag);
+      m.scale.lerpVectors(fr.ss, fr.as, vm.crystal).multiplyScalar(vm.frag * (fr.k ?? 1));
     }
   }
 
@@ -167,7 +167,8 @@ export class ViewModel {
     this.reachTarget = new THREE.Vector3();
     this.restrain = 0; // 1 = both wrists held in the cell's clamps
     this.restrainSlack = 0; // 0 = straining, 1 = loose
-    this.xray = 0; // 1 = skin thinned so internal structures read clearly
+    this.xray = 0;
+    this.bulge = 0; // travelling swelling of the forearm as absorbed pieces pass through // 1 = skin thinned so internal structures read clearly
     this.charge = 0; // experiment overload: inner structures glow harder
     this.leftHidden = false;
     this.camYaw = 0; this.camPitch = 0; // camera orientation, used to keep the clamped wrists fixed in the world

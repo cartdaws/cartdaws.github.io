@@ -3,6 +3,7 @@ import { lerp, smooth, seg, easeOut } from '../core/util.js';
 import { PLAYER_START, PISTOL_POS, CELL } from '../world/level.js';
 import { MemoryScene } from '../world/screens.js';
 import { poseHuman, seatHuman } from '../world/humans.js';
+import { makeHandGel } from './hand.js';
 
 // ------------------------------------------------------------------------------------------------------------------
 // THE OPENING (about 55 s). Every visual state is derived from the clock `t`, so skipping lands on the same playable state.
@@ -30,7 +31,7 @@ const T = {
   power: 19.8, react: 21.6, spark: 23.2, sealDown: 23.8, standUp: 24.0, shutdown: 25.6, runOff: 27.2,
   seam: 26.4, push: 28.2, shatter: 29.0, swing: 29.0,
   breachAI: 30.4, bulkheadOpen: 31.0, aim: 32.2, bulkheadShut: 33.2, strike: 33.6, retreat: 34.2,
-  walk: 35.0, reach: 38.0, contact: 39.2, envelop: 39.4, breakApart: 40.6, realign: 42.6, form: 44.2, settle: 46.2,
+  walk: 35.0, reach: 38.0, contact: 39.2, envelop: 39.4, breakApart: 40.6, realign: 43.2, form: 44.8, settle: 46.4,
   aiRoute: 46.4, lookRoute: 47.6, goal: 51.2,
 };
 const KEYS = [
@@ -59,7 +60,7 @@ const KEYS = [
   [35.2, CX, EYE, CZ - 1.5, -0.12, -0.14],
   [36.6, 0.15, 1.5, 6.4, -0.1, -0.3],
   [38.0, P1.x, P1.y, P1.z, YAW_P, PITCH_P],
-  [44.6, P1.x, P1.y, P1.z, YAW_P, PITCH_P],
+  [45.6, P1.x, P1.y, P1.z, YAW_P, PITCH_P],
   [46.6, PLAYER_START.x, EYE, PLAYER_START.z, 0.0, 0.0],
   [47.8, PLAYER_START.x, EYE, PLAYER_START.z, 0.0, 0.02],
   [48.8, PLAYER_START.x, EYE, PLAYER_START.z, ROUTE_YAW, 0.04],
@@ -121,12 +122,16 @@ export class Opening {
     this.active = true;
     this.t = 0;
     this.f = {};
+    this.blob = null;
     this.beat = 0; this.stride = 0; this.lastStep = -1; this.lastDraw = -1; this.lastDraw2 = -1;
     this.pistolView = null;
     this.parts = null;
+    if (this.blob) { vm.root.remove(this.blob); this.blob = null; }
     this.dropT = -1;
     this.granted = false;
     this.resetProps();
+    for (const fr of vm.right.frags) fr.k = 0;
+    vm.bulge = 0;
     vm.setPistol(null);
     vm.form = 0; vm.crystal = 0; vm.frag = 0; vm.curl = 0.2; vm.cineW = 1; vm.reachW = 0; vm.restrain = 1; vm.restrainSlack = 0; vm.charge = 0; vm.leftHidden = false; vm.xray = 0;
     vm.recoil = vm.recoilVel = vm.pulse = 0;
@@ -268,42 +273,69 @@ export class Opening {
       vm.reachW = ease(t, T.reach, T.contact) * (1 - ease(t, T.settle + 0.3, T.settle + 1.6));
       vm.curl = t < T.envelop ? lerp(0.15, 0.25, ease(t, T.reach, T.contact)) : lerp(0.25, 1, ease(t, T.envelop, T.envelop + 1.0)) * (1 - ease(t, T.form - 0.2, T.form + 0.9));
     }
+    // CONTACT: fingertips touch the grip. ENVELOP: a skin of gel creeps over the whole pistol and draws it into the palm.
     once('touch', T.contact, () => {
       L.pistol.visible = false; L.pistolLight.intensity = 0;
       this.pistolView = this.makeViewPistol();
       this.pistolView.position.copy(this.pistolLocal); this.pistolView.quaternion.copy(this.pistolQuat);
       vm.setPistol(this.pistolView);
-      a.play('gel', { vol: 0.9 }); vm.pulseGlow(0.5);
+      this.blob = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 20), this.blobGel || (this.blobGel = makeHandGel({ color: 0x118078, rim: 0xb8fff4, alpha: 0.62 })));
+      this.blob.renderOrder = 6; this.blob.frustumCulled = false;
+      vm.root.add(this.blob);
+      for (const fr of vm.right.frags) fr.k = 0;
+      a.play('gel', { vol: 0.9 }); vm.pulseGlow(0.45);
     });
     if (this.pistolView && !this.parts) {
-      // enveloped: the pistol is drawn into the palm and held under the skin
-      const k = ease(t, T.envelop, T.envelop + 1.0);
-      const target = vm.root.worldToLocal(new THREE.Vector3(0, 0, -0.07).applyMatrix4(vm.right.root.matrixWorld));
+      const k = ease(t, T.envelop, T.envelop + 1.2);
+      const target = vm.root.worldToLocal(new THREE.Vector3(0, 0, -0.05).applyMatrix4(vm.right.root.matrixWorld));
       this.pistolView.position.lerpVectors(this.pistolLocal, target, k);
-      this.pistolView.scale.setScalar(1.25 * lerp(1, 0.78, k));
+      this.pistolView.scale.setScalar(1.25 * lerp(1, 0.8, k));
       const qt = vm.right.root.getWorldQuaternion(_wq).premultiply(_rq.copy(vm.root.getWorldQuaternion(new THREE.Quaternion())).invert());
       this.pistolView.quaternion.slerp(qt, k * 0.6);
+      // the gel creeps from the fingertips over the pistol, then follows it inward
+      const grow = ease(t, T.contact, T.envelop + 0.5);
+      const wob = 1 + 0.05 * Math.sin(t * 9);
+      this.blob.quaternion.copy(this.pistolView.quaternion);
+      this.blob.position.copy(this.pistolView.position).add(new THREE.Vector3(0, 0, -0.06).applyQuaternion(this.pistolView.quaternion));
+      this.blob.scale.set(0.085 * wob, 0.08, 0.17).multiplyScalar((0.3 + 0.7 * grow) * lerp(1, 0.8, k));
+      vm.curl = Math.max(vm.curl, 0.5 * grow);
+      if (!f.gulp && k > 0.55) { f.gulp = true; a.play('swallow', { vol: 0.9 }); vm.pulseGlow(0.6); }
     }
+    // BREAK APART: the pistol's pieces separate under the skin and travel up the forearm one by one, each causing a bulge
     once('break', T.breakApart, () => {
-      a.play('absorb', { vol: 0.9 });
-      this.parts = this.pistolView.userData.parts.map((p, i) => { vm.right.tip.attach(p); return { p, p0: p.position.clone(), q0: p.quaternion.clone(), s0: p.scale.clone(), i }; });
+      a.play('absorb', { vol: 0.8 });
+      if (this.blob) { vm.root.remove(this.blob); this.blob.geometry.dispose(); this.blob = null; }
+      this.parts = this.pistolView.userData.parts.map((p, i) => { vm.right.tip.attach(p); return { p, p0: p.position.clone(), q0: p.quaternion.clone(), s0: p.scale.clone(), i, t0: T.breakApart + i * 0.34, dur: 1.5, swallowed: false }; });
+      vm.frag = 1;
     });
-    if (this.parts && !f.dissolved) {
-      const k = ease(t, T.breakApart, T.realign - 0.1);
-      vm.frag = k;
-      vm.pulse = Math.max(vm.pulse, 0.3 * Math.sin(k * Math.PI));
+    if (this.parts) {
+      let bulge = 0;
       for (const d of this.parts) {
+        const u = seg(t, d.t0, d.t0 + d.dur);
         const fr = vm.right.frags[d.i];
-        const kk = ease(k, d.i * 0.05, 0.6 + d.i * 0.05);
-        d.p.position.lerpVectors(d.p0, fr.sp, kk);
-        d.p.quaternion.slerpQuaternions(d.q0, fr.sq, kk);
-        d.p.scale.copy(d.s0).multiplyScalar(1 - kk);
+        if (u <= 0) continue;
+        if (u < 1) {
+          // 0..0.35: slide into the wrist (a steady pull), 0.35..1: travel along the forearm on a gentle spiral
+          const w = ease(u, 0, 0.35), run = ease(u, 0.3, 1.0);
+          const pt = new THREE.Vector3().lerpVectors(d.p0, new THREE.Vector3(0, 0, -0.01), w);
+          const targ = fr.sp.clone();
+          const ang = run * 5.5 + d.i;
+          pt.lerp(new THREE.Vector3(Math.cos(ang) * 0.02, Math.sin(ang) * 0.02, targ.z), run);
+          d.p.position.copy(pt);
+          d.p.quaternion.slerpQuaternions(d.q0, fr.sq, run);
+          d.p.scale.copy(d.s0).multiplyScalar(lerp(1, 0.55, w) * (1 - 0.35 * run));
+          bulge = Math.max(bulge, Math.sin(run * Math.PI) * 0.9);
+          if (!d.swallowed && u > 0.28) { d.swallowed = true; a.play('swallow', { vol: 0.5 }); vm.pulseGlow(0.35); }
+        } else if (d.p.visible) { d.p.visible = false; fr.k = 1; vm.pulseGlow(0.2); }   // the piece becomes an internal fragment
       }
-      if (k >= 1) { f.dissolved = true; for (const d of this.parts) d.p.visible = false; }
+      vm.bulge = bulge;
+      // the remaining fragments condense in as the realignment approaches
+      vm.right.frags.forEach((fr, i) => { if (i >= 5) fr.k = ease(t, T.breakApart + 1.2 + (i - 5) * 0.2, T.breakApart + 2.2 + (i - 5) * 0.2); });
     }
     vm.xray = stage(t, T.envelop + 0.2, T.envelop + 1.0, T.form, T.form + 1.4);   // skin thins so the pistol breaking apart is readable
     once('realign', T.realign, () => a.play('crystal', { vol: 0.9 }));
     if (t >= T.breakApart) vm.crystal = ease(t, T.realign, T.form);
+    if (t >= T.realign) vm.bulge = Math.max(0, vm.bulge - 0.05);
     once('learn', T.realign + 0.5, () => this.say('It learns. It becomes.', '', 2.6, true));
     once('formSound', T.form, () => a.play('gel', { vol: 0.8 }));
     if (t >= T.form) {
@@ -449,6 +481,9 @@ export class Opening {
     const g = this.g, vm = g.viewmodel, L = g.level, c = L.cut;
     this.active = false;
     if (this.parts) for (const d of this.parts) d.p.removeFromParent();
+    if (this.blob) { vm.root.remove(this.blob); this.blob = null; }
+    for (const fr of vm.right.frags) fr.k = 1;
+    vm.bulge = 0;
     vm.setPistol(null);
     vm.form = 1; vm.crystal = 1; vm.frag = 1; vm.curl = 0; vm.cineW = 0; vm.reachW = 0; vm.restrain = 0; vm.restrainSlack = 1; vm.charge = 0; vm.leftHidden = false; vm.xray = 0;
     vm.recoil = vm.recoilVel = 0;
