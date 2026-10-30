@@ -80,6 +80,11 @@ export class Projectiles {
             if (t >= 0 && t <= bestT) { bestT = t; hit = { type: 'enemy', target: e }; }
           }
         }
+        const it = g.opening.target; // the maintenance lock in the opening
+        if (it && it.alive) {
+          const t = raySphere(ox, oy, oz, dx, dy, dz, it.c.x, it.c.y, it.c.z, it.r, bestT);
+          if (t >= 0 && t <= bestT) { bestT = t; hit = { type: 'intro' }; }
+        }
         for (const b of g.barrels) {
           if (b.state === 'destroyed') continue;
           for (const s of b.hitSpheres) {
@@ -105,6 +110,7 @@ export class Projectiles {
           else { g.effects.impact(hp, n); g.sfxAt('impact', hp, 0.8); }
         } else if (hit.type === 'enemy') g.onPlayerHit(hit.target, p.damage, hp);
         else if (hit.type === 'barrel') g.onPlayerHitBarrel(hit.target, p.damage, hp);
+        else if (hit.type === 'intro') g.opening.hitTarget(hp);
         else if (hit.type === 'player') g.damagePlayer(p.damage, hp);
         continue;
       }

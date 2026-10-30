@@ -90,9 +90,10 @@ export class Enemy {
     }
     this.absRing.visible = !this.absorbing;
     this.absRing.position.set(this.pos.x, 0.05, this.pos.z);
-    const target = this.ringBoost ? 0.8 : 0.25;
+    const boost = this.ringBoost || this.tutMark;   // the first lesson keeps its marker bright and slightly larger
+    const target = boost ? 0.85 : 0.25;
     this.absRing.material.opacity += (target * (0.8 + 0.2 * Math.sin(this.dis * 5)) - this.absRing.material.opacity) * Math.min(1, dt * 10);
-    const s = this.ringBoost ? 1.1 + 0.05 * Math.sin(this.dis * 7) : 1;
+    const s = boost ? 1.1 + 0.05 * Math.sin(this.dis * 7) : 1;
     this.absRing.scale.set(s, 1, s);
   }
 

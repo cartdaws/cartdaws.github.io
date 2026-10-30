@@ -76,7 +76,7 @@ export class TouchControls {
     hold($('t-dash'), () => input.pressed.add('ShiftLeft'));
     hold($('t-pause'), () => onPause());
     this.absorbBtn = $('t-absorb');
-    hold(this.absorbBtn, () => input.onMouseDown(2), null);
+    hold(this.absorbBtn, () => { input.touchInteract = true; input.onMouseDown(2); }, () => { input.touchInteract = false; });
 
     // stop the browser's own gestures (scroll, zoom, long-press menus) while playing
     for (const ev of ['touchmove', 'gesturestart']) document.addEventListener(ev, (e) => { if (root.classList.contains('show')) e.preventDefault(); }, { passive: false });
@@ -84,10 +84,16 @@ export class TouchControls {
     document.getElementById('skip').addEventListener('pointerdown', (e) => { e.preventDefault(); onSkip(); });
   }
 
-  setAbsorb(v) { this.absorbBtn.classList.toggle('ready', v); }
+  setAbsorb(v, label = 'ABSORB') { this.absorbBtn.classList.toggle('ready', !!v); if (this.absorbBtn.textContent !== label) this.absorbBtn.textContent = label; }
 
   // mode: 'play' (all controls), 'cine' (pause only, during the cinematic) or false
-  setVisible(mode) { this.root.classList.toggle('show', !!mode); this.root.classList.toggle('cine', mode === 'cine'); }
+  // flags (opening only): which action buttons exist right now, so the screen never offers a control the player cannot use yet
+  setVisible(mode, flags = null) {
+    this.root.classList.toggle('show', !!mode);
+    this.root.classList.toggle('cine', mode === 'cine');
+    const f = flags || { fire: true, jump: true, dash: true };
+    this.root.classList.toggle('no-fire', !f.fire); this.root.classList.toggle('no-jump', !f.jump); this.root.classList.toggle('no-dash', !f.dash);
+  }
 }
 
 // Fullscreen + landscape where the browser allows it (Android Chrome yes; iOS Safari ignores both).

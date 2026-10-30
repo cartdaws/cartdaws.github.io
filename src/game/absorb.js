@@ -148,7 +148,7 @@ export class Absorber {
     this.target = target;
     for (const e of g.enemies) e.ringBoost = e === target;
     if (g.touchUI) g.touchUI.setAbsorb(!!target);
-    if (!target) { ui.setPrompt(''); return; }
+    if (!target) { if (!g.opening.routePrompt) ui.setPrompt(''); return; }
     if (!this.hinted) { this.hinted = true; ui.hint(g.touchMode ? 'TAP ABSORB ON DISABLED ROBOTS' : 'RIGHT CLICK TO ABSORB DISABLED ROBOTS', 3.5); }
     ui.setPrompt(g.touchMode ? 'ABSORB' : 'RIGHT CLICK — ABSORB');
   }

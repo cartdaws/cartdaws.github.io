@@ -12,7 +12,14 @@ function read() {
 
 let state = read();
 
+const INTRO_KEY = 'intruder-intro';
+let introDone = false;
+try { introDone = localStorage.getItem(INTRO_KEY) === '1'; } catch (e) { /* none */ }
+
 export const save = {
+  // The checkpoint after acquiring the Shardcaster: later sessions start at the first room's approach, not at home.
+  get introDone() { return introDone; },
+  setIntroDone(v) { introDone = !!v; try { localStorage.setItem(INTRO_KEY, v ? '1' : '0'); } catch (e) { /* none */ } },
   get maxHpBonus() { return state.maxHpBonus; },
   // Called once per absorbed enemy; returns the new bonus.
   addMaxHp() {

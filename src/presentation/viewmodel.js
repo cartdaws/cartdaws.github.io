@@ -99,7 +99,7 @@ class HandArm {
     if (w > 0) {
       _d.subVectors(rtgt, _el.set(side * 0.5, -0.78, 0.2)).normalize();
       _w.copy(rtgt).addScaledVector(_d, -0.1);
-      if (!this.weapon && _w.length() > 0.7) _w.setLength(0.7); // the supporting hand only points; the tentacles do the reaching
+      if (_w.length() > 0.78) _w.setLength(0.78); // a hand only reaches so far; tentacles do the rest
       _m.lookAt(_w, rtgt, UP);
       _q.setFromRotationMatrix(_m);
       pos.lerp(_w, w);

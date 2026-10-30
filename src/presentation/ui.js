@@ -65,6 +65,8 @@ export class UI {
   }
 
   setPrompt(t) { const el = $('prompt'); if (el.textContent !== t) el.textContent = t; el.style.opacity = t ? 1 : 0; }
+  // hold-to-act progress under the prompt; null hides it
+  setHold(p) { const el = $('hold'); if (p === null || p <= 0.001) { el.style.opacity = 0; return; } el.style.opacity = 1; el.firstChild.style.width = Math.min(100, p * 100) + '%'; }
   setObjective(t) { $('objective').textContent = t; }
 
   hitMarker(kill) {

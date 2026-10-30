@@ -14,7 +14,7 @@ import { SentryDrone } from './enemies/sentryDrone.js';
 import { Barrel } from './barrels.js';
 import { Encounter, EncounterState } from './encounter.js';
 import { ViewModel } from '../presentation/viewmodel.js';
-import { Opening } from '../presentation/story.js';
+import { Intro } from '../presentation/intro.js';
 import { UI } from '../presentation/ui.js';
 import { TouchControls, isTouchDevice, enterImmersive } from '../core/touch.js';
 import { PostFX } from '../presentation/post.js';
@@ -26,8 +26,9 @@ const STEP = 1 / 60;
 const BASE_FOV = 78;
 
 export class Game {
-  constructor(canvas, armGeos, kit, handAsset, robots, tentacle) {
+  constructor(canvas, armGeos, kit, handAsset, robots, tentacle, homeAsset) {
     this.canvas = canvas;
+    this.homeAsset = homeAsset;
     this.robots = robots;
     this.kit = kit;
     this.arena = ARENA;
@@ -59,8 +60,8 @@ export class Game {
     if (this.touchMode) {
       this.input.touch = true;
       this.touchUI = new TouchControls(this.input, {
-        onPause: () => { if (this.state === 'playing' || this.state === 'opening') this.input.unlock(); },
-        onSkip: () => { if (this.state === 'opening' && !this.paused) this.opening.skip(); },
+        onPause: () => { if (this.state === 'playing') this.input.unlock(); },
+        onSkip: () => { if (this.opening.active && !this.paused) this.opening.skip(); },
       });
     }
     this.player = new Player(this);
@@ -70,7 +71,7 @@ export class Game {
     this.absorber = new Absorber(this);
     this.projectiles = new Projectiles(this);
     this.encounter = new Encounter(this);
-    this.opening = new Opening(this);
+    this.opening = new Intro(this);
     this.opening.resetProps();
 
     this.enemies = [];
@@ -168,7 +169,7 @@ export class Game {
       if (locked) {
         this.lockRetries = 0;
         if (this.paused) this.unpause();
-      } else if (this.state === 'opening' || this.state === 'playing') this.pause();
+      } else if (this.state === 'playing') this.pause();
     };
     input.onLockError = () => {
       if (this.state === 'menu' || this.state === 'dead' || this.state === 'complete') return;
@@ -176,13 +177,13 @@ export class Game {
       else if (!this.paused) this.pause();
     };
     input.onKeyDown = (code) => {
-      if (this.state === 'opening' && !this.paused && (code === 'Space' || code === 'Enter')) this.opening.skip();
+      if (this.opening.active && this.opening.canSkip() && !this.paused && code === 'Enter') this.opening.skip();
     };
     input.onMouseDown = (btn) => {
       if (btn === 0 && this.canFire()) this.weapon.latch();
-      else if (btn === 2) this.absorber.request();
+      else if (btn === 2) { if (this.opening.active) this.opening.press(); else this.absorber.request(); }
     };
-    document.addEventListener('visibilitychange', () => { if (document.hidden && (this.state === 'playing' || this.state === 'opening') && !this.paused) this.pause(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && this.state === 'playing' && !this.paused) this.pause(); });
   }
 
   toggleGfx() {
@@ -206,10 +207,9 @@ export class Game {
     this.audio.init();
     if (this.touchMode) enterImmersive();
     this.ui.hideMenus();
-    this.ui.fade(1);
-    this.state = 'opening';
-    this.cinePose = this.opening.pose;
-    this.opening.start();
+    this.state = 'playing';
+    this.cinePose = null;
+    this.opening.begin(save.introDone ? 'ready' : 'home');
     this.input.lock();
   }
 
@@ -256,7 +256,7 @@ export class Game {
 
   restart() {
     this.audio.init();
-    if (this.state === 'opening') this.opening.finish(true);
+    if (this.opening.active) this.opening.finish(true);
     this.resetEncounter();
     this.paused = false;
     this.ui.hideMenus();
@@ -270,9 +270,9 @@ export class Game {
     this.resetEncounter();
     this.ui.hideMenus();
     this.paused = false;
-    this.cinePose = this.opening.pose;
-    this.state = 'opening';
-    this.opening.start();
+    this.state = 'playing';
+    this.cinePose = null;
+    this.opening.begin('home');
     this.lockRetries = 0;
     this.input.lock();
   }
@@ -294,6 +294,7 @@ export class Game {
     this.deadTimer = 0;
     this.state = 'playing';
     this.cinePose = null;
+    this.opening.onRetry();
     this.ui.clearTransient();
     this.ui.setHealth(this.player.health, this.player.maxHealth);
     this.ui.showHud(true);
@@ -383,6 +384,7 @@ export class Game {
     p.maxHealth += 1;
     p.health = Math.min(p.health, p.maxHealth);
     this.ui.rewardNote('MAX HP +1');
+    this.opening.onAbsorbed();
   }
 
   onEnemyDied() { /* the encounter polls living enemies each step */ }
@@ -455,14 +457,15 @@ export class Game {
 
     this.level.update(this.time);
     this.effects.update(dt);
-    this.body.setVisible(!this.cinePose);
+    this.body.setVisible(!this.cinePose && !this.opening.hideBody);
     this.body.update(dt);
     this.ui.update(dt);
-    if (this.touchUI) this.touchUI.setVisible(this.paused ? false : this.state === 'playing' ? 'play' : this.state === 'opening' ? 'cine' : false);
+    if (this.touchUI) this.touchUI.setVisible(this.paused ? false : this.state === 'playing' ? (this.opening.active ? 'intro' : 'play') : false, this.opening.active ? this.opening.buttons() : null);
     if (this.state === 'playing' || this.state === 'dead') {
       this.ui.setHealth(player.health, player.maxHealth);
       this.ui.setDash(player.dashReady);
     }
+    this.enemyFreeze = Math.max(0, (this.enemyFreeze || 0) - dt);
     this.trauma = Math.max(0, this.trauma - dt * 1.7);
     this.hitFlash = Math.max(0, this.hitFlash - dt * 2.2);
     this.flinch = Math.max(0, this.flinch - dt * 1.6);
@@ -494,8 +497,8 @@ export class Game {
   simulate(dt) {
     const { player, input } = this;
     const playing = this.state === 'playing';
-    const controllable = playing && !player.dead && input.locked;
-    if (this.state !== 'opening' && this.state !== 'menu') {
+    const controllable = playing && !player.dead && input.locked && !this.opening.moveLocked;
+    if (this.state !== 'menu') {
       player.step(dt, input, controllable);
       if (player.justDashed) { this.audio.play('dash'); this.addShake(0.06); }
     }
@@ -505,9 +508,9 @@ export class Game {
     this.projectiles.update(dt);
     for (const e of this.enemies) {
       if (e.absorbing) { e.updateFlash(dt); continue; }
-      if (e.weak) e.updateDisabled(dt); else e.update(dt);
+      if (e.weak) e.updateDisabled(dt); else if (this.enemyFreeze > 0) e.updateFlash(dt); else e.update(dt);
     }
-    if (playing && !player.dead) this.absorber.update(dt);
+    if (playing && !player.dead && !this.opening.active) this.absorber.update(dt);
     for (const b of this.barrels) b.update(dt);
     if (playing) {
       this.nav.setTarget(player.pos.x, player.pos.z);
