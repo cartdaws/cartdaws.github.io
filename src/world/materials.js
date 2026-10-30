@@ -333,7 +333,7 @@ function makeGlass() {
     transparent: true, depthWrite: false, side: THREE.DoubleSide,
     uniforms: { uTint: { value: new THREE.Color(0x7ea6b3) } },
     vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
-    fragmentShader: 'uniform vec3 uTint; varying vec3 vN; varying vec3 vV; void main(){ vec3 n = normalize(vN), v = normalize(vV); float f = pow(1.0 - abs(dot(n, v)), 3.0); float sheen = smoothstep(-0.2, 1.0, n.y) * 0.1; vec3 c = uTint * (0.30 + sheen) + vec3(0.55, 0.72, 0.8) * f * 0.45; gl_FragColor = vec4(pow(c, vec3(2.2)), 0.1 + f * 0.4); }',
+    fragmentShader: 'uniform vec3 uTint; varying vec3 vN; varying vec3 vV; void main(){ vec3 n = normalize(vN), v = normalize(vV); float f = pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 3.0); float sheen = smoothstep(-0.2, 1.0, n.y) * 0.1; vec3 c = uTint * (0.30 + sheen) + vec3(0.55, 0.72, 0.8) * f * 0.45; gl_FragColor = vec4(pow(c, vec3(2.2)), 0.1 + f * 0.4); }',
   });
   m.userData.noSnap = true;
   return m;
@@ -432,7 +432,7 @@ export function makeGel({ color = 0x0a3c3a, rim = 0x6fe0d0, alpha = 0.24 } = {})
       varying vec3 vN; varying vec3 vV; varying vec3 vP;
       void main(){
         vec3 n = normalize(vN); vec3 v = normalize(vV);
-        float f = pow(1.0 - abs(dot(n, v)), 2.6);
+        float f = pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 2.6);
         vec3 l = normalize(vec3(0.4, 0.8, 0.5));
         float spec = pow(max(dot(reflect(-v, n), l), 0.0), 40.0);
         float band = 0.5 + 0.5 * sin(vP.z * 34.0 - uTime * 2.2);

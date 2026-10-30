@@ -1,6 +1,5 @@
 import * as THREE from 'three';
-import { lerp, smooth, seg, damp } from '../core/util.js';
-import { makeHandGel } from '../presentation/hand.js';
+import { lerp, smooth, seg } from '../core/util.js';
 
 export const ABSORB_RANGE = 3.4;   // metres from the eye to the enemy's centre
 const CONE = 0.8;                  // cosine of the aiming cone (about 37 degrees): no pixel-perfect aim needed
@@ -8,54 +7,49 @@ export const ABSORB_HEAL = 25;     // health restored by every successful absorp
 const FAILSAFE = 4.5;              // a committed absorption always resolves by now
 
 const ease = (t, a, b) => smooth(seg(t, a, b));
-const _d = new THREE.Vector3(), _t = new THREE.Vector3(), _w = new THREE.Vector3(), _l = new THREE.Vector3(), _p = new THREE.Vector3();
+const _d = new THREE.Vector3(), _t = new THREE.Vector3(), _w = new THREE.Vector3(), _l = new THREE.Vector3(), _p = new THREE.Vector3(), _c = new THREE.Color();
+const TOXIC = new THREE.Color(0.42, 0.6, 0.12);          // corroded, sickly yellow-green
+const SLIME = new THREE.Color(0.25, 1.0, 0.45);
 
-// One piece-by-piece assimilation. Times (seconds) are relative to the moment each component's tentacle starts reaching.
-const REACH = 0.22, GRIP = 0.34, PULL_END = 0.70, DISS_A = 0.46, DISS_B = 0.64, BEAD_A = 0.66, BEAD_B = 0.94;
-// Two tentacles share the work: the top one takes components 0 and 2, the outer one takes 1 and the core.
-const PLAN = [{ comp: 0, tent: 'LA', t0: 0.0 }, { comp: 1, tent: 'LB', t0: 0.12 }, { comp: 2, tent: 'LA', t0: 0.72 }, { comp: 3, tent: 'LB', t0: 0.84 }];
-const HOLD = { LA: new THREE.Vector3(-0.46, -0.32, -1.0), LB: new THREE.Vector3(-0.22, -0.4, -1.05) };
-const HOLD_SCALE = 0.4;
+// Feeding sequence. Six proboscis tongues unroll from the left forearm, press their sponge-like tips onto the robot and
+// secrete digestive fluid. Each component corrodes, sags and melts into a glowing puddle, which the tongues drink: beads of
+// luminous liquid are pumped up every tongue into the forearm. The core goes last. Times are seconds from the click.
+const MELT = [[0.55, 1.0], [0.65, 1.1], [1.0, 1.55], [1.35, 1.95]];       // per component: start and end of the meltdown
+const TONGUE_COMP = [0, 1, 2, 3, 2, 3];                                    // which component each of the six tongues works on
+const TONGUE_T0 = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25];                       // staggered start of the reach
+const REACH = 0.4;
 
-// Absorbing a disabled robot is how the alien survives. One press (right click, or the ABSORB button) commits. Two tentacles, rooted on
-// the left forearm, reach out, coil around the robot's actual components and pull them off one after another. Each piece is enveloped in
-// gel, dissolves into luminous material and is carried down the tentacle into the body. The last piece is the core. Every absorbed
-// robot restores ABSORB_HEAL health and permanently adds 1 maximum health, awarded once when the consumption completes.
 export class Absorber {
   constructor(game) {
     this.game = game;
     this.target = null;
     this.seq = null;
     this.hinted = false;
-    this.gel = makeHandGel({ color: 0x118078, rim: 0xc6fff6, alpha: 0.5 });
-    this.beadMat = new THREE.MeshBasicMaterial({ color: 0xaffff0, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
-    this.blobs = [];
+    this.beads = [];
+    this.puddleMat = new THREE.MeshStandardMaterial({ color: 0x35b86a, emissive: 0x1d8a45, emissiveIntensity: 0.9, roughness: 0.12, metalness: 0.0, transparent: true, opacity: 0.78, depthWrite: false });
+    this.puddleGeo = new THREE.CircleGeometry(1, 28).rotateX(-Math.PI / 2);
   }
 
   // True only while a committed absorption is actually running in an unpaused game.
   get protecting() { return !!this.seq && !this.game.paused && this.game.state === 'playing'; }
   get busy() { return !!this.seq; }
 
-  getBlob(i) {
-    if (!this.blobs[i]) {
-      const g = this.game.viewmodel.root;
-      const shell = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), this.gel);
-      const glow = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), this.beadMat.clone());
-      shell.renderOrder = 7; glow.renderOrder = 8; shell.frustumCulled = glow.frustumCulled = false;
-      shell.add(glow);
-      shell.visible = false;
-      g.add(shell);
-      this.blobs[i] = { shell, glow };
+  bead(i) {
+    if (!this.beads[i]) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), new THREE.MeshBasicMaterial({ color: 0xc8ff9a, transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending }));
+      m.renderOrder = 9; m.frustumCulled = false; m.visible = false;
+      this.game.viewmodel.root.add(m);
+      this.beads[i] = m;
     }
-    return this.blobs[i];
+    return this.beads[i];
   }
 
-  // Abort anything in flight (restart, death, retry): the robot is put back together, tentacles released, protection gone.
+  // Abort anything in flight (restart, death, retry): the robot is put back together, tongues recoiled, protection gone.
   reset() {
     const S = this.seq;
     if (S) this.restore(S);
     this.seq = null; this.target = null;
-    const g = this.game, vm = g.viewmodel;
+    const g = this.game;
     this.clearFx();
     g.ui.setPrompt('');
     for (const e of g.enemies) e.ringBoost = false;
@@ -66,19 +60,15 @@ export class Absorber {
     const vm = this.game.viewmodel;
     vm.tentacles.reset();
     vm.left.rw = 0; vm.left.fxSpread = 0; vm.left.fxCurl = 0; vm.left.fxBulge = 0;
-    for (const b of this.blobs) if (b) b.shell.visible = false;
+    for (const b of this.beads) if (b) b.visible = false;
   }
 
   restore(S) {
     S.e.absorbing = false;
     for (const c of S.comps) {
-      c.nodes.forEach((n, i) => {
-        const o = c.orig[i];
-        if (n.parent !== o.parent) { o.parent.add(n); }
-        n.position.copy(o.pos); n.quaternion.copy(o.quat); n.scale.copy(o.scale);
-        n.visible = true;
-      });
-      if (c.piece) c.piece.removeFromParent();
+      c.nodes.forEach((n, i) => { const o = c.orig[i]; n.position.copy(o.pos); n.quaternion.copy(o.quat); n.scale.copy(o.scale); n.visible = true; });
+      for (const r of c.meshes) r.mesh.material = r.mat;
+      if (c.puddle) c.puddle.removeFromParent();
     }
   }
 
@@ -119,25 +109,35 @@ export class Absorber {
     e.flashT = 0;
     e.group.updateMatrixWorld(true);
     const box = new THREE.Box3(), tmp = new THREE.Box3();
-    const comps = e.parts.map((p) => {
+    const comps = e.parts.map((p, i) => {
       const nodes = p.nodes.filter(Boolean);
       box.makeEmpty();
       for (const n of nodes) box.union(tmp.setFromObject(n));
-      const c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+      const meshes = [];
+      for (const n of nodes) n.traverse((o) => {
+        if (!o.isMesh) return;
+        const orig = o.material;
+        const mats = [].concat(orig).map((m) => { const cm = m.clone(); cm.transparent = true; cm.userData.c0 = cm.color.clone(); cm.userData.e0 = cm.emissive ? cm.emissive.clone() : new THREE.Color(); cm.userData.i0 = cm.emissiveIntensity; return cm; });
+        meshes.push({ mesh: o, mat: orig, clones: mats });
+        o.material = Array.isArray(orig) ? mats : mats[0];
+      });
+      const puddle = new THREE.Mesh(this.puddleGeo, this.puddleMat.clone());
+      puddle.position.set(center.x, 0.025, center.z);
+      puddle.scale.setScalar(0.001);
+      puddle.renderOrder = 3;
+      scene.add(puddle);
       return {
-        id: p.id, core: !!p.core, nodes, center0: c, rho: THREE.MathUtils.clamp(Math.max(sz.x, sz.y, sz.z) * 0.42, 0.06, 0.34),
-        orig: nodes.map((n) => ({ parent: n.parent, pos: n.position.clone(), quat: n.quaternion.clone(), scale: n.scale.clone() })),
-        piece: null, released: false, f: {}, size0: sz.length(),
+        id: p.id, core: !!p.core, nodes, center, rho: THREE.MathUtils.clamp(Math.max(sz.x, sz.z) * 0.5, 0.08, 0.4),
+        orig: nodes.map((n) => ({ pos: n.position.clone(), quat: n.quaternion.clone(), scale: n.scale.clone() })),
+        meshes, puddle, melt: MELT[Math.min(i, MELT.length - 1)], sag: Math.max(0.05, center.y - 0.05), f: {}, done: false,
       };
     });
-    this.seq = { e, t: 0, comps, f: {}, done: 0 };
+    this.seq = { e, t: 0, comps, tongue: [0, 1, 2, 3, 4, 5].map((k) => ({ k, drips: 0, pumped: 0 })), f: {} };
     this.target = null;
     g.ui.setPrompt('');
     g.audio.play('servo', { vol: 0.25 });
   }
-
-  // component centre in view model space for the current frame
-  local(world, out) { return out.copy(world).applyMatrix4(this.game.camera.matrixWorldInverse); }
 
   update(dt) {
     const g = this.game, ui = g.ui;
@@ -154,116 +154,85 @@ export class Absorber {
   }
 
   run(dt) {
-    const g = this.game, vm = g.viewmodel, S = this.seq, e = S.e, cam = g.camera;
+    const g = this.game, vm = g.viewmodel, S = this.seq, e = S.e, cam = g.camera, left = vm.left;
     S.t += dt;
-    const t = S.t;
+    const t = S.t, tents = vm.tentacles.P;
     cam.updateMatrixWorld();
-    const tents = vm.tentacles;
-    const left = vm.left;
-    // which component does each tentacle work on right now
-    const want = { LA: null, LB: null };
-    PLAN.forEach((p, k) => { const tau = t - p.t0; if (tau >= 0 && tau < PULL_END + 0.12) want[p.tent] = { p, k, tau }; });
-    let armW = 0, armT = null;
 
-    PLAN.forEach((p, k) => {
-      const c = S.comps[p.comp];
-      if (!c || !c.nodes.length) return;
-      const tau = t - p.t0;
-      if (tau < 0) return;
-      const tent = tents[p.tent], gl = tent.goal;
-      const hold = HOLD[p.tent];
-      this.local(c.center0, _l);                                      // where the component stands, seen from the camera now
-      const pull = ease(tau, GRIP, PULL_END);
-      // piece position in view model space
-      _p.copy(_l).lerp(hold, pull);
-      _p.y += Math.sin(pull * Math.PI) * 0.05;
-      const strain = tau > REACH && tau < GRIP ? Math.sin(tau * 90) * 0.006 * ease(tau, REACH, GRIP) : 0;
-      _p.x += strain;
-      // the tentacle works this component until it hands over to the next
-      if (want[p.tent] && want[p.tent].k === k) {
-        const ext = ease(tau, 0, REACH) * (1 - ease(tau, PULL_END, PULL_END + 0.12) * (S.comps.length && this.hasNext(k) ? 0.5 : 1));
-        gl.C.x = damp(gl.C.x, _p.x, 20, dt); gl.C.y = damp(gl.C.y, _p.y, 20, dt); gl.C.z = damp(gl.C.z, _p.z, 20, dt);
-        if (tau < 0.02) gl.C.copy(_p);
-        gl.rho = lerp(gl.rho, c.rho * lerp(1, HOLD_SCALE, pull), Math.min(1, dt * 14));
-        gl.phi0 = p.tent === 'LA' ? 0.4 : 3.5;
-        gl.extend = Math.max(gl.extend * 0.0 + ext, 0);
-        gl.wrap = ease(tau, REACH * 0.6, GRIP) * (1 - ease(tau, PULL_END - 0.06, PULL_END + 0.1));
-        armW = Math.max(armW, 0.5 * ease(tau, 0, REACH));
-        armT = gl.C;
-      }
-      // release: fastenings let go under tension, a few restrained sparks
-      if (tau >= GRIP - 0.02 && !c.released) this.release(c, p);
-      if (c.piece && c.piece.visible) {
-        cam.localToWorld(_w.copy(_p));
-        c.piece.position.copy(_w);
-        c.piece.rotation.y += dt * 3 * pull; c.piece.rotation.x += dt * 1.6 * pull;
-        c.piece.scale.setScalar(lerp(1, HOLD_SCALE, pull));
-        // dissolve beneath the gel
-        const dis = ease(tau, DISS_A, DISS_B);
-        for (const m of c.mats) { m.opacity = 1 - dis; if (m.emissive) m.emissive.setRGB(lerp(m.userData.e0.r, 0.2, dis), lerp(m.userData.e0.g, 1, dis), lerp(m.userData.e0.b, 0.85, dis)); if (dis > 0) m.emissiveIntensity = lerp(m.userData.i0, 1.4, dis); }
-        if (dis >= 1) c.piece.visible = false;
-      }
-      // envelope of gel, then the luminous bead carried down the tentacle
-      const blob = this.getBlob(k);
-      const env = ease(tau, GRIP, GRIP + 0.16), toBead = ease(tau, DISS_B - 0.06, BEAD_A + 0.04);
-      const bead = ease(tau, BEAD_A, BEAD_B);
-      const rBead = c.core ? 0.055 : 0.035;
-      if (tau >= GRIP && bead < 1) {
-        blob.shell.visible = true;
-        const r = lerp(lerp(0.2 * c.rho, c.rho * 1.15 * lerp(1, HOLD_SCALE, pull), env), rBead, toBead);
-        if (bead <= 0) blob.shell.position.copy(_p);
-        else tent.pointAt(1 - bead, blob.shell.position);
-        blob.shell.scale.setScalar(Math.max(0.01, r));
-        blob.glow.scale.setScalar(lerp(0.2, 0.85, ease(tau, DISS_A, DISS_B)));
-        blob.glow.material.opacity = ease(tau, DISS_A, DISS_B) * (c.core ? 1 : 0.8);
-      }
-      if (tau >= BEAD_B && !c.f.arrived) {
-        c.f.arrived = true; blob.shell.visible = false; S.done++;
-        tent.collarPulse = 1; vm.pulseGlow(c.core ? 0.9 : 0.5); left.fxBulge = c.core ? 1 : 0.7;
-        g.audio.play(c.core ? 'heal' : 'swallow', { vol: c.core ? 0.5 : 0.35 });
-        if (c.core) { S.coreAt = t; g.audio.play('crystal', { vol: 0.35 }); }
-      }
-    });
-
-    // the tentacle with no current component eases back to its resting stub
-    for (const key of ['LA', 'LB']) {
-      if (!want[key]) { const gl = tents[key].goal; gl.extend = Math.max(0, gl.extend - dt * 3.2); gl.wrap = Math.max(0, gl.wrap - dt * 4); }
-    }
-    left.rw = damp(left.rw, armW, 10, dt);
-    if (armT) left.rt.copy(armT);
-    left.fxSpread = armW > 0.1 ? 0.5 : 0;
-    left.fxBulge = Math.max(0, left.fxBulge - dt * 2.5);
-    if (S.coreAt !== undefined && t > S.coreAt + 0.15) this.finish();
-    else if (t > FAILSAFE) this.finish();
-  }
-
-  hasNext(k) { return PLAN.some((p, i) => i > k && p.tent === PLAN[k].tent); }
-
-  // The component's fastenings release: it leaves the robot as one separate piece.
-  release(c, p) {
-    const g = this.game;
-    c.released = true;
-    const piece = new THREE.Group();
-    piece.position.copy(c.center0);
-    g.scene.add(piece);
-    piece.updateMatrixWorld(true);
-    for (const n of c.nodes) piece.attach(n);
-    c.piece = piece;
-    c.mats = [];
-    piece.traverse((o) => {
-      if (!o.isMesh) return;
-      const mats = [].concat(o.material).map((m) => {
-        const cm = m.clone();
-        cm.transparent = true; cm.userData.e0 = cm.emissive ? cm.emissive.clone() : new THREE.Color(); cm.userData.i0 = cm.emissiveIntensity;
-        c.mats.push(cm);
-        return cm;
+    // ---- components: corrode, sag, melt into a puddle, and are drunk ----
+    for (const c of S.comps) {
+      const [m0, m1] = c.melt;
+      const etch = ease(t, m0 - 0.25, m0 + 0.1), melt = ease(t, m0, m1), drink = ease(t, m1 - 0.15, m1 + 0.3);
+      c.cur = melt;
+      c.nodes.forEach((n, i) => {
+        const o = c.orig[i];
+        n.scale.set(o.scale.x * (1 + 0.28 * melt), o.scale.y * (1 - 0.88 * melt), o.scale.z * (1 + 0.28 * melt));
+        n.position.set(o.pos.x + Math.sin(t * 40 + i) * 0.004 * etch * (1 - melt), o.pos.y - c.sag * melt * melt, o.pos.z);
+        if (melt >= 1) n.visible = false;
       });
-      o.material = Array.isArray(o.material) ? mats : mats[0];
+      for (const r of c.meshes) for (const m of r.clones) {
+        m.color.copy(m.userData.c0).lerp(TOXIC, 0.55 * etch + 0.45 * melt);
+        m.opacity = 1 - 0.75 * melt;
+        if (m.emissive) { m.emissive.copy(m.userData.e0).lerp(SLIME, 0.8 * etch); m.emissiveIntensity = m.userData.i0 + 1.2 * etch + 0.8 * Math.sin(t * 22 + c.rho * 9) * melt * (1 - drink); }
+      }
+      const pud = c.puddle;
+      pud.scale.setScalar(Math.max(0.001, c.rho * 1.5 * ease(melt, 0.1, 1) * (1 - drink) * (1 + 0.05 * Math.sin(t * 9))));
+      pud.material.opacity = 0.78 * (1 - drink * 0.6);
+      pud.visible = melt > 0.02 && drink < 1;
+      if (t > m0 - 0.1 && !c.f.hiss) { c.f.hiss = true; g.audio.play('hiss', { vol: 0.5 }); }
+      if (t > m0 + 0.1 && !c.f.pop) { c.f.pop = true; g.audio.play('clatter', { vol: 0.25 }); }
+      if (t > m1 && !c.done) { c.done = true; g.audio.play('slurp', { vol: c.core ? 0.55 : 0.35 }); if (c.core) { g.audio.play('heal', { vol: 0.5 }); g.audio.play('crystal', { vol: 0.3 }); S.coreAt = t; } }
+      // acid bubbling and steam while the component is dissolving
+      if (melt > 0 && melt < 1 && Math.random() < dt * 40) {
+        const q = c.center;
+        g.effects.glowP.emit(q.x + (Math.random() - 0.5) * c.rho, q.y * (1 - melt) + 0.05, q.z + (Math.random() - 0.5) * c.rho, (Math.random() - 0.5) * 0.4, 0.7 + Math.random(), (Math.random() - 0.5) * 0.4, 0.5, 0.05, 0.55, 1, 0.35, -2, 0.6);
+        if (Math.random() < 0.35) g.effects.smokeP.emit(q.x + (Math.random() - 0.5) * c.rho, 0.15, q.z + (Math.random() - 0.5) * c.rho, 0, 0.6, 0, 1.0, 0.25, 0.7, 0.95, 0.6, -0.3, 1, 1.5);
+      }
+    }
+
+    // ---- tongues: unroll, press their tips on the robot, drink, recoil ----
+    let beadN = 0, pumping = 0;
+    S.tongue.forEach((tg, k) => {
+      const tent = tents[k], gl = tent.goal, c = S.comps[TONGUE_COMP[k]];
+      const t0 = TONGUE_T0[k], tEnd = c.melt[1] + 0.12;
+      const reach = ease(t, t0, t0 + REACH), retract = ease(t, tEnd, tEnd + 0.32);
+      gl.extend = reach * (1 - retract);
+      gl.wrap = 0; gl.rho = 0.04; gl.phi0 = 0; gl.bow = 1.6 + (k % 2) * 0.8;
+      // where the pad presses: a point on the near side of the component, a different spot for each tongue
+      const ang = k * 2.4 + 0.7, rr = c.rho * 0.8;
+      _w.set(c.center.x + Math.cos(ang) * rr * 0.7, Math.max(0.06, c.center.y * (1 - c.cur * 0.85)) + Math.sin(ang * 1.7) * c.rho * 0.35, c.center.z + Math.sin(ang) * rr * 0.7);
+      _w.lerp(cam.position, 0.12);                                    // the near side, not the middle
+      _l.copy(_w).applyMatrix4(cam.matrixWorldInverse);
+      const probing = ease(t, t0 + REACH * 0.7, t0 + REACH) * (1 - retract);
+      _l.x += Math.sin(t * 9 + k * 2) * 0.012 * probing; _l.y += Math.cos(t * 8 + k) * 0.012 * probing;
+      gl.C.copy(_l);
+      tg.world = _w.clone();
+      // drips and glistening where the pad touches
+      if (probing > 0.6 && t < c.melt[1] && Math.random() < dt * 14) g.effects.glowP.emit(_w.x, _w.y, _w.z, (Math.random() - 0.5) * 0.3, 0.1, (Math.random() - 0.5) * 0.3, 0.7, 0.04, 0.5, 1, 0.3, 9, 0.2);
+      // liquid is drawn up the tongue in pulses, from when the component starts to melt until it is gone
+      const draining = t > c.melt[0] + 0.05 && t < tEnd - 0.02 && gl.extend > 0.9;
+      for (let b = 0; b < 4; b++) {
+        const bead = this.bead(k * 4 + b);
+        if (!draining) { bead.visible = false; continue; }
+        const s = 1 - ((t * 2.6 + b * 0.25 + k * 0.17) % 1);
+        tent.pointAt(Math.max(0.02, Math.min(0.98, s)), bead.position);
+        bead.scale.setScalar(0.006 + 0.007 * Math.sin(Math.PI * (1 - s)) + (c.core ? 0.003 : 0));
+        bead.visible = true;
+        if (s < 0.12 && !tg['p' + b]) { tg['p' + b] = true; tent.collarPulse = 0.7; left.fxBulge = Math.min(1, left.fxBulge + 0.35); vm.pulseGlow(0.25); if (Math.random() < 0.4) g.audio.play('slurp', { vol: 0.18 }); }
+        if (s > 0.5) tg['p' + b] = false;
+      }
+      if (draining) pumping++;
     });
-    const q = c.center0;
-    for (let i = 0; i < 12; i++) g.effects.glowP.emit(q.x + (Math.random() - 0.5) * 0.2, q.y + (Math.random() - 0.5) * 0.2, q.z + (Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 2.5, Math.random() * 2, (Math.random() - 0.5) * 2.5, 0.35, 0.035, 1, 0.75, 0.3, 6, 1);
-    g.audio.play('clatter', { vol: 0.3 });
-    g.audio.play('spark', { vol: 0.12 });
+
+    // ---- the arm only points; the tongues do the reaching ----
+    const first = S.comps[0];
+    _l.copy(first.center).applyMatrix4(cam.matrixWorldInverse);
+    left.rt.copy(_l);
+    left.rw = THREE.MathUtils.damp(left.rw, 0.42 * ease(t, 0, 0.3) * (1 - ease(t, 2.0, 2.3)), 10, dt);
+    left.fxSpread = 0.55 * ease(t, 0, 0.3);
+    left.fxBulge = Math.max(0, left.fxBulge - dt * 1.6);
+
+    if (t > 2.35 || (S.coreAt !== undefined && t > S.coreAt + 0.42) || t > FAILSAFE) this.finish();
   }
 
   // Resolve exactly once: reward, heal, remove the robot, release the arm.
@@ -272,7 +241,7 @@ export class Absorber {
     if (!S) return;
     this.seq = null; this.target = null;
     const e = S.e;
-    for (const c of S.comps) if (c.piece) c.piece.removeFromParent();
+    for (const c of S.comps) if (c.puddle) c.puddle.removeFromParent();
     this.clearFx();
     e.absorbing = false;
     if (e.alive && !e.rewarded) {

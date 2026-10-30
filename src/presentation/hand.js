@@ -46,7 +46,7 @@ export function makeHandGel({ color = 0x0b5a58, rim = 0x8ff5e6, alpha = 0.34 } =
       varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec2 vUv;
       void main(){
         vec3 n = normalize(vN), v = normalize(vV);
-        float f = pow(1.0 - abs(dot(n, v)), 2.4);
+        float f = pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 2.4);
         vec3 L = normalize(vec3(0.35, 0.8, 0.5));
         float lam = max(dot(n, L), 0.0);
         float spec = pow(max(dot(reflect(-v, n), L), 0.0), 36.0);

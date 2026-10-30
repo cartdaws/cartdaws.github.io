@@ -248,6 +248,13 @@ export class Audio {
         this.tone(o, { type: 'sine', f0: 220, f1: 330, dur: 0.5, vol: 0.2, filter: { type: 'lowpass', f: 900 } });
         this.tone(o, { type: 'sine', f0: 330, f1: 495, dur: 0.6, vol: 0.12, filter: { type: 'lowpass', f: 1200 } });
         break;
+      case 'slurp': // wet, sucking draw through a narrow tube
+        this.noise(o, { dur: 0.32, vol: 0.2, type: 'bandpass', f0: 900, f1: 260, q: 5 });
+        this.tone(o, { type: 'sine', f0: 180, f1: 70, dur: 0.26, vol: 0.14, filter: { type: 'lowpass', f: 420 } });
+        break;
+      case 'hiss': // acid working on metal
+        this.noise(o, { dur: 0.5, vol: 0.12, type: 'highpass', f0: 4200, f1: 6500, q: 0.8 });
+        break;
       case 'swallow': // wet pull as gel draws something in
         this.tone(o, { type: 'sine', f0: 210, f1: 70, dur: 0.28, vol: 0.32, filter: { type: 'lowpass', f: 500 } });
         this.noise(o, { dur: 0.22, vol: 0.14, type: 'bandpass', f0: 500, f1: 200, q: 3 });

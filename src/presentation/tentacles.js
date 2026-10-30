@@ -27,13 +27,19 @@ export function makeGoal() {
 }
 
 class Tentacle {
-  constructor(set, arm, scene, gel, socketPos, socketDir, phase) {
+  constructor(set, arm, scene, gel, socketPos, socketDir, phase, opts = {}) {
     this.set = set; this.arm = arm; this.phase = phase;
+    this.coil = !!opts.coil; this.collarScale = opts.collarScale || 1;
+    const meshName = opts.mesh || 'Tentacle', other = meshName === 'Tentacle' ? 'Proboscis' : 'Tentacle';
     this.socketPos = socketPos.clone(); this.socketDir = socketDir.clone().normalize();
     const inst = cloneSkinned(scene);
+    const dropMesh = inst.getObjectByName(other);
+    const dropRig = dropMesh && dropMesh.parent;
+    if (dropMesh) dropMesh.removeFromParent();
+    if (dropRig && dropRig !== inst) dropRig.removeFromParent();
     this.holder = new THREE.Group();
     this.holder.add(inst);
-    this.mesh = inst.getObjectByName('Tentacle');
+    this.mesh = inst.getObjectByName(meshName);
     this.mesh.material = gel;
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 6;
@@ -83,7 +89,14 @@ class Tentacle {
       // resting stub: leaves the forearm along its normal and curls forward, with a slow restrained sway
       const f = this._fwd;
       _a.copy(R);
-      for (let j = 0; j < N; j++) {
+      if (this.coil) {
+        // a tight spiral lying on the forearm, like a resting proboscis
+        _e1.crossVectors(n, f).normalize(); _e2.crossVectors(n, _e1).normalize();
+        for (let j = 0; j < N; j++) {
+          const u = j / (N - 1), a = j * 1.15 + this.phase, r = 0.016 * (1 - 0.4 * u);
+          ideal[j].copy(R).addScaledVector(n, 0.012 + r * (0.6 + 0.4 * Math.sin(a)) + 0.006 * Math.sin(time * 1.6 + this.phase)).addScaledVector(f, u * 0.028 + Math.cos(a) * r * 0.7).addScaledVector(_e1, Math.sin(a) * r * 0.9);
+        }
+      } else for (let j = 0; j < N; j++) {
         const u = j / (N - 1);
         _d.copy(n).multiplyScalar(1 - u * 0.9).addScaledVector(f, u * 0.9).normalize();
         if (j) _a.addScaledVector(_d, REST_LEN / (N - 1));
@@ -114,6 +127,10 @@ class Tentacle {
       _c1.addScaledVector(_b, bow);
       _c2.copy(_E).addScaledVector(_c, -(0.12 + 0.16 * e)).addScaledVector(_b, bow * 0.7);
       for (let j = 0; j <= M; j++) bezier(R, _c1, _c2, _E, j / M, ideal[j]);
+      if (this.coil) {                       // unrolling: a helical offset that dies out as the tongue straightens
+        const k = Math.pow(1 - e, 1.4) * 0.045 + 0.006 * Math.sin(time * 9 + this.phase);
+        for (let j = 1; j <= M; j++) { const a = j * 0.95 + this.phase + time * 2.4 * (1 - e), w = k * Math.sin(Math.PI * j / M); ideal[j].addScaledVector(_e1, Math.cos(a) * w).addScaledVector(_e2, Math.sin(a) * w); }
+      }
       for (let j = M + 1; j < N; j++) {
         const v = (j - M) / K;
         // straight continuation, blended toward the coil that follows the target's own silhouette
@@ -138,7 +155,7 @@ class Tentacle {
     this.collar.position.copy(R).addScaledVector(n, -0.012);
     this.collar.quaternion.setFromUnitVectors(FWD, n);
     this.collarPulse = Math.max(0, this.collarPulse - dt * 4);
-    this.collar.scale.setScalar(1 + this.collarPulse * 0.5);
+    this.collar.scale.setScalar(this.collarScale * (1 + this.collarPulse * 0.5));
     this.holder.visible = this.mesh.visible = this.collar.visible = this.visible && this.arm.root.visible;
   }
 
@@ -171,18 +188,21 @@ export class TentacleSet {
   constructor(vm, scene) {
     this.vm = vm;
     this.time = 0;
-    this.gel = makeHandGel({ color: 0x0f6f68, rim: 0xc6fff6, alpha: 0.78 });
-    const mk = (arm, pos, dir, phase) => {
-      const t = new Tentacle(this, arm, scene, this.gel, new THREE.Vector3(...pos), new THREE.Vector3(...dir), phase);
+    this.gel = makeHandGel({ color: 0x147a6c, rim: 0xd2fff0, alpha: 0.86 });
+    const mk = (arm, pos, dir, phase, opts) => {
+      const t = new Tentacle(this, arm, scene, this.gel, new THREE.Vector3(...pos), new THREE.Vector3(...dir), phase, opts);
       vm.root.add(t.holder);
       return t;
     };
     // left forearm: one on top (reaches), one on the outer side (braces)
-    this.LA = mk(vm.left, [0, 0.06, 0.34], [0, 0.95, -0.3], 0);
-    this.LB = mk(vm.left, [0.062, -0.01, 0.52], [1, 0.1, -0.2], 2.1);
+    this.P = [];
+    for (let k = 0; k < 6; k++) {                       // six feeding tongues in a ring around the left forearm, near the wrist
+      const a = -0.25 + k * 0.62, z = 0.2 + (k % 3) * 0.1, r = 0.064;
+      this.P.push(mk(vm.left, [Math.cos(a) * r, Math.sin(a) * r, z], [Math.cos(a), Math.sin(a), -0.25], k * 1.3, { mesh: 'Proboscis', coil: true, collarScale: 0.55 }));
+    }
     // right forearm: one on top (used when the weapon hand takes the pistol)
     this.RA = mk(vm.right, [0, 0.06, 0.34], [0, 0.95, -0.3], 4.2);
-    this.all = [this.LA, this.LB, this.RA];
+    this.all = [...this.P, this.RA];
   }
 
   update(dt) {

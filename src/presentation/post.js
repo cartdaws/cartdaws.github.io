@@ -75,6 +75,12 @@ export class PostFX {
     vm.clear = false;
     vm.clearDepth = true;
     this.composer.addPass(vm);
+    // Guard against NaN / runaway values from any shader: one bad pixel would otherwise spread through the bloom blur and blank the screen.
+    this.composer.addPass(new ShaderPass({
+      uniforms: { tDiffuse: { value: null } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); if (c.r != c.r || c.g != c.g || c.b != c.b || c.a != c.a) c = vec4(0.0, 0.0, 0.0, 1.0); c.rgb = clamp(c.rgb, 0.0, 24.0); c.a = 1.0; gl_FragColor = c; }',
+    }));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.12, 0.4, 1.0);
     this.composer.addPass(this.bloom);
     this.grade = new ShaderPass(GradeShader);
