@@ -123,6 +123,7 @@ export class Opening {
     this.t = 0;
     this.f = {};
     this.blob = null;
+    vm.tendrils.hide();
     this.beat = 0; this.stride = 0; this.lastStep = -1; this.lastDraw = -1; this.lastDraw2 = -1;
     this.pistolView = null;
     this.parts = null;
@@ -275,10 +276,20 @@ export class Opening {
     }
     if (f.reach) {
       vm.reachTarget.copy(this.pistolLocal);
-      vm.reachW = ease(t, T.reach, T.contact) * (1 - ease(t, T.settle + 0.3, T.settle + 1.6));
+      vm.reachW = 0.4 * ease(t, T.reach, T.contact) * (1 - ease(t, T.envelop, T.envelop + 1.0)) + 0.6 * ease(t, T.envelop + 0.6, T.envelop + 1.4) * (1 - ease(t, T.settle + 0.3, T.settle + 1.6));
       vm.curl = t < T.envelop ? lerp(0.15, 0.25, ease(t, T.reach, T.contact)) : lerp(0.25, 1, ease(t, T.envelop, T.envelop + 1.0)) * (1 - ease(t, T.form - 0.2, T.form + 0.9));
     }
     // CONTACT: fingertips touch the grip. ENVELOP: a skin of gel creeps over the whole pistol and draws it into the palm.
+    // TENDRILS: several gel tendrils lash out of the palm, coil around the pistol and haul it in
+    if (f.reach) {
+      const tb = vm.tendrils, gone = ease(t, T.breakApart - 0.3, T.breakApart + 0.5);
+      vm.palmLocal(tb.origin);
+      tb.target.copy(this.pistolView ? this.pistolView.position : this.pistolLocal);
+      tb.extend = ease(t, T.reach + 0.5, T.contact) * (1 - gone);
+      tb.wrap = ease(t, T.contact - 0.1, T.contact + 0.7) * (1 - gone);
+      if (t >= T.breakApart + 0.5) tb.extend = 0;
+    }
+    once('lash', T.reach + 0.5, () => a.play('swallow', { vol: 0.7 }));
     once('touch', T.contact, () => {
       L.pistol.visible = false; L.pistolLight.intensity = 0;
       this.pistolView = this.makeViewPistol();
@@ -487,6 +498,7 @@ export class Opening {
     this.active = false;
     if (this.parts) for (const d of this.parts) d.p.removeFromParent();
     if (this.blob) { vm.root.remove(this.blob); this.blob = null; }
+    vm.tendrils.hide();
     for (const fr of vm.right.frags) fr.k = 1;
     vm.bulge = 0;
     vm.setPistol(null);

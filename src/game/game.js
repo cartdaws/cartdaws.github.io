@@ -176,7 +176,10 @@ export class Game {
     input.onKeyDown = (code) => {
       if (this.state === 'opening' && !this.paused && (code === 'Space' || code === 'Enter')) this.opening.skip();
     };
-    input.onMouseDown = (btn) => { if (btn === 0 && this.canFire()) this.weapon.latch(); };
+    input.onMouseDown = (btn) => {
+      if (btn === 0 && this.canFire()) this.weapon.latch();
+      else if (btn === 2) this.absorber.request();
+    };
     document.addEventListener('visibilitychange', () => { if (document.hidden && (this.state === 'playing' || this.state === 'opening') && !this.paused) this.pause(); });
   }
 

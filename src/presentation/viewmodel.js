@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { lerp, damp, clamp } from '../core/util.js';
+import { TendrilBundle } from './tendrils.js';
 import { makeHandGel, updateHandGels } from './hand.js';
 
 const _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
@@ -180,6 +181,13 @@ export class ViewModel {
 
     this.right = new HandArm(this, 1, true);
     this.left = new HandArm(this, -1, false);
+    this.tendrils = new TendrilBundle(this.root, 6);
+  }
+
+  // the right palm / weapon mouth in camera-local space
+  palmLocal(out) {
+    this.right.muzzle.getWorldPosition(out);
+    return this.root.worldToLocal(out);
   }
 
   setPistol(group) {
@@ -217,6 +225,7 @@ export class ViewModel {
     this.camYaw = ctx.yaw || 0; this.camPitch = ctx.pitch || 0;
     this.right.update(dt, ctx);
     this.left.update(dt, ctx);
+    this.tendrils.update(dt);
     this.left.setVisible(!this.leftHidden);
   }
 
