@@ -10,6 +10,8 @@ export class Input {
     this.dy = 0;
     this.locked = false;
     this.fake = false; // test-only: pretend pointer lock is held
+    this.touch = false; // touch device: there is no pointer lock, "locked" simply means the game has control
+    this.axisX = 0; this.axisY = 0; // analog move stick
     this.fireGuardUntil = 0;
     this.onLockChange = () => {};
     this.onLockError = () => {};
@@ -52,7 +54,7 @@ export class Input {
   lock() {
     // Swallow the click that resumes play so it cannot fire a shot.
     this.fireGuardUntil = performance.now() + 250;
-    if (this.fake) { this.setLocked(true); return; }
+    if (this.fake || this.touch) { this.setLocked(true); return; }
     try {
       const p = this.canvas.requestPointerLock();
       if (p && p.catch) p.catch(() => this.onLockError());
@@ -60,11 +62,11 @@ export class Input {
   }
 
   unlock() {
-    if (this.fake) { this.setLocked(false); return; }
+    if (this.fake || this.touch) { this.setLocked(false); return; }
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
-  clear() { this.keys.clear(); this.pressed.clear(); this.buttons.clear(); this.dx = 0; this.dy = 0; }
+  clear() { this.axisX = this.axisY = 0; this.keys.clear(); this.pressed.clear(); this.buttons.clear(); this.dx = 0; this.dy = 0; }
   down(code) { return this.keys.has(code); }
   was(code) { return this.pressed.has(code); }
   mouse(btn) { return this.buttons.has(btn); }

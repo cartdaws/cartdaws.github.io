@@ -16,6 +16,7 @@ import { Encounter, EncounterState } from './encounter.js';
 import { ViewModel } from '../presentation/viewmodel.js';
 import { Opening } from '../presentation/story.js';
 import { UI } from '../presentation/ui.js';
+import { TouchControls, isTouchDevice, enterImmersive } from '../core/touch.js';
 import { PostFX } from '../presentation/post.js';
 import { AlienBody } from './body.js';
 
@@ -51,6 +52,14 @@ export class Game {
     this.ui = new UI();
     this.input = new Input(canvas);
     this.input.fake = location.search.includes('nolock');
+    this.touchMode = isTouchDevice();
+    if (this.touchMode) {
+      this.input.touch = true;
+      this.touchUI = new TouchControls(this.input, {
+        onPause: () => { if (this.state === 'playing' || this.state === 'opening') this.input.unlock(); },
+        onSkip: () => { if (this.state === 'opening' && !this.paused) this.opening.skip(); },
+      });
+    }
     this.player = new Player(this);
     this.viewmodel = new ViewModel(handAsset);
     this.body = new AlienBody(this.scene, this.world, this.player, armGeos);
@@ -76,9 +85,18 @@ export class Game {
     this.fov = BASE_FOV;
     this.sens = 1;
 
+    const gl = this.renderer.getContext();
+    const uniformBudget = gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS);
+    this.maxLights = uniformBudget >= 1024 ? 12 : uniformBudget >= 512 ? 8 : 5;
+    this.renderer.debug.onShaderError = (g, program, vs, fs) => {
+      const d = document.createElement('pre');
+      d.style.cssText = 'position:fixed;inset:0;z-index:99;margin:0;padding:12px;background:#200;color:#fcc;font:11px monospace;overflow:auto;white-space:pre-wrap';
+      d.textContent = ['Shader error (please report):', g.getProgramInfoLog(program) || '', (g.getShaderInfoLog(fs) || '').slice(0, 800)].join('\n');
+      document.body.appendChild(d);
+    };
     this.post = new PostFX(this.renderer, this.scene, this.viewmodel.scene, this.camera);
-    this.gfx = 'realistic';
-    try { this.gfx = JSON.parse(localStorage.getItem('intruder-settings') || '{}').gfx || 'realistic'; } catch (e) { /* default */ }
+    this.gfx = this.touchMode ? 'retro' : 'realistic'; // retro is far cheaper to draw, a better default on phones
+    try { this.gfx = JSON.parse(localStorage.getItem('intruder-settings') || '{}').gfx || this.gfx; } catch (e) { /* default */ }
     this.post.setMode(this.gfx, this.scene);
     this.refreshGfxButtons();
     this.spawnEncounter();
@@ -179,6 +197,7 @@ export class Game {
   // ---------- flow ----------
   play() {
     this.audio.init();
+    if (this.touchMode) enterImmersive();
     this.ui.hideMenus();
     this.ui.fade(1);
     this.state = 'opening';
@@ -194,9 +213,14 @@ export class Game {
     this.ui.showHud(true);
     this.ui.clearTransient();
     this.ui.setObjective('REACH THE HANGAR');
-    this.ui.hint('WASD — MOVE', 3);
-    this.ui.hint('SPACE — JUMP     SHIFT — DASH', 3.5);
-    this.ui.hint('LEFT CLICK — FIRE  (HOLD TO KEEP FIRING)', 4);
+    if (this.touchMode) {
+      this.ui.hint('LEFT THUMB — MOVE     RIGHT THUMB — LOOK', 3.5);
+      this.ui.hint('FIRE · JUMP · DASH BUTTONS', 3.5);
+    } else {
+      this.ui.hint('WASD — MOVE', 3);
+      this.ui.hint('SPACE — JUMP     SHIFT — DASH', 3.5);
+      this.ui.hint('LEFT CLICK — FIRE  (HOLD TO KEEP FIRING)', 4);
+    }
   }
 
   pause() {
@@ -208,6 +232,7 @@ export class Game {
   }
 
   resume() {
+    if (this.touchMode) enterImmersive();
     this.ui.showMenu('pause');
     this.lockRetries = 0;
     this.input.lock(); // unpause happens when the lock is actually granted
@@ -414,6 +439,7 @@ export class Game {
     this.body.setVisible(!this.cinePose);
     this.body.update(dt);
     this.ui.update(dt);
+    if (this.touchUI) this.touchUI.setVisible((this.state === 'playing' || this.state === 'opening') && !this.paused);
     if (this.state === 'playing' || this.state === 'dead') {
       this.ui.setHealth(player.health, player.maxHealth);
       this.ui.setDash(player.dashReady);
@@ -480,6 +506,17 @@ export class Game {
     c.updateMatrixWorld();
   }
 
+  // GPUs only allow so many light uniforms per shader. Keep a constant number of point lights switched on: the nearest ones that are actually lit.
+  // (A constant count means swapping lights never forces a shader recompile.)
+  cullLights() {
+    const MAX = this.maxLights;
+    if (!this.lightList) { this.lightList = []; this.scene.traverse((o) => { if (o.isPointLight) this.lightList.push(o); }); }
+    const p = this.camera.position;
+    const score = (l) => (l.userData.keepOn ? -1e9 : (l.intensity > 0.5 ? l.position.distanceToSquared(p) : 1e9 + l.position.distanceToSquared(p)));
+    const sorted = this.lightList.slice().sort((a, b) => score(a) - score(b));
+    for (let i = 0; i < sorted.length; i++) sorted[i].visible = i < MAX;
+  }
+
   render(dt) {
     const r = this.renderer, c = this.camera, p = this.player;
     if (!this.paused) {
@@ -509,6 +546,7 @@ export class Game {
       });
       this.viewmodel.syncToCamera(c);
     }
+    this.cullLights();
     this.post.render(dt, this.time);
   }
 }

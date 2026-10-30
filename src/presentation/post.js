@@ -65,6 +65,10 @@ export class PostFX {
   constructor(renderer, scene, viewScene, camera) {
     this.renderer = renderer;
     this.mode = 'realistic';
+    this.scene = scene; this.viewScene = viewScene; this.camera = camera;
+    // Some GPUs (many phones) cannot render to float targets; without them the composer shows black. Fall back to direct rendering.
+    const gl2 = renderer.capabilities.isWebGL2;
+    this.direct = !(gl2 && (renderer.extensions.has('EXT_color_buffer_float') || renderer.extensions.has('EXT_color_buffer_half_float')));
     this.composer = new EffectComposer(renderer);
     this.composer.addPass(new RenderPass(scene, camera));
     const vm = new RenderPass(viewScene, camera);
@@ -95,7 +99,7 @@ export class PostFX {
 
   resize(w, h) {
     const retro = this.mode === 'retro';
-    const ratio = retro ? Math.min(1, 270 / h) : Math.min(window.devicePixelRatio, 2);
+    const ratio = retro ? Math.min(1, 270 / h) : Math.min(window.devicePixelRatio, document.body.classList.contains('touch') ? 1.25 : 2);
     this.renderer.setPixelRatio(ratio);
     this.renderer.setSize(w, h, false);
     this.composer.setPixelRatio(ratio);
@@ -105,6 +109,14 @@ export class PostFX {
   }
 
   render(dt, t) {
+    if (this.direct) {
+      const r = this.renderer;
+      r.autoClear = false; r.clear();
+      r.render(this.scene, this.camera);
+      r.clearDepth();
+      r.render(this.viewScene, this.camera);
+      return;
+    }
     this.grade.uniforms.uTime.value = t % 10;
     this.composer.render(dt);
   }

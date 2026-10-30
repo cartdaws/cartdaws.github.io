@@ -91,6 +91,7 @@ export class Effects {
     this.lights = [];
     for (let i = 0; i < 3; i++) {
       const l = new THREE.PointLight(0xffffff, 0, 18, 2);
+      l.userData.keepOn = true;
       scene.add(l);
       this.lights.push({ light: l, t: 0, dur: 1, peak: 0 });
     }
