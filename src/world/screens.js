@@ -177,10 +177,10 @@ export class MemoryScene {
   // m = seconds since the memory began
   draw(m) {
     const g = this.g, W = this.w, H = this.h, hz = this.horizon;
-    const arrive = sm(5.0, 8.4, m);          // ship arrival 0..1
-    const threat = sm(4.6, 9.0, m);          // sky darkening
-    const beam = sm(8.5, 9.4, m) * (1 - sm(11.0, 11.8, m));
-    const lift = sm(9.2, 11.2, m);           // the viewer's body lifting
+    const arrive = sm(6.2, 9.0, m);          // ship arrival 0..1
+    const threat = sm(6.2, 9.6, m);          // sky darkening
+    const beam = sm(9.0, 9.8, m) * (1 - sm(11.2, 11.9, m));
+    const lift = sm(9.6, 11.4, m);           // the viewer's body lifting
     const intro = sm(0.5, 1.8, m);           // landscape fades in from the planet image
     g.clearRect(0, 0, W, H);
 
@@ -288,19 +288,22 @@ export class MemoryScene {
       drawShip(g, shipX, shipY, m);
     }
 
-    // ---- the people ----
-    for (const k of this.kin) {
-      let x = k.x, y = k.y, ox = 0, flee = 0;
-      const look = k.self ? 0.0 : threat;
-      if (!k.self) { flee = sm(6.2 + (k.ph % 1.5) * 0.4, 10, m); ox = (k.x < 640 ? -1 : 1) * flee * 520; }
-      const walkSpeed = (1 - threat) * 0.7 + flee * 4;
-      const moving = !k.self || m < 4.5;
-      const gait = k.self && m >= 4.5 ? 0 : 1;
-      x += k.self ? Math.sin(m * 0.4) * 10 + sm(0, 4.6, m) * 30 : Math.sin(m * 0.3 + k.ph) * 20 + ox;
-      const liftY = k.self ? lift * 330 : 0;
-      drawKin(g, x, y - liftY, k.s, m * walkSpeed * gait + k.ph, { look, core: k.self ? 1 : 0.75, self: k.self, threat: k.self ? lift : 0, fear: flee });
+    // ---- the one personal moment: someone of my kind reaches for me ----
+    const reachK = sm(2.2, 5.6, m), meetK = sm(3.8, 6.4, m);
+    const flee = sm(7.0, 9.4, m);
+    const elderX = 800 + flee * 380, elderA = 1 - sm(8.6, 10.4, m);
+    if (elderA > 0.01) {
+      g.save(); g.globalAlpha = intro * elderA;
+      drawElder(g, elderX, 650, 118, m, reachK, threat, flee, 640 + (elderX - 800) * 0.35);
+      g.restore();
     }
-
+    // my own hand, from below, rising to meet it; the beam lifts it away
+    {
+      const lx = lerp(330, 600, meetK) - lift * 40, ly = lerp(610, 372, meetK) - lift * 300;
+      g.save(); g.globalAlpha = intro * (1 - sm(10.4, 11.6, m));
+      drawGelHand(g, 250 - lift * 30, 770, lx, ly, 100, 0.55 + 0.35 * meetK - flee * 0.2, m, 1);
+      g.restore();
+    }
     // ---- drifting spores and haze ----
     for (const s of this.motes) {
       const x = (s.x + m * s.v) % W, y = (s.y - m * s.v * 0.4 + 720 * 4) % 720;
@@ -311,8 +314,8 @@ export class MemoryScene {
     g.restore();
 
     // ---- white-out into the cell ----
-    const white = sm(10.4, 12.0, m);
-    if (white > 0) { g.fillStyle = `rgba(240,250,255,${white})`; g.fillRect(0, 0, W, H); }
+    const white = sm(10.8, 12.3, m);   // fades to dark, not white
+    if (white > 0) { g.fillStyle = `rgba(3,6,10,${white})`; g.fillRect(0, 0, W, H); }
   }
 }
 
@@ -358,49 +361,70 @@ function drawShip(g, x, y, m) {
   g.restore();
 }
 
-// One of the specimen's people: a tall luminous bell on tentacle legs. size s scales a 100 px unit.
-function drawKin(g, x, y, s, t, o) {
-  const u = s * 56;
-  const tilt = -o.look * 0.28 - (o.fear || 0) * 0.0;
-  const sc = o.self ? 1 : 0.88;
+// The specimen's kind: a tall translucent column with a ridged body, a soft crest and a skirt of fine tendrils.
+// No face. One long arm ends in the same four-digit gel hand as the player's.
+function drawElder(g, x, y, u, m, reach, threat, flee, targetX) {
+  const sway = Math.sin(m * 0.7) * 5;
+  const top = y - 4.1 * u;
   g.save();
-  // glow
-  const halo = g.createRadialGradient(x, y - 2.3 * u, 0, x, y - 2.3 * u, 3.4 * u);
-  halo.addColorStop(0, `rgba(140,255,225,${0.28 * o.core * (1 - (o.fear || 0) * 0.4)})`); halo.addColorStop(1, 'rgba(140,255,225,0)');
-  g.fillStyle = halo; g.fillRect(x - 3.4 * u, y - 5.7 * u, 6.8 * u, 6.8 * u);
-  // legs
-  const N = 6;
-  for (let i = 0; i < N; i++) {
-    const rx = x + (i - (N - 1) / 2) * 0.2 * u;
-    const ph = t * 2.4 + i * 1.05;
-    const step = Math.sin(ph) * 0.26 * u, up = Math.max(0, Math.cos(ph)) * 0.18 * u;
-    const tipX = x + (i - (N - 1) / 2) * 0.46 * u + step, tipY = y - up;
-    const midX = (rx + tipX) / 2 + (i - 2.5) * 0.12 * u, midY = y - 1.15 * u;
-    g.lineCap = 'round';
-    g.strokeStyle = 'rgba(40,150,150,0.55)'; g.lineWidth = 0.17 * u;
-    g.beginPath(); g.moveTo(rx, y - 1.9 * u); g.quadraticCurveTo(midX, midY, tipX, tipY); g.stroke();
-    g.strokeStyle = 'rgba(170,255,235,0.55)'; g.lineWidth = 0.05 * u;
-    g.beginPath(); g.moveTo(rx, y - 1.9 * u); g.quadraticCurveTo(midX, midY, tipX, tipY); g.stroke();
+  const halo = g.createRadialGradient(x, y - 2.6 * u, 0, x, y - 2.6 * u, 3.4 * u);
+  halo.addColorStop(0, `rgba(140,255,225,${0.2 * (1 - threat * 0.5)})`); halo.addColorStop(1, 'rgba(140,255,225,0)');
+  g.fillStyle = halo; g.fillRect(x - 3.4 * u, y - 6 * u, 6.8 * u, 6.8 * u);
+  for (let i = 0; i < 9; i++) {
+    const ox = (i - 4) * 0.13 * u, ph = m * 0.9 + i * 0.8, sx = Math.sin(ph) * 0.1 * u;
+    g.strokeStyle = 'rgba(60,170,170,0.5)'; g.lineWidth = 0.06 * u; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x + ox * 0.6, y - 1.5 * u); g.quadraticCurveTo(x + ox * 1.6 + sx, y - 0.7 * u, x + ox * 2.2 + sx * 1.6, y + 0.05 * u); g.stroke();
   }
-  // bell
-  g.translate(x, y - 3.0 * u); g.rotate(tilt);
-  const bell = g.createRadialGradient(-0.2 * u, -0.5 * u, 0.1 * u, 0, 0, 1.4 * u);
-  bell.addColorStop(0, 'rgba(190,255,240,0.85)'); bell.addColorStop(0.55, 'rgba(60,180,175,0.6)'); bell.addColorStop(1, 'rgba(14,70,86,0.8)');
-  g.fillStyle = bell;
-  g.beginPath(); g.moveTo(-0.85 * u * sc, 1.15 * u);
-  g.bezierCurveTo(-1.0 * u * sc, -0.5 * u, -0.5 * u * sc, -1.45 * u, 0, -1.5 * u);
-  g.bezierCurveTo(0.5 * u * sc, -1.45 * u, 1.0 * u * sc, -0.5 * u, 0.85 * u * sc, 1.15 * u);
-  g.quadraticCurveTo(0, 1.4 * u, -0.85 * u * sc, 1.15 * u); g.fill();
-  g.strokeStyle = 'rgba(210,255,245,0.7)'; g.lineWidth = 0.04 * u; g.stroke();
-  // inner structures: nucleus and small organs
-  const pulse = 0.8 + 0.2 * Math.sin(t * 1.6);
-  const nu = g.createRadialGradient(0, 0.1 * u, 0, 0, 0.1 * u, 0.55 * u);
-  nu.addColorStop(0, `rgba(230,255,250,${0.95 * o.core * pulse})`); nu.addColorStop(1, 'rgba(90,230,210,0)');
-  g.fillStyle = nu; g.beginPath(); g.arc(0, 0.1 * u, 0.55 * u, 0, 7); g.fill();
-  g.fillStyle = 'rgba(120,235,215,0.6)';
-  for (const [dx, dy, r] of [[-0.45, 0.45, 0.13], [0.42, 0.5, 0.1], [0.05, -0.65, 0.12]]) { g.beginPath(); g.arc(dx * u, dy * u, r * u, 0, 7); g.fill(); }
-  // two pale eye-spots, turning toward the sky when afraid
-  g.fillStyle = 'rgba(10,50,60,0.75)';
-  for (const sx of [-1, 1]) { g.beginPath(); g.ellipse(sx * 0.3 * u, -0.1 * u - o.look * 0.25 * u, 0.06 * u, 0.1 * u, 0, 0, 7); g.fill(); }
+  const body = g.createLinearGradient(x - u, 0, x + u, 0);
+  body.addColorStop(0, 'rgba(18,90,104,0.78)'); body.addColorStop(0.45, 'rgba(120,235,225,0.62)'); body.addColorStop(1, 'rgba(14,70,86,0.8)');
+  g.fillStyle = body;
+  g.beginPath(); g.moveTo(x - 0.55 * u, y - 1.5 * u);
+  g.bezierCurveTo(x - 0.62 * u, y - 2.8 * u, x - 0.3 * u + sway, y - 3.6 * u, x - 0.16 * u + sway, top);
+  g.quadraticCurveTo(x + sway, top - 0.28 * u, x + 0.16 * u + sway, top);
+  g.bezierCurveTo(x + 0.3 * u + sway, y - 3.6 * u, x + 0.62 * u, y - 2.8 * u, x + 0.55 * u, y - 1.5 * u);
+  g.quadraticCurveTo(x, y - 1.2 * u, x - 0.55 * u, y - 1.5 * u); g.fill();
+  g.strokeStyle = 'rgba(200,255,245,0.55)'; g.lineWidth = 0.03 * u; g.stroke();
+  g.strokeStyle = 'rgba(190,255,240,0.22)'; g.lineWidth = 0.025 * u;
+  for (let i = 0; i < 9; i++) { const ry = y - (1.8 + i * 0.26) * u, w = (0.5 - i * 0.04) * u; g.beginPath(); g.ellipse(x + sway * (i / 9), ry, w, 0.07 * u, 0, 0, Math.PI); g.stroke(); }
+  g.strokeStyle = 'rgba(210,255,248,0.5)'; g.lineWidth = 0.04 * u;
+  g.beginPath(); g.moveTo(x, y - 1.5 * u); g.quadraticCurveTo(x + sway * 0.4, y - 2.8 * u, x + sway, top + 0.1 * u); g.stroke();
+  const nu = g.createRadialGradient(x, y - 2.6 * u, 0, x, y - 2.6 * u, 0.5 * u), pul = 0.75 + 0.25 * Math.sin(m * 1.6);
+  nu.addColorStop(0, `rgba(235,255,250,${0.9 * pul})`); nu.addColorStop(1, 'rgba(90,230,210,0)');
+  g.fillStyle = nu; g.beginPath(); g.arc(x, y - 2.6 * u, 0.5 * u, 0, 7); g.fill();
+  const cr = g.createRadialGradient(x + sway, top, 0, x + sway, top, 0.6 * u);
+  cr.addColorStop(0, `rgba(190,255,235,${0.85 * (1 - threat * 0.5)})`); cr.addColorStop(1, 'rgba(190,255,235,0)');
+  g.fillStyle = cr; g.fillRect(x + sway - 0.6 * u, top - 0.6 * u, 1.2 * u, 1.2 * u);
+  // the reaching arm: from the shoulder out toward me, then drawing back as the sky darkens
+  const sx0 = x - 0.3 * u, sy0 = y - 3.0 * u;
+  const hx = lerp(x + 0.5 * u, targetX, reach) + flee * 60, hy = lerp(y - 2.1 * u, y - 3.35 * u, reach) + Math.sin(m * 1.3) * 3 * (1 - reach);
+  g.restore();
+  drawGelHand(g, sx0, sy0, hx, hy, u * 0.85, 0.45 + 0.4 * reach, m, -1);
+}
+
+// A gel forearm and four-digit hand. (bx,by) is the root, (tx,ty) the palm. open 0..1 spreads the digits.
+function drawGelHand(g, bx, by, tx, ty, u, open, m) {
+  const ang = Math.atan2(ty - by, tx - bx), len = Math.hypot(tx - bx, ty - by);
+  g.save(); g.translate(bx, by); g.rotate(ang);
+  const arm = g.createLinearGradient(0, 0, len, 0);
+  arm.addColorStop(0, 'rgba(16,96,100,0.8)'); arm.addColorStop(1, 'rgba(110,235,220,0.7)');
+  g.fillStyle = arm;
+  g.beginPath(); g.moveTo(0, -0.2 * u); g.quadraticCurveTo(len * 0.5, -0.15 * u, len, -0.1 * u); g.lineTo(len, 0.1 * u); g.quadraticCurveTo(len * 0.5, 0.15 * u, 0, 0.2 * u); g.closePath(); g.fill();
+  g.beginPath(); g.arc(0, 0, 0.2 * u, 0, 7); g.fill();
+  g.strokeStyle = 'rgba(205,255,246,0.6)'; g.lineWidth = 0.03 * u; g.stroke();
+  g.strokeStyle = 'rgba(200,255,248,0.45)'; g.lineWidth = 0.035 * u; g.beginPath(); g.moveTo(0, 0); g.lineTo(len, 0); g.stroke();
+  const pg = g.createRadialGradient(len, 0, 0, len, 0, 0.2 * u); pg.addColorStop(0, 'rgba(210,255,248,0.9)'); pg.addColorStop(1, 'rgba(100,225,210,0.5)');
+  g.fillStyle = pg; g.beginPath(); g.ellipse(len, 0, 0.16 * u, 0.15 * u, 0, 0, 7); g.fill();
+  g.lineCap = 'round';
+  const fan = [-0.62, -0.21, 0.21, 0.62];
+  for (let i = 0; i < 4; i++) {
+    const a0 = fan[i] * (0.45 + 0.9 * open), flex = Math.sin(m * 2.1 + i * 1.3) * 0.05 + (1 - open) * 0.25;
+    const L = (0.72 - Math.abs(fan[i]) * 0.2) * u;
+    const ex = len + Math.cos(a0) * L, ey = Math.sin(a0) * L;
+    const cx = len + Math.cos(a0 * 0.6) * L * 0.55, cy = Math.sin(a0 * 0.6) * L * 0.55 + flex * u * 0.3 * Math.sign(fan[i]);
+    g.strokeStyle = 'rgba(40,160,160,0.75)'; g.lineWidth = 0.12 * u; g.beginPath(); g.moveTo(len, 0); g.quadraticCurveTo(cx, cy, ex, ey); g.stroke();
+    g.strokeStyle = 'rgba(205,255,246,0.7)'; g.lineWidth = 0.035 * u; g.beginPath(); g.moveTo(len, 0); g.quadraticCurveTo(cx, cy, ex, ey); g.stroke();
+    const tg = g.createRadialGradient(ex, ey, 0, ex, ey, 0.1 * u); tg.addColorStop(0, 'rgba(230,255,250,0.9)'); tg.addColorStop(1, 'rgba(160,255,240,0)');
+    g.fillStyle = tg; g.fillRect(ex - 0.1 * u, ey - 0.1 * u, 0.2 * u, 0.2 * u);
+  }
   g.restore();
 }

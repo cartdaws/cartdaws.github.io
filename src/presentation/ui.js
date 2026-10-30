@@ -32,11 +32,20 @@ export class UI {
 
   setHealth(h, max) {
     const v = Math.max(0, Math.ceil(h));
-    if (v === this.lastHealth) return;
-    this.lastHealth = v;
+    if (v === this.lastHealth && max === this.lastMax) return;
+    this.lastHealth = v; this.lastMax = max;
+    // the bar itself lengthens as maximum health grows, so growth is visible at a glance
+    $('health').style.width = `${Math.min(420, 240 + (max - 100) * 2)}px`;
     $('healthFill').style.width = `${(v / max) * 100}%`;
     $('healthFill').classList.toggle('low', v <= 30);
-    $('healthNum').textContent = v;
+    $('healthNum').innerHTML = `${v}<small>/${max}</small>`;
+  }
+
+  // brief reward readout beside the health bar
+  rewardNote(text) {
+    const el = $('rewardNote');
+    el.textContent = text;
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
   }
 
   setDash(ready) {

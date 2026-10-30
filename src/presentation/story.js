@@ -193,15 +193,15 @@ export class Opening {
     if (t < T.reach) vm.curl = Math.min(1, strain);
 
     // ---- 2 HOME ----
-    once('memIn', T.memIn, () => { a.play('memory', { vol: 0.9 }); ui.flash('#cfe9f2', 0.7); this.memoryEl(true); });
+    once('memIn', T.memIn, () => { a.play('memory', { vol: 0.7 }); ui.flash('#04080c', 0.6); this.memoryEl(true); });
     // the memory: the world on the display, its people, the ship, the beam
     once('m1', T.memIn + 2.0, () => this.say('Home.', '', 2.4, true));
-    once('m2', T.memIn + 3.7, () => this.say('My people.', '', 2.0, true));
+    once('m2', T.memIn + 3.7, () => this.say('Someone always reached for me.', '', 2.6, true));
     once('m3', T.memIn + 5.3, () => { a.play('groan', { vol: 0.8 }); this.say('Then the sky opened. They came in a ship.', '', 3.0, true); });
     once('m4', T.memIn + 8.3, () => { a.play('surge', { vol: 0.7 }); });
-    once('m5', T.memIn + 8.9, () => this.say('They took me from my world.', '', 3.0, true));
+    once('m5', T.memIn + 8.9, () => this.say('They took me from my world.', '', 2.8, true));
     if (this.memoryShown) this.memory.draw(t - T.memIn);
-    once('memOut', T.memOut, () => { a.play('memoryOut', { vol: 0.9 }); ui.flash('#cfe9f2', 0.5); this.memoryEl(false); c.display.set('record'); });
+    once('memOut', T.memOut, () => { a.play('memoryOut', { vol: 0.7 }); ui.flash('#04080c', 0.5); this.memoryEl(false); c.display.set('record'); });
     once('think2', T.memOut + 0.8, () => this.say('I have to get home.', '', 2.8, true));
 
     // ---- 3 FAILURE ----
@@ -243,7 +243,14 @@ export class Opening {
     c.crack.material.opacity = t < T.shatter ? ease(t, T.seam, T.shatter) * (0.8 + 0.2 * Math.sin(t * 40)) : 0;
     // the alien pushes the damaged door: wrists slip the loosened clamps, the right hand presses the latch edge
     vm.restrain = t < T.push ? 1 : 1 - ease(t, T.push, T.push + 0.9);
-    if (t < T.reach) { vm.reachTarget.set(0.18, 0.18, -0.72); vm.reachW = stage(t, T.push, T.push + 0.8, T.shatter + 0.9, T.shatter + 1.6); }
+    if (t < T.reach) {
+      vm.reachTarget.set(0.14, 0.2, -0.9);
+      // echo of the memory: the right hand lifts toward the room, strains against the clamp, and is pulled back
+      const echo = 0.4 * stage(t, 1.8, 2.7, 3.2, 4.3) + 0.3 * stage(t, T.memOut + 1.0, T.memOut + 1.8, T.memOut + 2.6, T.memOut + 3.4);
+      vm.reachW = Math.max(echo, stage(t, T.push, T.push + 0.8, T.shatter + 0.9, T.shatter + 1.6));
+    }
+    // an unsteady hand that steadies as the assimilated energy settles
+    vm.tremor = t < T.shatter ? 0 : 0.9 * (1 - ease(t, T.envelop + 0.8, T.form + 1.0));
     once('shatter', T.shatter, () => {
       if (c.doorGlass) c.doorGlass.visible = false;
       c.crack.visible = false; c.spill.visible = true;
@@ -366,7 +373,7 @@ export class Opening {
     once('ai2', T.aiRoute, () => this.say('Automated security deployed on all research decks. Hangar access restricted.', 'SHIP AI', 4.2));
     c.evacGlow.opacity = stage(t, T.lookRoute, T.lookRoute + 0.4, T.goal, T.goal + 1.0) * (0.55 + 0.45 * Math.sin(t * 6));
     once('thought3', T.lookRoute + 2.2, () => this.say('The hangar. A ship. Home.', '', 2.8, true));
-    once('goal', T.goal, () => { ui.banner('Reach the hangar.\nFind a way home.', 'green goal', 4.0); a.play('unlock', { vol: 0.7 }); });
+    once('goal', T.goal, () => { ui.banner('Escape the Robotics Deck.\nAbsorb what you disable to survive.', 'green goal', 4.6); a.play('unlock', { vol: 0.7 }); });
     if (t >= T.end) this.finish();
   }
 
@@ -502,6 +509,7 @@ export class Opening {
     for (const fr of vm.right.frags) fr.k = 1;
     vm.bulge = 0;
     vm.setPistol(null);
+    vm.tremor = 0;
     vm.form = 1; vm.crystal = 1; vm.frag = 1; vm.curl = 0; vm.cineW = 0; vm.reachW = 0; vm.restrain = 0; vm.restrainSlack = 1; vm.charge = 0; vm.leftHidden = false; vm.xray = 0;
     vm.recoil = vm.recoilVel = 0;
     // the breach has happened and stays that way: door forced, glass gone, seal dead, scanner slack, nobody left in view

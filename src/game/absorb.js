@@ -1,18 +1,19 @@
 import * as THREE from 'three';
-import { clamp, lerp, smooth, seg } from '../core/util.js';
+import { lerp, smooth, seg } from '../core/util.js';
 
-const RANGE = 4.6;          // metres from the eye
-const CONE = 0.88;          // cosine of the aiming cone
-const HEAL = { bug: 14, drone: 24 };
-// Timeline of one absorption (seconds): spit -> deconstruct -> draw in. One press starts it.
-const SPIT = 0.3, DISSOLVE_END = 1.25, END = 1.95;
+export const ABSORB_RANGE = 3.4;   // metres from the eye to the enemy's centre
+const CONE = 0.8;                  // cosine of the aiming cone (about 37 degrees): no pixel-perfect aim needed
+export const ABSORB_HEAL = 25;     // health restored by every successful absorption, bugs and drones alike
+const DURATION = 1.05;             // seconds from commit to the arm settling
+const FAILSAFE = DURATION + 1.5;   // a committed absorption always resolves by now
 
 const ease = (t, a, b) => smooth(seg(t, a, b));
-const _d = new THREE.Vector3(), _t = new THREE.Vector3(), _m = new THREE.Vector3(), _c = new THREE.Vector3(), _mouth = new THREE.Vector3();
+const _d = new THREE.Vector3(), _t = new THREE.Vector3(), _w = new THREE.Vector3(), _l = new THREE.Vector3(), _p = new THREE.Vector3();
+const _out = {};
 
-// Absorb a weakened enemy with one press (right click / E / ABSORB button).
-// Like a fly feeding: a glob of gel is spat onto the body, it deconstructs into a puddle, tendrils reach out and wrap it,
-// and the liquefied mass is drawn up into the arm. The player heals and the kill counts for the encounter.
+// Absorbing a disabled enemy is the alien's way of surviving. One press (right click, or the ABSORB button) commits;
+// the supporting hand reaches, an elastic stalk connects, the prey is pulled in, enveloped, dissolved under the skin and
+// a pulse runs up the forearm. Every absorbed enemy restores ABSORB_HEAL health and permanently adds 1 maximum health.
 export class Absorber {
   constructor(game) {
     this.game = game;
@@ -21,34 +22,51 @@ export class Absorber {
     this.hinted = false;
   }
 
+  // True only while a committed absorption is actually running in an unpaused game.
+  get protecting() { return !!this.seq && !this.game.paused && this.game.state === 'playing'; }
+  get busy() { return !!this.seq; }
+
+  // Abort anything in flight (restart, death, retry): the enemy is restored, the arm released, protection gone.
   reset() {
-    this.target = null; this.seq = null;
+    const S = this.seq;
+    if (S) this.restore(S);
+    this.seq = null; this.target = null;
     const g = this.game;
-    g.viewmodel.reachW = 0; g.viewmodel.bulge = 0; g.viewmodel.tendrils.hide();
+    g.viewmodel.absorbFX.clear();
     g.ui.setPrompt('');
+    for (const e of g.enemies) e.ringBoost = false;
     if (g.touchUI) g.touchUI.setAbsorb(false);
   }
 
-  pick() {
+  restore(S) {
+    const e = S.e;
+    e.absorbing = false;
+    e.group.scale.setScalar(1);
+    for (const [m, o] of S.mats) { m.opacity = o.op; m.transparent = o.tr; m.needsUpdate = true; if (m.emissive && o.em) { m.emissive.copy(o.em); m.emissiveIntensity = o.ei; } }
+  }
+
+  // Eligible: disabled, within reach, roughly in front, and not behind cover.
+  eligible(e) {
     const g = this.game;
+    if (!e.alive || !e.weak || e.absorbing || e.rewarded) return -1;
+    const cp = g.camera.position, c = e.hitSpheres[0].c;
+    _t.subVectors(c, cp);
+    const dist = _t.length();
+    if (dist > ABSORB_RANGE || dist < 0.3) return -1;
     g.camera.getWorldDirection(_d);
-    const cp = g.camera.position;
-    let best = null, bestDot = CONE;
-    for (const e of g.enemies) {
-      if (!e.alive || !e.weak || e.absorbing) continue;
-      const c = e.hitSpheres[0].c;
-      _t.subVectors(c, cp);
-      const dist = _t.length();
-      if (dist > RANGE || dist < 0.3) continue;
-      const dot = _t.divideScalar(dist).dot(_d);
-      if (dot < bestDot) continue;
-      if (g.world.blocked(cp.x, cp.y, cp.z, c.x, c.y, c.z, (b) => b.tag !== 'barrel')) continue;
-      best = e; bestDot = dot;
-    }
+    const dot = _t.divideScalar(dist).dot(_d);
+    if (dot < CONE) return -1;
+    if (g.world.blocked(cp.x, cp.y, cp.z, c.x, c.y, c.z, (b) => b.tag !== 'barrel')) return -1;
+    return dot;
+  }
+
+  pick() {
+    let best = null, bestDot = -1;
+    for (const e of this.game.enemies) { const d = this.eligible(e); if (d > bestDot) { best = e; bestDot = d; } }
     return best;
   }
 
-  // called on right click / E / the ABSORB button
+  // Right click / ABSORB button. Ignored unless a valid target exists and nothing else is in progress.
   request() {
     const g = this.game;
     if (this.seq || g.state !== 'playing' || g.paused || g.player.dead) return;
@@ -57,108 +75,93 @@ export class Absorber {
   }
 
   begin(e) {
-    const g = this.game, vm = g.viewmodel;
+    const g = this.game;
     e.absorbing = true;
+    e.ringBoost = false;
+    if (e.absRing) e.absRing.visible = false;
     e.flashT = 0;
     const mats = new Map();
-    e.group.traverse((o) => { if (o.isMesh && o.material && !mats.has(o.material)) mats.set(o.material, { op: o.material.opacity, em: o.material.emissive ? o.material.emissive.clone() : null, ei: o.material.emissiveIntensity, col: o.material.color ? o.material.color.clone() : null }); });
+    e.group.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      for (const m of [].concat(o.material)) if (!mats.has(m)) mats.set(m, { op: m.opacity, tr: m.transparent, em: m.emissive ? m.emissive.clone() : null, ei: m.emissiveIntensity });
+    });
     for (const m of mats.keys()) { m.transparent = true; m.needsUpdate = true; }
-    this.seq = { e, t: 0, mats, y0: e.pos.y, spat: false, steamT: 0 };
+    const c = e.hitSpheres[0].c;
+    this.seq = { e, t: 0, mats, startW: c.clone(), cOff: c.y - e.pos.y, size: Math.max(0.25, e.hitSpheres[0].r || 0.35), f: {} };
+    g.viewmodel.absorbFX.size = this.seq.size;
     this.target = null;
     g.ui.setPrompt('');
-    g.audio.play('absorb', { vol: 0.5 });
-    vm.pulseGlow(0.5);
+    g.audio.play('servo', { vol: 0.25 });
   }
 
-  localOf(world, out) { this.game.camera.updateMatrixWorld(); return out.copy(world).applyMatrix4(this.game.camera.matrixWorldInverse); }
-
   update(dt) {
-    const g = this.game, vm = g.viewmodel, ui = g.ui;
-    const tb = vm.tendrils;
+    const g = this.game, ui = g.ui;
     if (this.seq) { this.run(dt); return; }
-    // tendrils left over from a finished sequence retract
-    if (tb.extend > 0) { tb.extend = Math.max(0, tb.extend - dt * 3.2); tb.wrap = Math.max(0, tb.wrap - dt * 3); }
-    vm.reachW = Math.max(0, vm.reachW - dt * 4);
-    vm.bulge = Math.max(0, vm.bulge - dt * 2);
+    const fx = g.viewmodel.absorbFX;
+    if (fx.arm.rw > 0 || fx.blob.visible) fx.clear();
 
     const target = this.pick();
     this.target = target;
+    for (const e of g.enemies) e.ringBoost = e === target;
     if (g.touchUI) g.touchUI.setAbsorb(!!target);
     if (!target) { ui.setPrompt(''); return; }
-    if (!this.hinted) { this.hinted = true; ui.hint(g.touchMode ? 'TAP ABSORB ON WEAKENED ENEMIES' : 'RIGHT CLICK TO ABSORB WEAKENED ENEMIES', 4); }
+    if (!this.hinted) { this.hinted = true; ui.hint(g.touchMode ? 'TAP ABSORB ON DISABLED ENEMIES' : 'RIGHT CLICK TO ABSORB DISABLED ENEMIES', 3.5); }
     ui.setPrompt(g.touchMode ? 'ABSORB' : 'RIGHT CLICK — ABSORB');
   }
 
   run(dt) {
-    const g = this.game, vm = g.viewmodel, S = this.seq, e = S.e, tb = vm.tendrils;
+    const g = this.game, vm = g.viewmodel, S = this.seq, e = S.e, fx = vm.absorbFX;
     S.t += dt;
-    const t = S.t;
+    const u = Math.min(1, S.t / DURATION), t = S.t;
     g.camera.updateMatrixWorld();
-    const body = _c.set(e.pos.x, S.y0 + (e.kind === 'drone' ? 0 : 0.28), e.pos.z);        // centre of the body in world space
-    const k = ease(t, SPIT, DISSOLVE_END);                                                   // deconstruction 0..1
-    const suck = ease(t, DISSOLVE_END, END);                                                 // drawn in 0..1
-    const palm = vm.palmLocal(tb.origin);
-    this.localOf(body, tb.target);
+    _l.copy(S.startW); g.camera.worldToLocal(_l);                 // where the prey stood, as seen from the camera now
+    fx.update(u, _l, _out);
 
-    // arm reaches for the prey
-    vm.reachTarget.copy(tb.target);
-    vm.reachW = smooth(Math.min(1, t / 0.25)) * (1 - ease(t, END - 0.2, END + 0.2));
-    // 1. SPIT: a glob of gel leaves the palm and lands on the body
-    if (!S.spat && t >= 0.02) {
-      S.spat = true;
-      g.audio.play('swallow', { vol: 0.7 });
-      tb.spit(palm.clone(), tb.target.clone(), SPIT - 0.04, () => {
-        g.audio.play('gel', { vol: 0.8 });
-        for (let i = 0; i < 18; i++) g.effects.glowP.emit(body.x, body.y + 0.1, body.z, (Math.random() - 0.5) * 3, Math.random() * 2.5, (Math.random() - 0.5) * 3, 0.5, 0.05, 0.4, 1, 0.5, 6, 1);
-      });
-    }
-    // 2. tendrils sprout, reach and wrap while the body deconstructs
-    tb.extend = ease(t, 0.12, 0.75) * (1 - ease(t, END - 0.15, END + 0.35));
-    tb.wrap = ease(t, 0.55, 1.25) * (1 - ease(t, END - 0.15, END + 0.2));
-    // the acid works: the body slumps into a puddle, goes translucent and green, and steams
-    const sx = 1 + 0.4 * k, sy = Math.max(0.12, 1 - 0.88 * k);
-    const fade = 1 - suck;
-    e.group.scale.set(sx * fade + 0.001, sy * fade + 0.001, sx * fade + 0.001);
-    if (e.kind === 'drone') e.pos.y = lerp(S.y0, 0.3, k * k);
-    e.group.rotation.z = Math.sin(t * 40) * 0.05 * k * (1 - suck);
+    // place the prey where the effect says it is
+    _w.copy(_out.pos); g.camera.localToWorld(_w);
+    const sc = Math.max(0.02, _out.scale);
+    e.group.scale.setScalar(sc);
+    e.pos.set(_w.x, _w.y - S.cOff * sc, _w.z);
+    e.group.rotation.y += dt * 5 * ease(u, 0.3, 0.6);
+
+    // the machine is drained: material goes translucent and takes on the gel's colour, stored energy streams to the palm
+    const dis = _out.dissolve;
     for (const [m, o] of S.mats) {
-      m.opacity = o.op * (1 - 0.7 * k) * (suck > 0 ? 1 - 0.5 * suck : 1);
-      if (m.emissive) { m.emissive.setRGB(lerp(o.em.r, 0.2, k), lerp(o.em.g, 1, k), lerp(o.em.b, 0.45, k)); m.emissiveIntensity = lerp(o.ei, 1.4, k); }
-      if (m.color && o.col) m.color.setRGB(lerp(o.col.r, 0.25, k * 0.7), lerp(o.col.g, 0.6, k * 0.7), lerp(o.col.b, 0.3, k * 0.7));
+      m.opacity = o.op * lerp(1, 0.2, dis);
+      if (m.emissive) { m.emissive.setRGB(lerp(o.em.r, 0.15, dis), lerp(o.em.g, 0.95, dis), lerp(o.em.b, 0.8, dis)); m.emissiveIntensity = lerp(o.ei, 1.2, dis); }
     }
-    if (t > SPIT && t < DISSOLVE_END + 0.2) {                                                 // bubbling and steam
-      S.steamT += dt;
-      if (S.steamT > 0.03) {
-        S.steamT = 0;
-        g.effects.glowP.emit(body.x + (Math.random() - 0.5) * 0.6, S.y0 * 0.3 + 0.1, body.z + (Math.random() - 0.5) * 0.6, 0, 0.9 + Math.random() * 0.8, 0, 0.5, 0.04, 0.4, 1, 0.45, -1, 0.5);
-        g.effects.smokeP.emit(body.x + (Math.random() - 0.5) * 0.5, 0.3, body.z + (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.3, 0.8, (Math.random() - 0.5) * 0.3, 0.9, 0.3, 0.6, 0.9, 0.7, -0.3, 1, 1.5);
-      }
+    if (_out.energy > 0.02 && Math.random() < 0.8) {
+      vm.palmLocalOf(fx.arm, _p); g.camera.localToWorld(_p);
+      const sp = _w;
+      g.effects.glowP.emit(sp.x + (Math.random() - 0.5) * 0.15, sp.y + (Math.random() - 0.5) * 0.15, sp.z + (Math.random() - 0.5) * 0.15,
+        (_p.x - sp.x) * 3.5, (_p.y - sp.y) * 3.5, (_p.z - sp.z) * 3.5, 0.28, 0.035, 1, 0.75, 0.35, 0, 0);
     }
-    // 3. the liquid is drawn up the tendrils and into the arm
-    if (t > DISSOLVE_END - 0.1) {
-      const mouth = vm.right.muzzle.getWorldPosition(_mouth);
-      const start = mouth.clone().sub(body).multiplyScalar(0);
-      for (let i = 0; i < 3; i++) {
-        const sp = new THREE.Vector3(body.x + (Math.random() - 0.5) * 0.35, body.y + (Math.random() - 0.5) * 0.2, body.z + (Math.random() - 0.5) * 0.35);
-        const v = _m.copy(mouth).sub(sp).multiplyScalar(1 / 0.32);
-        g.effects.glowP.emit(sp.x, sp.y, sp.z, v.x, v.y, v.z, 0.3, 0.05, 0.5, 1, 0.8, 0, 0);
-      }
-      vm.bulge = Math.sin(suck * Math.PI) * 0.8 + 0.2 * suck;
-      vm.pulseGlow(0.3 + 0.4 * suck);
-    }
-    if (t >= END) this.finish(e);
+    const f = S.f;
+    if (u > 0.3 && !f.a) { f.a = true; g.audio.play('gel', { vol: 0.5 }); }
+    if (u > 0.58 && !f.b) { f.b = true; g.audio.play('swallow', { vol: 0.7 }); if (e.kind === 'bug' || e.kind === 'drone') g.audio.play('spark', { vol: 0.15 }); }
+    if (u > 0.88 && !f.c) { f.c = true; g.audio.play('crystal', { vol: 0.3 }); vm.pulseGlow(0.6); }
+    if (u >= 1 || t > FAILSAFE) this.finish();
   }
 
-  finish(e) {
-    const g = this.game, p = g.player;
+  // Resolve exactly once: reward, heal, remove the enemy, release the arm.
+  finish() {
+    const g = this.game, S = this.seq;
+    if (!S) return;
     this.seq = null; this.target = null;
+    const e = S.e;
+    g.viewmodel.absorbFX.clear();
     e.group.scale.setScalar(1);
-    e.group.rotation.z = 0;
-    e.die(true); // counts for the encounter, no explosion
-    p.health = Math.min(p.maxHealth, p.health + (HEAL[e.kind] || 14));
-    g.ui.hitMarker(true);
-    g.audio.play('crystal', { vol: 0.5 });
-    g.viewmodel.pulseGlow(0.9);
-    g.addShake(0.05);
+    e.absorbing = false;
+    if (e.alive && !e.rewarded) {
+      e.rewarded = true;
+      g.grantMaxHp();
+      const p = g.player;
+      p.health = Math.min(p.maxHealth, p.health + ABSORB_HEAL);
+      g.ui.hitMarker(true);
+      g.viewmodel.pulseGlow(0.8);
+      g.audio.play('heal', { vol: 0.4 });
+    }
+    e.die(true);
+    g.ui.setPrompt('');
   }
 }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { save, BASE_MAX_HP } from '../core/save.js';
 import { clamp, damp } from '../core/util.js';
 
 const RADIUS = 0.4;
@@ -17,7 +18,7 @@ export class Player {
     this.pos = new THREE.Vector3();
     this.vx = 0; this.vz = 0; this.vy = 0;
     this.yaw = 0; this.pitch = 0;
-    this.maxHealth = 100;
+    this.maxHealth = BASE_MAX_HP + save.maxHpBonus; // permanent growth from absorbed enemies
     this.reset(0, 0, 0);
   }
 

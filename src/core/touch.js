@@ -86,7 +86,8 @@ export class TouchControls {
 
   setAbsorb(v) { this.absorbBtn.classList.toggle('ready', v); }
 
-  setVisible(v) { this.root.classList.toggle('show', v); }
+  // mode: 'play' (all controls), 'cine' (pause only, during the cinematic) or false
+  setVisible(mode) { this.root.classList.toggle('show', !!mode); this.root.classList.toggle('cine', mode === 'cine'); }
 }
 
 // Fullscreen + landscape where the browser allows it (Android Chrome yes; iOS Safari ignores both).

@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { lerp, damp, clamp } from '../core/util.js';
 import { TendrilBundle } from './tendrils.js';
+import { AbsorbFX } from './absorbfx.js';
 import { makeHandGel, updateHandGels } from './hand.js';
 
-const _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
+const _el = new THREE.Vector3(), _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const ELBOW = new THREE.Vector3(0.5, -0.78, 0.2); // where the reaching arm emerges from (camera space)
 
@@ -31,6 +32,8 @@ class HandArm {
     this.root.add(this.tip);
     this.frags = [];
     this.phase = side > 0 ? 0 : 2.1;
+    // feeding-action overrides, driven by AbsorbFX (all zero at rest)
+    this.rw = 0; this.rt = new THREE.Vector3(); this.fxSpread = 0; this.fxCurl = 0; this.fxBulge = 0;
     this.hold = new THREE.Vector3(side * 0.3, -0.17, -0.6);
     this.restrainPos = new THREE.Vector3(side * 0.58, -0.41, -0.3);
 
@@ -89,22 +92,27 @@ class HandArm {
       const qloc = qc.clone().multiply(qa);
       this.root.quaternion.slerp(qloc, w);
     }
-    if (this.weapon && vm.reachW > 0) {
-      const w = vm.reachW;
-      _d.subVectors(vm.reachTarget, ELBOW).normalize();
-      _w.copy(vm.reachTarget).addScaledVector(_d, -0.1);
-      _m.lookAt(_w, vm.reachTarget, UP);
+    const w = this.weapon ? vm.reachW : this.rw, rtgt = this.weapon ? vm.reachTarget : this.rt;
+    if (w > 0) {
+      _d.subVectors(rtgt, _el.set(side * 0.5, -0.78, 0.2)).normalize();
+      _w.copy(rtgt).addScaledVector(_d, -0.1);
+      _m.lookAt(_w, rtgt, UP);
       _q.setFromRotationMatrix(_m);
       pos.lerp(_w, w);
       this.root.quaternion.slerp(_q, w);
     }
+    if (vm.tremor > 0) { // an unsteady hand: fine, slightly irregular shake
+      const k = vm.tremor * 0.006;
+      pos.x += (Math.sin(t * 37 + this.phase) + Math.sin(t * 23 + 1.3)) * k;
+      pos.y += (Math.sin(t * 31 + this.phase * 2) + Math.sin(t * 19)) * k;
+    }
     this.root.position.copy(pos);
 
     // ---- shape: morph targets drive grip, weapon form, recoil flare ----
-    this.setKey('Grip', clamp(curl * (1 - f * 0.9), 0, 1));
+    this.setKey('Grip', clamp(Math.max(curl, this.fxCurl) * (1 - f * 0.9), 0, 1));
     this.setKey('Weapon', clamp(f * (1 - 0.55 * rec), 0, 1));
-    this.setKey('Spread', clamp(rec * 1.2, 0, 1));
-    this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35 + (this.weapon ? vm.bulge : 0), 0, 1.4));
+    this.setKey('Spread', clamp(rec * 1.2 + this.fxSpread, 0, 1));
+    this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35 + (this.weapon ? vm.bulge : 0) + this.fxBulge, 0, 1.4));
 
     this.palmCore.scale.setScalar(1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6);
     if (!this.weapon) return;
@@ -181,7 +189,16 @@ export class ViewModel {
 
     this.right = new HandArm(this, 1, true);
     this.left = new HandArm(this, -1, false);
-    this.tendrils = new TendrilBundle(this.root, 6);
+    this.tendrils = new TendrilBundle(this.root, 1);
+    this.absorbFX = new AbsorbFX(this);
+    this.tremor = 0; // 0..1 shake of both hands (the first moments of the intro)
+  }
+
+  // palm of either hand, camera space
+  palmLocalOf(arm, out) {
+    out.set(0, 0, -0.14);
+    arm.root.localToWorld(out);
+    return this.root.worldToLocal(out);
   }
 
   // the right palm / weapon mouth in camera-local space

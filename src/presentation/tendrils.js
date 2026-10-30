@@ -18,7 +18,7 @@ export class TendrilBundle {
     this.time = 0;
     this.items = [];
     for (let i = 0; i < count; i++) {
-      const mesh = new TentacleMesh({ rings: 22, radial: 8, radius: (t) => lerp(0.026, 0.006, Math.pow(t, 0.75)) * (1 + 0.22 * Math.sin(t * 15)), material: this.gel });
+      const mesh = new TentacleMesh({ rings: 22, radial: 8, radius: (t) => lerp(0.03, 0.009, Math.pow(t, 0.7)) * (1 + 0.22 * Math.sin(t * 15)), material: this.gel });
       mesh.mesh.renderOrder = 8; mesh.mesh.frustumCulled = false; mesh.mesh.visible = false;
       parent.add(mesh.mesh);
       this.items.push({ mesh, chain: new SpringChain(11, 300, 70, 0.8), ideal: Array.from({ length: 11 }, () => new THREE.Vector3()), a: (i / count) * Math.PI * 2 + (i % 2) * 0.4, ph: i * 1.7 });
@@ -60,7 +60,7 @@ export class TendrilBundle {
       const it = this.items[i];
       const ang = it.a + this.time * 0.9 * (1 - this.wrap);
       _lat.copy(_u).multiplyScalar(Math.cos(ang)).addScaledVector(_v, Math.sin(ang));
-      const spread = lerp(0.07 + 0.06 * L, 0.032, this.wrap);                   // opens wide when reaching, closes around the target
+      const spread = n > 1 ? lerp(0.07 + 0.06 * L, 0.032, this.wrap) : 0;                   // opens wide when reaching, closes around the target
       _T.copy(this.target).addScaledVector(_lat, spread).addScaledVector(_d, (i / n - 0.5) * 0.07 * this.wrap);
       _c1.copy(this.origin).addScaledVector(_d, L * 0.3).addScaledVector(_lat, (0.1 + 0.1 * L) * (1 - 0.6 * this.wrap));
       _c2.copy(_T).addScaledVector(_d, -L * 0.3).addScaledVector(_lat, 0.08 * (1 - this.wrap));

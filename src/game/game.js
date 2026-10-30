@@ -20,6 +20,7 @@ import { TouchControls, isTouchDevice, enterImmersive } from '../core/touch.js';
 import { PostFX } from '../presentation/post.js';
 import { AlienBody } from './body.js';
 import { Absorber } from './absorb.js';
+import { save } from '../core/save.js';
 
 const STEP = 1 / 60;
 const BASE_FOV = 78;
@@ -302,6 +303,7 @@ export class Game {
   die() {
     if (this.player.dead) return;
     this.player.dead = true;
+    this.absorber.reset();
     this.state = 'dead';
     this.deadTimer = 1.1;
     this.audio.play('death');
@@ -317,7 +319,7 @@ export class Game {
   }
 
   canFire() {
-    return this.state === 'playing' && !this.paused && this.input.locked && !this.player.dead && this.weaponAcquired;
+    return this.state === 'playing' && !this.paused && this.input.locked && !this.player.dead && this.weaponAcquired && !this.absorber.busy;
   }
 
   // ---------- gameplay hooks ----------
@@ -373,11 +375,21 @@ export class Game {
     barrel.takeDamage(dmg);
   }
 
+  // Permanent reward for one absorbed enemy: +1 maximum health, saved immediately.
+  grantMaxHp() {
+    const p = this.player;
+    save.addMaxHp();
+    p.maxHealth += 1;
+    p.health = Math.min(p.health, p.maxHealth);
+    this.ui.rewardNote('MAX HP +1');
+  }
+
   onEnemyDied() { /* the encounter polls living enemies each step */ }
 
   damagePlayer(amount, from) {
     const p = this.player;
     if (p.dead || this.state !== 'playing') return;
+    if (this.absorber.protecting) return; // the committed absorption cannot be punished
     p.health = Math.max(0, p.health - amount);
     this.ui.damageFlash(clamp(amount / 12, 0.7, 1));
     if (from) {
@@ -445,7 +457,7 @@ export class Game {
     this.body.setVisible(!this.cinePose);
     this.body.update(dt);
     this.ui.update(dt);
-    if (this.touchUI) this.touchUI.setVisible((this.state === 'playing' || this.state === 'opening') && !this.paused);
+    if (this.touchUI) this.touchUI.setVisible(this.paused ? false : this.state === 'playing' ? 'play' : this.state === 'opening' ? 'cine' : false);
     if (this.state === 'playing' || this.state === 'dead') {
       this.ui.setHealth(player.health, player.maxHealth);
       this.ui.setDash(player.dashReady);
@@ -490,7 +502,10 @@ export class Game {
     this.weapon.step(dt, input.mouse(0), this.canFire());
     this.level.updateDoors(dt);
     this.projectiles.update(dt);
-    for (const e of this.enemies) { if (e.absorbing) { e.updateFlash?.(dt); continue; } e.update(dt); }
+    for (const e of this.enemies) {
+      if (e.absorbing) { e.updateFlash(dt); continue; }
+      if (e.weak) e.updateDisabled(dt); else e.update(dt);
+    }
     if (playing && !player.dead) this.absorber.update(dt);
     for (const b of this.barrels) b.update(dt);
     if (playing) {
