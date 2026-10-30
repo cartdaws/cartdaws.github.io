@@ -55,6 +55,7 @@ export class UI {
     setTimeout(() => { el.style.transition = 'none'; el.style.background = '#000'; }, dur * 1000 + 50);
   }
 
+  setPrompt(t) { const el = $('prompt'); if (el.textContent !== t) el.textContent = t; el.style.opacity = t ? 1 : 0; }
   setObjective(t) { $('objective').textContent = t; }
 
   hitMarker(kill) {

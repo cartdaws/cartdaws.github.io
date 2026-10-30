@@ -12,6 +12,7 @@ export class Input {
     this.fake = false; // test-only: pretend pointer lock is held
     this.touch = false; // touch device: there is no pointer lock, "locked" simply means the game has control
     this.axisX = 0; this.axisY = 0; // analog move stick
+    this.touchAbsorb = false;
     this.fireGuardUntil = 0;
     this.onLockChange = () => {};
     this.onLockError = () => {};

@@ -46,11 +46,17 @@ export class Enemy {
 
   centerPoint() { return new THREE.Vector3(this.pos.x, this.pos.y + 0.4, this.pos.z); }
 
+  // Nearly dead: the body glows and can be absorbed.
+  get weak() { return this.alive && this.active && this.hp <= this.maxHp * 0.35; }
+
   updateFlash(dt) {
     if (this.flashT > 0) this.flashT -= dt;
     const f = this.flashT > 0 ? 1 : 0;
+    const weak = !f && this.weak && !this.absorbing;
+    const wp = 0.55 + 0.45 * Math.sin(performance.now() * 0.008);
     for (const { mat, base, baseI } of this.flashMats) {
       if (f) { mat.emissive.setRGB(1, 0.9, 0.8); mat.emissiveIntensity = 1.2; }
+      else if (weak) { mat.emissive.setRGB(0.1, 0.95, 0.8); mat.emissiveIntensity = 0.5 + 1.1 * wp; }
       else { mat.emissive.copy(base); mat.emissiveIntensity = baseI; }
     }
   }

@@ -102,6 +102,10 @@ body.retro { font-family: 'Courier New', monospace; }
 #skip b { color: #fff; border: 1px solid rgba(255, 255, 255, 0.7); padding: 1px 8px; margin-left: 6px; font-weight: 700; }
 #banner.goal { background: rgba(4, 8, 10, 0.72); width: fit-content; margin: 0 auto; padding: 14px 40px 14px 40px; text-shadow: 0 1px 2px #000; }
 
+#prompt { position: absolute; left: 0; right: 0; bottom: 38%; text-align: center; font-size: 15px; letter-spacing: 0.24em; color: #8ff5e6; opacity: 0; text-shadow: 0 1px 6px #000; }
+#t-absorb { right: calc(150px + env(safe-area-inset-right)); bottom: calc(118px + env(safe-area-inset-bottom)); width: 78px; height: 78px; display: none; border-color: rgba(120, 255, 230, 0.8) !important; color: #8ff5e6 !important; font-size: 11px !important; }
+#t-absorb.ready { display: block; }
+
 /* ---------- touch / phone ---------- */
 html, body { touch-action: none; overscroll-behavior: none; -webkit-user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
 #touch { position: fixed; inset: 0; z-index: 7; display: none; pointer-events: none; }

@@ -13,6 +13,7 @@ export class TouchControls {
       <button id="t-fire">FIRE</button>
       <button id="t-jump">JUMP</button>
       <button id="t-dash">DASH</button>
+      <button id="t-absorb">ABSORB</button>
       <button id="t-pause">II</button>`;
     document.body.appendChild(root);
     this.root = root;
@@ -74,12 +75,16 @@ export class TouchControls {
     hold($('t-jump'), () => input.pressed.add('Space'));
     hold($('t-dash'), () => input.pressed.add('ShiftLeft'));
     hold($('t-pause'), () => onPause());
+    this.absorbBtn = $('t-absorb');
+    hold(this.absorbBtn, () => { input.touchAbsorb = true; }, () => { input.touchAbsorb = false; });
 
     // stop the browser's own gestures (scroll, zoom, long-press menus) while playing
     for (const ev of ['touchmove', 'gesturestart']) document.addEventListener(ev, (e) => { if (root.classList.contains('show')) e.preventDefault(); }, { passive: false });
     document.addEventListener('contextmenu', (e) => e.preventDefault());
     document.getElementById('skip').addEventListener('pointerdown', (e) => { e.preventDefault(); onSkip(); });
   }
+
+  setAbsorb(v) { this.absorbBtn.classList.toggle('ready', v); }
 
   setVisible(v) { this.root.classList.toggle('show', v); }
 }

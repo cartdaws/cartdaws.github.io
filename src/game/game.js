@@ -19,6 +19,7 @@ import { UI } from '../presentation/ui.js';
 import { TouchControls, isTouchDevice, enterImmersive } from '../core/touch.js';
 import { PostFX } from '../presentation/post.js';
 import { AlienBody } from './body.js';
+import { Absorber } from './absorb.js';
 
 const STEP = 1 / 60;
 const BASE_FOV = 78;
@@ -64,6 +65,7 @@ export class Game {
     this.viewmodel = new ViewModel(handAsset);
     this.body = new AlienBody(this.scene, this.world, this.player, armGeos);
     this.weapon = new Shardcaster(this);
+    this.absorber = new Absorber(this);
     this.projectiles = new Projectiles(this);
     this.encounter = new Encounter(this);
     this.opening = new Opening(this);
@@ -276,6 +278,7 @@ export class Game {
     this.spawnEncounter();
     this.player.reset(REPLAY_START.x, REPLAY_START.z, 0);
     this.weapon.reset();
+    this.absorber.reset();
     this.viewmodel.recoil = this.viewmodel.recoilVel = this.viewmodel.pulse = 0;
     this.weaponAcquired = true;
     this.body.reset();
@@ -484,7 +487,8 @@ export class Game {
     this.weapon.step(dt, input.mouse(0), this.canFire());
     this.level.updateDoors(dt);
     this.projectiles.update(dt);
-    for (const e of this.enemies) e.update(dt);
+    for (const e of this.enemies) { if (e.absorbing) { e.updateFlash?.(dt); continue; } e.update(dt); }
+    if (playing && !player.dead) this.absorber.update(dt);
     for (const b of this.barrels) b.update(dt);
     if (playing) {
       this.nav.setTarget(player.pos.x, player.pos.z);
