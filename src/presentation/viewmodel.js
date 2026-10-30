@@ -43,7 +43,7 @@ class HandArm {
       this.tooth = inner('Tooth', vm.crystalMat, 3);
       this.glow = new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 10), vm.glowMat);
       this.root.add(this.glow);
-      this.light = new THREE.PointLight(0x6ff0ff, 0, 1.6, 2);
+      this.light = new THREE.PointLight(0x6ff0ff, 0, 0.7, 2);
       this.root.add(this.light);
       this.muzzle = new THREE.Object3D();
       this.root.add(this.muzzle);
@@ -70,15 +70,18 @@ class HandArm {
   update(dt, ctx) {
     const vm = this.vm, t = vm.time, side = this.side;
     const f = this.weapon ? vm.form : 0, rec = this.weapon ? vm.recoil : 0;
+    const rk = Math.min(rec, 0.32);                   // capped, so sustained fire never accumulates displacement
+    const whip = this.weapon ? clamp(vm.recoil - vm.flex, -0.2, 0.2) : 0; // the wrist lags the arm, then catches up
+    const fp = Math.max(vm.firePulse, vm.pulse);       // light for the weapon's own channel
     const curl = this.weapon ? vm.curl : 0.22 + Math.sin(t * 0.9 + this.phase) * 0.04;
 
     // ---- pose: hold, restrained, or reaching ----
     const pos = _v.copy(this.hold);
     pos.x += vm.swayX * 0.5 + vm.lagX;
     pos.y += vm.swayY * 0.5 + Math.sin(t * 1.5 + this.phase) * 0.004 - vm.dashK * 0.1;
-    pos.z += vm.lagZ + vm.dashK * 0.1 + (this.weapon ? rec * 0.06 : vm.recoil * 0.02);   // backward impulse through the firing hand, a flinch in the other
-    if (this.weapon) pos.y += rec * 0.01; else pos.y += vm.recoil * 0.005;
-    _e.set(0.44 + rec * 0.1 + vm.swayY * 0.4 + vm.dashK * 0.1, side * -0.1 + vm.swayX * 0.5 - side * vm.dashK * 0.1, side * -0.08, 'YXZ');
+    pos.z += vm.lagZ + vm.dashK * 0.1 + (this.weapon ? rk * 0.34 : vm.recoil * 0.05);   // backward impulse through the firing hand, a flinch in the other
+    if (this.weapon) pos.y += rk * 0.1; else pos.y += vm.recoil * 0.012;
+    _e.set(0.44 + rk * 0.62 + whip * 1.5 + vm.swayY * 0.4 + vm.dashK * 0.1, side * -0.1 + vm.swayX * 0.5 - side * vm.dashK * 0.1, side * -0.08 + (this.weapon ? rk * 0.35 : 0), 'YXZ');
     this.root.quaternion.setFromEuler(_e);
     if (vm.restrain > 0) {
       // the clamps are fixed in the world, so the held wrists follow them as the head turns and tilts
@@ -112,8 +115,8 @@ class HandArm {
     // ---- shape: morph targets drive grip, weapon form, recoil flare ----
     this.setKey('Grip', clamp(Math.max(curl, this.fxCurl) * (1 - f * 0.9), 0, 1));
     this.setKey('Weapon', clamp(f * (1 - 0.55 * rec), 0, 1));
-    this.setKey('Spread', clamp(rec * 1.2 + this.fxSpread, 0, 1));
-    this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35 + (this.weapon ? vm.bulge : 0) + this.fxBulge, 0, 1.4));
+    this.setKey('Spread', clamp(rk * 2.2 + Math.abs(whip) * 2 + this.fxSpread, 0, 1));
+    this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + Math.abs(whip) * 1.6 + vm.charge * 0.35 + (this.weapon ? vm.bulge : 0) + this.fxBulge, 0, 1.4));
 
     this.palmCore.scale.setScalar(1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6);
     if (!this.weapon) return;
@@ -122,23 +125,23 @@ class HandArm {
     const sqz = vm.squeeze; // internal compression just before the discharge
     this.barrel.scale.set(1 + rec * 0.1 - sqz * 0.14, 1 + rec * 0.1 - sqz * 0.14, Math.max(0.001, f) * sq * (1 - 0.1 * sqz));
     this.maw.scale.copy(this.barrel.scale);
-    this.maw.scale.x = this.maw.scale.y = (1 + vm.pulse * 0.35);
+    this.maw.scale.x = this.maw.scale.y = (1 + fp * 0.3);
     this.tooth.visible = f > 0.25;
-    this.tooth.scale.set(Math.max(0.001, f), Math.max(0.001, f), Math.max(0.001, f) * (1 + vm.pulse * 0.2));
+    this.tooth.scale.set(Math.max(0.001, f), Math.max(0.001, f), Math.max(0.001, f) * (1 + fp * 0.2));
     this.gland.visible = f > 0.2;
-    this.gland.scale.setScalar(Math.max(0.001, f) * (1 + vm.pulse * 0.3 + vm.charge * 0.2 + Math.sin(t * 2.2) * 0.04));
+    this.gland.scale.setScalar(Math.max(0.001, f) * (1 + fp * 0.3 + vm.charge * 0.2 + Math.sin(t * 2.2) * 0.04));
     this.muzzle.position.z = -0.31 * Math.max(0.001, f);
     // the discharge pulse travels from the gland to the muzzle in about 70 ms
     this.glow.position.copy(this.muzzle.position);
     this.glow.position.z = lerp(-0.06 * f, this.muzzle.position.z, Math.min(1, vm.pulseAge / 0.07));
-    vm.glowMat.opacity = vm.pulse * 0.85;
-    this.glow.scale.setScalar(0.45 + vm.pulse * 1.3);
+    vm.glowMat.opacity = fp * 0.55;
+    this.glow.scale.setScalar(0.4 + fp * 0.8);
     this.light.position.copy(this.muzzle.position);
-    this.light.intensity = vm.pulse * 5;
+    this.light.intensity = fp * 1.6;                 // small and close: it lights the barrel, not the whole player
 
     vm.fragMat.color.setRGB(lerp(0.17, 0.4, vm.crystal), lerp(0.19, 0.95, vm.crystal), lerp(0.21, 1, vm.crystal));
     vm.fragMat.emissive.setRGB(0.05 * vm.crystal, 0.8 * vm.crystal, 0.9 * vm.crystal);
-    vm.fragMat.emissiveIntensity = 0.6 + vm.pulse * 1.5;
+    vm.fragMat.emissiveIntensity = 0.6 + fp * 1.5;
     for (const fr of this.frags) {
       const m = fr.mesh;
       m.visible = vm.frag > 0.01;
@@ -187,7 +190,7 @@ export class ViewModel {
     this.camYaw = 0; this.camPitch = 0; // camera orientation, used to keep the clamped wrists fixed in the world
     this.pistol = null;
 
-    this.recoil = 0; this.recoilVel = 0; this.pulse = 0; this.squeeze = 0; this.pulseAge = 1;
+    this.recoil = 0; this.recoilVel = 0; this.pulse = 0; this.firePulse = 0; this.flex = 0; this.squeeze = 0; this.pulseAge = 1;
     this.swayX = 0; this.swayY = 0; this.lagX = 0; this.lagZ = 0; this.dashK = 0;
     this.time = 0;
 
@@ -217,7 +220,7 @@ export class ViewModel {
   }
 
   // Shots add to the recoil spring (capped) instead of restarting a pose, so sustained fire blends and settles smoothly.
-  fireKick() { this.recoilVel = Math.min(this.recoilVel + 7, 15); this.pulse = 1; this.squeeze = 1; this.pulseAge = 0; }
+  fireKick() { this.recoilVel = Math.min(this.recoilVel + 7, 15); this.firePulse = 1; this.squeeze = 1; this.pulseAge = 0; }
   pulseGlow(v) { this.pulse = Math.max(this.pulse, v); }
 
   syncToCamera(camera) {
@@ -235,6 +238,8 @@ export class ViewModel {
     this.recoilVel += (-190 * this.recoil - 17 * this.recoilVel) * dt;
     this.recoil += this.recoilVel * dt;
     this.pulse = Math.max(0, this.pulse - dt * 9);
+    this.firePulse = Math.max(0, this.firePulse - dt * 11);
+    this.flex += (this.recoil - this.flex) * Math.min(1, dt * 16);
     this.squeeze = Math.max(0, this.squeeze - dt * 16);
     this.pulseAge += dt;
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
