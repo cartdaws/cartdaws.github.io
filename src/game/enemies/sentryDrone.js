@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Enemy } from './enemy.js';
+import { instantiateRobot, droneComponents } from './robotAsset.js';
 import { clamp, damp, yawTo, angleDiff, rand } from '../../core/util.js';
 
 const SHOT_SPEED = 15;
@@ -28,56 +29,19 @@ export class SentryDrone extends Enemy {
     const g = this.group;
     const body = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0x343c44, roughness: 0.35, metalness: 0.8, emissive: 0x000000 }));
     const trim = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0xd9a21b, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
+    const dark = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.55, metalness: 0.7, emissive: 0x000000 }));
     this.lensMat = new THREE.MeshStandardMaterial({ color: 0x120404, emissive: 0xff2a10, emissiveIntensity: 0.1 });
+    const eye = new THREE.MeshStandardMaterial({ color: 0x120404, emissive: 0xff2a10, emissiveIntensity: 1.2 });
     const glow = new THREE.MeshStandardMaterial({ color: 0, emissive: 0xffa030, emissiveIntensity: 2 });
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.34, 20, 14), body);
-    core.scale.set(1, 0.85, 1);
-    g.add(core);
-    this.ring = new THREE.Group();
-    g.add(this.ring);
-    const torus = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.05, 8, 32), trim);
-    torus.rotation.x = Math.PI / 2;
-    this.ring.add(torus);
-    for (let i = 0; i < 4; i++) {
-      const a = i * Math.PI / 2;
-      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 0.05), body);
-      strut.position.set(Math.cos(a) * 0.43, 0, Math.sin(a) * 0.43);
-      strut.rotation.y = -a;
-      this.ring.add(strut);
-      const node = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), glow);
-      node.position.set(Math.cos(a) * 0.52, 0, Math.sin(a) * 0.52);
-      this.ring.add(node);
-    }
-    const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.2, 16), body);
-    housing.rotation.x = Math.PI / 2;
-    housing.position.set(0, 0, -0.34);
-    g.add(housing);
-    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.14, 20), this.lensMat);
-    lens.position.set(0, 0, -0.445);
-    lens.rotation.y = Math.PI;
-    g.add(lens);
+    this.coreMat = new THREE.MeshStandardMaterial({ color: 0, emissive: 0xffb84a, emissiveIntensity: 1.8 });
+    // The modelled drone (art/build_robots.py): shell, spinning ring, firing assembly with emitter lens, core, thrusters.
+    this.model = instantiateRobot(this.game.robots.Drone, { RobotBody: body, RobotPlate: trim, RobotDark: dark, RobotEye: eye, RobotGlow: glow, RobotCore: this.coreMat, RobotLens: this.lensMat });
+    g.add(this.model);
+    this.ring = this.model.getObjectByName('RingPivot');
     this.lensLight = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff3a1a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
     this.lensLight.position.set(0, 0, -0.5);
     g.add(this.lensLight);
-    const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.015, 0.4, 5), body);
-    ant.position.set(0.1, 0.45, 0.1);
-    g.add(ant);
-    const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), this.lensMat);
-    antTip.position.set(0.1, 0.66, 0.1);
-    g.add(antTip);
-    for (const s of [-1, 1]) {
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.3, 0.26), body);
-      fin.position.set(s * 0.27, -0.12, 0.12);
-      fin.rotation.z = s * 0.4;
-      g.add(fin);
-    }
-    for (let i = 0; i < 3; i++) {
-      const a = i * 2.09;
-      const th = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 8), glow);
-      th.position.set(Math.cos(a) * 0.2, -0.34, Math.sin(a) * 0.2 + 0.05);
-      th.rotation.x = Math.PI;
-      g.add(th);
-    }
+    this.parts = droneComponents(this.model);
   }
 
   activate() {

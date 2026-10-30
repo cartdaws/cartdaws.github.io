@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { lerp, damp, clamp } from '../core/util.js';
-import { TendrilBundle } from './tendrils.js';
-import { AbsorbFX } from './absorbfx.js';
+import { TentacleSet } from './tentacles.js';
 import { makeHandGel, updateHandGels } from './hand.js';
 
 const _el = new THREE.Vector3(), _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
@@ -77,7 +76,8 @@ class HandArm {
     const pos = _v.copy(this.hold);
     pos.x += vm.swayX * 0.5 + vm.lagX;
     pos.y += vm.swayY * 0.5 + Math.sin(t * 1.5 + this.phase) * 0.004 - vm.dashK * 0.1;
-    pos.z += vm.lagZ + vm.dashK * 0.1 + rec * 0.05;
+    pos.z += vm.lagZ + vm.dashK * 0.1 + (this.weapon ? rec * 0.06 : vm.recoil * 0.02);   // backward impulse through the firing hand, a flinch in the other
+    if (this.weapon) pos.y += rec * 0.01; else pos.y += vm.recoil * 0.005;
     _e.set(0.44 + rec * 0.1 + vm.swayY * 0.4 + vm.dashK * 0.1, side * -0.1 + vm.swayX * 0.5 - side * vm.dashK * 0.1, side * -0.08, 'YXZ');
     this.root.quaternion.setFromEuler(_e);
     if (vm.restrain > 0) {
@@ -96,6 +96,7 @@ class HandArm {
     if (w > 0) {
       _d.subVectors(rtgt, _el.set(side * 0.5, -0.78, 0.2)).normalize();
       _w.copy(rtgt).addScaledVector(_d, -0.1);
+      if (!this.weapon && _w.length() > 0.7) _w.setLength(0.7); // the supporting hand only points; the tentacles do the reaching
       _m.lookAt(_w, rtgt, UP);
       _q.setFromRotationMatrix(_m);
       pos.lerp(_w, w);
@@ -118,7 +119,8 @@ class HandArm {
     if (!this.weapon) return;
     const sq = 1 - rec * 0.12;
     this.barrel.visible = this.maw.visible = f > 0.02;
-    this.barrel.scale.set(1 + rec * 0.1, 1 + rec * 0.1, Math.max(0.001, f) * sq);
+    const sqz = vm.squeeze; // internal compression just before the discharge
+    this.barrel.scale.set(1 + rec * 0.1 - sqz * 0.14, 1 + rec * 0.1 - sqz * 0.14, Math.max(0.001, f) * sq * (1 - 0.1 * sqz));
     this.maw.scale.copy(this.barrel.scale);
     this.maw.scale.x = this.maw.scale.y = (1 + vm.pulse * 0.35);
     this.tooth.visible = f > 0.25;
@@ -126,7 +128,9 @@ class HandArm {
     this.gland.visible = f > 0.2;
     this.gland.scale.setScalar(Math.max(0.001, f) * (1 + vm.pulse * 0.3 + vm.charge * 0.2 + Math.sin(t * 2.2) * 0.04));
     this.muzzle.position.z = -0.31 * Math.max(0.001, f);
+    // the discharge pulse travels from the gland to the muzzle in about 70 ms
     this.glow.position.copy(this.muzzle.position);
+    this.glow.position.z = lerp(-0.06 * f, this.muzzle.position.z, Math.min(1, vm.pulseAge / 0.07));
     vm.glowMat.opacity = vm.pulse * 0.85;
     this.glow.scale.setScalar(0.45 + vm.pulse * 1.3);
     this.light.position.copy(this.muzzle.position);
@@ -149,7 +153,7 @@ class HandArm {
 
 // First-person view: the arms are rendered in a separate pass so they never clip into level geometry.
 export class ViewModel {
-  constructor(asset) {
+  constructor(asset, tentacleAsset) {
     this.asset = asset;
     this.scene = new THREE.Scene();
     this.root = new THREE.Group();
@@ -183,14 +187,13 @@ export class ViewModel {
     this.camYaw = 0; this.camPitch = 0; // camera orientation, used to keep the clamped wrists fixed in the world
     this.pistol = null;
 
-    this.recoil = 0; this.recoilVel = 0; this.pulse = 0;
+    this.recoil = 0; this.recoilVel = 0; this.pulse = 0; this.squeeze = 0; this.pulseAge = 1;
     this.swayX = 0; this.swayY = 0; this.lagX = 0; this.lagZ = 0; this.dashK = 0;
     this.time = 0;
 
     this.right = new HandArm(this, 1, true);
     this.left = new HandArm(this, -1, false);
-    this.tendrils = new TendrilBundle(this.root, 1);
-    this.absorbFX = new AbsorbFX(this);
+    this.tentacles = new TentacleSet(this, tentacleAsset);
     this.tremor = 0; // 0..1 shake of both hands (the first moments of the intro)
   }
 
@@ -213,7 +216,8 @@ export class ViewModel {
     if (group) this.root.add(group);
   }
 
-  fireKick() { this.recoilVel += 8; this.pulse = 1; }
+  // Shots add to the recoil spring (capped) instead of restarting a pose, so sustained fire blends and settles smoothly.
+  fireKick() { this.recoilVel = Math.min(this.recoilVel + 7, 15); this.pulse = 1; this.squeeze = 1; this.pulseAge = 0; }
   pulseGlow(v) { this.pulse = Math.max(this.pulse, v); }
 
   syncToCamera(camera) {
@@ -231,6 +235,8 @@ export class ViewModel {
     this.recoilVel += (-190 * this.recoil - 17 * this.recoilVel) * dt;
     this.recoil += this.recoilVel * dt;
     this.pulse = Math.max(0, this.pulse - dt * 9);
+    this.squeeze = Math.max(0, this.squeeze - dt * 16);
+    this.pulseAge += dt;
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
     this.skinGel.uniforms.uAlpha.value = lerp(0.58, 0.16, this.xray);
 
@@ -242,7 +248,7 @@ export class ViewModel {
     this.camYaw = ctx.yaw || 0; this.camPitch = ctx.pitch || 0;
     this.right.update(dt, ctx);
     this.left.update(dt, ctx);
-    this.tendrils.update(dt);
+    this.tentacles.update(dt);
     this.left.setVisible(!this.leftHidden);
   }
 

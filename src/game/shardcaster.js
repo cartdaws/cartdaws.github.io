@@ -76,6 +76,6 @@ export class Shardcaster {
     g.effects.muzzle(_m);
     g.effects.glowP.emit(_m.x, _m.y, _m.z, 0, 0, 0, 0.08, 0.28, 0.6, 1, 1);
     g.audio.play('shot', { vol: 0.85 });
-    g.addShake(0.035);
+    g.addShake(0.012); // a small impulse only; the recoil lives in the view model
   }
 }

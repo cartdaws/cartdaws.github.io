@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Enemy } from './enemy.js';
+import { instantiateRobot, bugComponents } from './robotAsset.js';
 import { M } from '../../world/materials.js';
 import { clamp, damp, yawTo, angleDiff, lerp } from '../../core/util.js';
 
@@ -29,51 +30,28 @@ export class RobotBug extends Enemy {
     const g = this.group;
     const body = this.trackFlash(new THREE.MeshStandardMaterial(BODY));
     const plate = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0xd9a21b, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
+    const dark = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6, metalness: 0.6, emissive: 0x000000 }));
     this.eyeMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xff2a10, emissiveIntensity: 0.3 });
-    const add = (geo, mat, x, y, z, sx = 1, sy = 1, sz = 1, parent = g) => {
-      const m = new THREE.Mesh(geo, mat);
-      m.position.set(x, y, z);
-      m.scale.set(sx, sy, sz);
-      parent.add(m);
-      return m;
-    };
-    const sph = new THREE.SphereGeometry(1, 16, 12);
-    add(sph, body, 0, 0.36, 0.26, 0.3, 0.24, 0.42); // abdomen
-    add(sph, plate, 0, 0.5, 0.26, 0.22, 0.05, 0.3); // warning plate
-    add(sph, body, 0, 0.36, -0.08, 0.2, 0.17, 0.22); // thorax
-    add(sph, body, 0, 0.34, -0.3, 0.14, 0.12, 0.15); // head
-    add(sph, this.eyeMat, -0.07, 0.38, -0.42, 0.045, 0.045, 0.045);
-    add(sph, this.eyeMat, 0.07, 0.38, -0.42, 0.045, 0.045, 0.045);
-    for (const s of [-1, 1]) add(new THREE.CylinderGeometry(0.008, 0.008, 0.24, 5), body, s * 0.05, 0.5, -0.4, 1, 1, 1).rotation.set(0.9, 0, s * 0.25);
-
-    const legGeo = new THREE.CylinderGeometry(0.022, 0.015, 0.34, 6);
-    legGeo.translate(0, -0.17, 0);
+    this.glowMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffa030, emissiveIntensity: 1.2 });
+    this.coreMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffb84a, emissiveIntensity: 1.8 });
+    // The modelled bug (art/build_robots.py): shell, head, core, six articulated legs, two claws, each on its own pivot.
+    this.model = instantiateRobot(this.game.robots.Bug, { RobotBody: body, RobotPlate: plate, RobotDark: dark, RobotEye: this.eyeMat, RobotGlow: this.glowMat, RobotCore: this.coreMat });
+    g.add(this.model);
     this.legs = [];
-    for (const s of [-1, 1]) {
-      for (const [z, off] of [[0.0, 0], [0.2, Math.PI]]) {
-        const hip = new THREE.Group();
-        hip.position.set(s * 0.17, 0.34, z - 0.04);
-        g.add(hip);
-        const upper = add(legGeo, body, 0, 0, 0, 1, 1, 1, hip);
-        upper.rotation.z = s * 1.0;
-        const lower = add(legGeo, body, 0, -0.34, 0, 0.8, 0.8, 0.8, upper);
-        lower.rotation.z = -s * 1.5;
-        this.legs.push({ hip, s, off });
+    for (const side of ['L', 'R']) {
+      const s = side === 'L' ? -1 : 1;
+      for (let i = 0; i < 3; i++) {
+        const hip = this.model.getObjectByName(`Hip_${side}${i}`);
+        this.legs.push({ hip, lower: hip.getObjectByName('LegL'), s, off: (i + (s > 0 ? 1 : 0)) % 2 ? Math.PI : 0 });
       }
     }
-    // Front claws: raised as the attack telegraph.
-    const clawGeo = new THREE.CylinderGeometry(0.03, 0.012, 0.36, 6);
-    clawGeo.translate(0, 0.18, 0);
-    this.claws = [];
-    for (const s of [-1, 1]) {
-      const pivot = new THREE.Group();
-      pivot.position.set(s * 0.13, 0.38, -0.2);
-      g.add(pivot);
-      const c = add(clawGeo, plate, 0, 0, 0, 1, 1, 1, pivot);
+    this.claws = ['L', 'R'].map((side) => {
+      const pivot = this.model.getObjectByName('ClawPivot_' + side);
+      const c = pivot.getObjectByName('Claw_' + side);
       c.rotation.x = 2.2; // folded down and forward
-      const tip = add(new THREE.ConeGeometry(0.035, 0.12, 6), this.eyeMat, 0, 0.38, 0, 1, 1, 1, c);
-      this.claws.push({ pivot, c, s });
-    }
+      return { pivot, c, s: side === 'L' ? -1 : 1 };
+    });
+    this.parts = bugComponents(this.model);
   }
 
   activate() {
@@ -154,6 +132,7 @@ export class RobotBug extends Enemy {
     for (const l of this.legs) {
       l.hip.rotation.y = Math.sin(this.walk + l.off) * 0.45 * clamp(move / 5, 0, 1) * l.s;
       l.hip.rotation.x = Math.cos(this.walk + l.off) * 0.2 * clamp(move / 5, 0, 1);
+      if (l.lower) l.lower.rotation.x = Math.max(0, Math.cos(this.walk + l.off)) * 0.35 * clamp(move / 5, 0, 1);
     }
     const target = this.state === 'windup' ? 1 : this.state === 'lunge' ? 0.55 : 0;
     this.raise = damp(this.raise, target, 18, dt);

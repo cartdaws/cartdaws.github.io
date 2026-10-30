@@ -25,12 +25,16 @@ export function makeHandGel({ color = 0x0b5a58, rim = 0x8ff5e6, alpha = 0.34 } =
     vertexShader: `
       #include <common>
       #include <morphtarget_pars_vertex>
+      #include <skinning_pars_vertex>
       varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec2 vUv;
       void main(){
         #include <beginnormal_vertex>
         #include <morphnormal_vertex>
+        #include <skinbase_vertex>
+        #include <skinnormal_vertex>
         #include <begin_vertex>
         #include <morphtarget_vertex>
+        #include <skinning_vertex>
         vec4 mv = modelViewMatrix * vec4(transformed, 1.0);
         vN = normalize(normalMatrix * objectNormal);
         vV = normalize(-mv.xyz);
