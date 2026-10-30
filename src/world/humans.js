@@ -33,6 +33,15 @@ export function makeHuman(kind) {
 }
 
 // phase advances the stride; speed 0 = standing. Arms swing opposite the legs.
+// Seated at a console, seen from behind: thighs forward, forearms typing. t drives the finger rhythm; lean tilts the torso (0 = upright).
+export function seatHuman(h, t, lean = 0.1) {
+  h.userData.legL.rotation.x = -1.5; h.userData.legR.rotation.x = -1.5;
+  h.userData.armL.rotation.x = -1.15 + Math.sin(t * 9) * 0.06; h.userData.armR.rotation.x = -1.15 + Math.sin(t * 11 + 1) * 0.07;
+  h.userData.armL.rotation.z = 0.12; h.userData.armR.rotation.z = -0.12;
+  h.rotation.x = lean;
+  h.position.y = -0.2;
+}
+
 export function poseHuman(h, phase, speed, lean = 0, armsUp = 0) {
   const s = Math.sin(phase) * speed;
   h.userData.legL.rotation.x = s * 0.9; h.userData.legR.rotation.x = -s * 0.9;

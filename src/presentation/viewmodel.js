@@ -77,12 +77,16 @@ class HandArm {
     _e.set(0.44 + rec * 0.1 + vm.swayY * 0.4 + vm.dashK * 0.1, side * -0.1 + vm.swayX * 0.5 - side * vm.dashK * 0.1, side * -0.08, 'YXZ');
     this.root.quaternion.setFromEuler(_e);
     if (vm.restrain > 0) {
+      // the clamps are fixed in the world, so the held wrists follow them as the head turns and tilts
       const w = vm.restrain, strain = (1 - vm.restrainSlack) * Math.sin(t * 17 + this.phase) * 0.006;
-      pos.lerp(this.restrainPos, w);
-      pos.x += strain; pos.y += strain * 0.7;
-      _e.set(-0.18, side * 0.12, 0, 'YXZ');
-      _q.setFromEuler(_e);
-      this.root.quaternion.slerp(_q, w);
+      const qc = _q.setFromEuler(_e.set(vm.camPitch, vm.camYaw, 0, 'YXZ')).invert();
+      const held = _d.copy(this.restrainPos).applyQuaternion(qc);
+      held.x += strain; held.y += strain * 0.7;
+      pos.lerp(held, w);
+      const qa = new THREE.Quaternion().setFromEuler(_e.set(-0.18, side * 0.12, 0, 'YXZ'));
+      qc.premultiply(new THREE.Quaternion());
+      const qloc = qc.clone().multiply(qa);
+      this.root.quaternion.slerp(qloc, w);
     }
     if (this.weapon && vm.reachW > 0) {
       const w = vm.reachW;
@@ -163,8 +167,10 @@ export class ViewModel {
     this.reachTarget = new THREE.Vector3();
     this.restrain = 0; // 1 = both wrists held in the cell's clamps
     this.restrainSlack = 0; // 0 = straining, 1 = loose
+    this.xray = 0; // 1 = skin thinned so internal structures read clearly
     this.charge = 0; // experiment overload: inner structures glow harder
     this.leftHidden = false;
+    this.camYaw = 0; this.camPitch = 0; // camera orientation, used to keep the clamped wrists fixed in the world
     this.pistol = null;
 
     this.recoil = 0; this.recoilVel = 0; this.pulse = 0;
@@ -200,12 +206,14 @@ export class ViewModel {
     this.recoil += this.recoilVel * dt;
     this.pulse = Math.max(0, this.pulse - dt * 9);
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
+    this.skinGel.uniforms.uAlpha.value = lerp(0.58, 0.16, this.xray);
 
     this.swayX = damp(this.swayX, clamp(-ctx.lookX * 0.0012, -0.06, 0.06), 7, dt);
     this.swayY = damp(this.swayY, clamp(ctx.lookY * 0.0012, -0.06, 0.06), 7, dt);
     this.lagX = damp(this.lagX, -ctx.velX * 0.003, 6, dt);
     this.lagZ = damp(this.lagZ, ctx.velZ * 0.002, 6, dt);
     this.dashK = damp(this.dashK, ctx.dashing ? 1 : 0, ctx.dashing ? 30 : 9, dt);
+    this.camYaw = ctx.yaw || 0; this.camPitch = ctx.pitch || 0;
     this.right.update(dt, ctx);
     this.left.update(dt, ctx);
     this.left.setVisible(!this.leftHidden);

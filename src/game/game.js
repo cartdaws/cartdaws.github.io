@@ -14,7 +14,7 @@ import { SentryDrone } from './enemies/sentryDrone.js';
 import { Barrel } from './barrels.js';
 import { Encounter, EncounterState } from './encounter.js';
 import { ViewModel } from '../presentation/viewmodel.js';
-import { Opening } from '../presentation/opening.js';
+import { Opening } from '../presentation/story.js';
 import { UI } from '../presentation/ui.js';
 import { PostFX } from '../presentation/post.js';
 import { AlienBody } from './body.js';
@@ -505,7 +505,7 @@ export class Game {
       this.viewmodel.update(dt, {
         lookX: this.lookX, lookY: this.lookY,
         velX: p.vx * cos - p.vz * sin, velZ: -(p.vx * -sin + p.vz * -cos),
-        dashing,
+        dashing, yaw: this.cinePose ? this.cinePose.yaw : p.yaw, pitch: this.cinePose ? this.cinePose.pitch : p.pitch,
       });
       this.viewmodel.syncToCamera(c);
     }

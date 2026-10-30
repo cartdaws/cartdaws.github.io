@@ -7,9 +7,9 @@ import { SpecimenDisplay, makeEvacMaterial } from './screens.js';
 import { makeHuman } from './humans.js';
 
 export const ARENA = { minX: -15, maxX: 15, minZ: -36.5, maxZ: -8.5 };
-export const PLAYER_START = { x: 0, z: 6.2 };
+export const PLAYER_START = { x: 0.45, z: 5.0 };
 export const REPLAY_START = { x: 0, z: -4 };
-export const PISTOL_POS = new THREE.Vector3(1.1, 0.05, 4.8);
+export const PISTOL_POS = new THREE.Vector3(0.85, 0.05, 3.9);
 export const CELL = { x: 0, z: 9.2 }; // containment cell centre
 
 export function makePistol(scale = 1) {
@@ -131,6 +131,7 @@ export function buildLevel(scene, world, kit) {
   scene.add(hinge);
   L.cut.cellDoor = hinge;
   L.cut.cellFront = [hinge];
+  hinge.traverse((o) => { if (o.isMesh && o.material === M.glass) L.cut.doorGlass = o; });
   L.cut.setDoorOpen = (a) => { hinge.rotation.y = PI + a; };
   for (const m of L.cut.cellGlass) m.renderOrder = 3;
   hinge.traverse((o) => { if (o.isMesh) o.renderOrder = 3; });
@@ -188,6 +189,19 @@ export function buildLevel(scene, world, kit) {
   evacBezel.position.set(-3.5, 1.7, 0.03);
   scene.add(evac, evacBezel);
   L.cut.evacPos = new THREE.Vector3(-3.5, 1.7, 0.06);
+  const evacGlow = new THREE.Group();
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffc040, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending });
+  glowMat.userData.noSnap = true;
+  for (const [w, h, x, y] of [[1.7, 0.06, 0, 0.58], [1.7, 0.06, 0, -0.58], [0.06, 1.2, -0.82, 0], [0.06, 1.2, 0.82, 0]]) {
+    const bar = new THREE.Mesh(new THREE.PlaneGeometry(w, h), glowMat);
+    bar.position.set(x, y, 0);
+    evacGlow.add(bar);
+  }
+  evacGlow.position.set(-3.5, 1.7, 0.09);
+  evacGlow.userData.keep = true;
+  scene.add(evacGlow);
+  L.cut.evacGlow = glowMat;
+  L.cut.sealPower = 1; // 1 = containment seal powered, 0 = dead
 
   // ---- East: monitoring room behind the window (operators watch the cell and the trial telemetry) ----
   deco(6.5, 16.5, 3.34, 3.5, -0.5, 11.5, dark);
@@ -331,11 +345,16 @@ export function buildLevel(scene, world, kit) {
       f.l.intensity = f.base * k;
     }
     const status = kitMaterial('Status');
+    const sp = L.cut.sealPower;
     if (L.surge > 0.01) { // chamber lamps stutter, status lights strobe
       const k = Math.random() < 0.35 * L.surge ? 0.12 : 0.85 + Math.random() * 0.2;
       chamberLights[0].intensity = 56 * k; chamberLights[1].intensity = 52 * (Math.random() < 0.3 * L.surge ? 0.1 : 1);
       lampMat.emissiveIntensity = 1.5 * k;
       status.emissiveIntensity = 1.3 + 2.4 * L.surge * (0.5 + 0.5 * Math.sin(t * 30));
+    } else if (sp < 1) {                                                   // seal power gone: status lights die, chamber dims
+      status.emissiveIntensity = 1.3 * sp;
+      chamberLights[0].intensity = 56 * (0.35 + 0.65 * sp); chamberLights[1].intensity = 52 * (0.35 + 0.65 * sp);
+      lampMat.emissiveIntensity = 1.5 * (0.35 + 0.65 * sp);
     } else {
       chamberLights[0].intensity = 56; chamberLights[1].intensity = 52; lampMat.emissiveIntensity = 1.5; status.emissiveIntensity = 1.3;
     }

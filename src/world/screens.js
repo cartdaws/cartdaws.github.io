@@ -93,12 +93,17 @@ export class SpecimenDisplay {
       g.fillStyle = dim; g.beginPath(); g.arc(px - 260, py - 40, 8, 0, 7); g.fill();
     } else if (this.mode === 'warning') {
       const flash = (Math.sin(this.time * 14) > 0) ? 1 : 0.35;
-      g.fillStyle = `rgba(255,70,50,${0.9 * flash})`; g.font = '800 120px "Segoe UI", Arial, sans-serif'; g.fillText('CONTAINMENT', 40, 250); g.fillText('FIELD FAILING', 40, 380);
-      g.fillStyle = ink; g.font = '700 54px "Segoe UI", Arial, sans-serif'; g.fillText('TRIAL 27 · POWER SURGE', 40, 480);
-      const lvl = Math.max(0.05, 0.62 - (this.time % 100) * 0);
-      g.strokeStyle = ink; g.lineWidth = 4; g.strokeRect(40, 540, W - 80, 70);
-      g.fillStyle = `rgba(255,90,60,${0.6 + 0.3 * flash})`; g.fillRect(48, 548, (W - 96) * (this.fieldLevel ?? lvl), 54);
-      g.fillStyle = dim; g.font = '600 36px "Segoe UI", Arial, sans-serif'; g.fillText('FIELD INTEGRITY', 40, 660);
+      const power = this.power ?? 0.5, field = this.fieldLevel ?? 0.62;
+      g.fillStyle = `rgba(255,90,60,${0.5 + 0.5 * flash})`; g.font = '800 104px "Segoe UI", Arial, sans-serif'; g.fillText('CONTAINMENT', 40, 190); g.fillText('FIELD FAILING', 40, 296);
+      const bar = (label, v, y, hot) => {
+        g.fillStyle = dim; g.font = '600 38px "Segoe UI", Arial, sans-serif'; g.fillText(label, 40, y);
+        g.strokeStyle = ink; g.lineWidth = 4; g.strokeRect(40, y + 14, W - 80, 62);
+        g.fillStyle = hot ? `rgba(255,200,90,${0.7 + 0.3 * flash})` : `rgba(255,90,60,${0.6 + 0.3 * flash})`; g.fillRect(48, y + 22, Math.max(0, (W - 96) * v), 46);
+        g.fillStyle = bright; g.textAlign = 'right'; g.font = '800 54px "Segoe UI", Arial, sans-serif'; g.fillText(Math.round(v * 100) + '%', W - 56, y - 2); g.textAlign = 'left';
+      };
+      bar('SCANNER POWER', power, 400, true);
+      bar('FIELD INTEGRITY', field, 560, false);
+      g.fillStyle = ink; g.font = '700 44px "Segoe UI", Arial, sans-serif'; g.fillText('TRIAL 27 · ABSORPTION RESPONSE RISING', 40, 744);
     } else if (this.mode === 'breach') {
       g.fillStyle = '#ff6a4a'; g.font = '800 128px "Segoe UI", Arial, sans-serif'; g.fillText('CONTAINMENT', 40, 280); g.fillText('FAILURE', 40, 420);
       g.fillStyle = ink; g.font = '700 58px "Segoe UI", Arial, sans-serif'; g.fillText('SPECIMEN 09 · NOT IN CELL', 40, 520);

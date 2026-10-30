@@ -45,6 +45,16 @@ export class UI {
     f.classList.toggle('cooling', ready < 1);
   }
 
+  flash(color, dur = 0.5) {
+    const el = this.fadeEl;
+    el.style.transition = 'none';
+    el.style.background = color; el.style.opacity = 0.85;
+    void el.offsetWidth;
+    el.style.transition = `opacity ${dur}s ease-out`;
+    el.style.opacity = 0;
+    setTimeout(() => { el.style.transition = 'none'; el.style.background = '#000'; }, dur * 1000 + 50);
+  }
+
   setObjective(t) { $('objective').textContent = t; }
 
   hitMarker(kill) {

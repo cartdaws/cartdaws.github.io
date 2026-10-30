@@ -205,6 +205,45 @@ export class Audio {
       case 'step':
         this.noise(o, { dur: 0.06, vol: 0.2, type: 'lowpass', f0: 500, f1: 200 });
         break;
+      case 'pa': // intercom / PA: speaker click and a short wash of line noise, no voiced tone
+        this.noise(o, { dur: 0.05, vol: 0.5, type: 'highpass', f0: 1500 });
+        this.noise(o, { dur: 0.7, vol: 0.07, type: 'bandpass', f0: 1700, q: 1.2, delay: 0.04 });
+        break;
+      case 'memory': // reversed swell into a soft airy wash
+        this.noise(o, { dur: 1.4, vol: 0.28, type: 'bandpass', f0: 300, f1: 6000, q: 0.8, attack: 1.1 });
+        this.tone(o, { type: 'sine', f0: 180, f1: 720, dur: 1.4, vol: 0.12, attack: 1.0 });
+        break;
+      case 'memoryOut':
+        this.noise(o, { dur: 0.9, vol: 0.25, type: 'bandpass', f0: 5000, f1: 200, q: 0.8 });
+        this.tone(o, { type: 'sine', f0: 600, f1: 90, dur: 0.9, vol: 0.12 });
+        break;
+      case 'servo': // motor and rail travel
+        this.tone(o, { type: 'sawtooth', f0: 70, f1: 150, dur: 2.2, vol: 0.07, attack: 0.5, filter: { type: 'lowpass', f: 600 } });
+        this.noise(o, { dur: 2.2, vol: 0.1, type: 'bandpass', f0: 400, f1: 900, q: 2, attack: 0.4 });
+        break;
+      case 'scan': // examination probe extending
+        this.tone(o, { type: 'sine', f0: 320, f1: 1100, dur: 1.4, vol: 0.1, attack: 0.5 });
+        this.noise(o, { dur: 1.4, vol: 0.08, type: 'bandpass', f0: 2000, f1: 6000, q: 3, attack: 0.5 });
+        break;
+      case 'spark':
+        this.noise(o, { dur: 0.35, vol: 0.6, type: 'highpass', f0: 3000, f1: 1200, attack: 0.001 });
+        for (let i = 0; i < 4; i++) this.noise(o, { dur: 0.04, vol: 0.3, type: 'highpass', f0: 4000, delay: 0.05 + i * 0.06 });
+        break;
+      case 'powerdown':
+        this.tone(o, { type: 'sine', f0: 420, f1: 38, dur: 1.5, vol: 0.28 });
+        this.tone(o, { type: 'sawtooth', f0: 220, f1: 30, dur: 1.2, vol: 0.12, filter: { type: 'lowpass', f: 500 } });
+        this.noise(o, { dur: 1.0, vol: 0.15, type: 'lowpass', f0: 900, f1: 60 });
+        break;
+      case 'groan': // stressed metal
+        this.tone(o, { type: 'sawtooth', f0: 90, f1: 62, dur: 1.2, vol: 0.14, attack: 0.3, filter: { type: 'lowpass', f: 400 }, q: 6 });
+        this.noise(o, { dur: 1.2, vol: 0.12, type: 'bandpass', f0: 250, f1: 150, q: 5, attack: 0.3 });
+        break;
+      case 'clatter':
+        this.tone(o, { type: 'triangle', f0: 2600, f1: 1500, dur: 0.1, vol: 0.12 });
+        this.tone(o, { type: 'triangle', f0: 1900, f1: 1100, dur: 0.12, vol: 0.1, delay: 0.17 });
+        this.noise(o, { dur: 0.06, vol: 0.3, type: 'highpass', f0: 3000, delay: 0.17 });
+        this.noise(o, { dur: 0.05, vol: 0.2, type: 'highpass', f0: 3000, delay: 0.32 });
+        break;
       case 'heartbeat':
         this.tone(o, { type: 'sine', f0: 70, f1: 38, dur: 0.16, vol: 0.9 });
         this.tone(o, { type: 'sine', f0: 62, f1: 34, dur: 0.18, vol: 0.7, delay: 0.2 });
