@@ -18,12 +18,11 @@ class HandArm {
     this.root.scale.set(side * 0.95, 0.95, 0.95);
     vm.root.add(this.root);
 
-    this.skin = A.Hand.clone();
-    this.skin.material = vm.skinGel;
-    this.skin.renderOrder = 4;
-    this.skin.frustumCulled = false;
-    this.root.add(this.skin);
-    this.dict = this.skin.morphTargetDictionary;
+    this.hand = 's4';
+    this.keys = {};                 // creator-driven proportion keys (all zero = the original arm)
+    this.hs = 1;                    // hand size factor, also applied to the weapon organ
+    this.elbowLocal = new THREE.Vector3(0, 0, 1.28); this.endRadius = 0.088 * 0.95 * 0.96;
+    this.setHand('s4');
 
     const inner = (n, mat, order = 1) => { const m = A[n].clone(); m.material = mat; m.renderOrder = order; m.frustumCulled = false; this.root.add(m); return m; };
     this.cord = inner('Core', vm.coreMat);
@@ -64,6 +63,37 @@ class HandArm {
         this.tip.add(m);
       }
     }
+  }
+
+  // Swap the modelled hand structure (one continuous skin per structure, identical morph targets and wrist pivot).
+  setHand(key) {
+    const src = this.vm.asset['Hand_' + key];
+    if (!src) return false;
+    if (this.skin) { this.root.remove(this.skin); }
+    this.skin = src.clone();
+    this.skin.material = this.vm.skinGel;
+    this.skin.renderOrder = 4;
+    this.skin.frustumCulled = false;
+    this.skin.morphTargetInfluences = new Array(src.morphTargetInfluences.length).fill(0);
+    this.root.add(this.skin);
+    this.dict = this.skin.morphTargetDictionary;
+    this.hand = key;
+    return true;
+  }
+
+  // Proportions from the creature definition. Wrist pivot, grip points and reach are untouched: only the skin and where the arm ends change.
+  setCreature(def) {
+    const a = def.arms, right = this.side > 0;
+    const len = right ? a.rightLength : a.length, hs = right ? a.rightHandSize : a.handSize;
+    const key = a.hand[0] + a.digits;
+    if (key !== this.hand) this.setHand(key);
+    const k = this.keys;
+    k.ArmLen = (len - 1) / 0.4; k.ArmThick = (a.thickness - 1) / 0.35; k.UpperRatio = a.upperRatio; k.HandSize = (hs - 1) / 0.35;
+    k.FingerLen = a.fingerLength; k.FingerThick = a.fingerThickness; k.FingerSpread = a.fingerSpacing;
+    this.hs = 1 + 0.35 * k.HandSize;
+    this.elbowLocal.set(0, 0, 1.28 * (1 + 0.4 * k.ArmLen));
+    this.endRadius = 0.088 * 0.95 * (1 + 0.35 * k.ArmThick) * (1 - 0.3 * k.UpperRatio) * 0.96;
+    this.organs = def.skin.organs;
   }
 
   setKey(name, v) { const i = this.dict[name]; if (i !== undefined) this.skin.morphTargetInfluences[i] = v; }
@@ -119,17 +149,20 @@ class HandArm {
     this.setKey('Spread', clamp(rk * 2.2 + Math.abs(whip) * 2 + this.fxSpread, 0, 1));
     this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + Math.abs(whip) * 1.6 + vm.charge * 0.35 + (this.weapon ? vm.bulge : 0) + this.fxBulge, 0, 1.4));
 
-    this.palmCore.scale.setScalar(1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6);
+    for (const n in this.keys) this.setKey(n, this.keys[n]);
+    this.cord.visible = this.palmCore.visible = this.organs !== false;
+    this.palmCore.scale.setScalar((1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6) * this.hs);
     if (!this.weapon) return;
     const sq = 1 - rec * 0.12;
     this.barrel.visible = this.maw.visible = f > 0.02;
     const sqz = vm.squeeze; // internal compression just before the discharge
-    this.barrel.scale.set(1 + rec * 0.1 - sqz * 0.14, 1 + rec * 0.1 - sqz * 0.14, Math.max(0.001, f) * sq * (1 - 0.1 * sqz));
+    const hb = 0.8 + 0.2 * this.hs;                    // the barrel's girth follows the hand a little, never its length (muzzle and reach are fixed)
+    this.barrel.scale.set((1 + rec * 0.1 - sqz * 0.14) * hb, (1 + rec * 0.1 - sqz * 0.14) * hb, Math.max(0.001, f) * sq * (1 - 0.1 * sqz));
     this.maw.scale.copy(this.barrel.scale);
     this.maw.scale.x = this.maw.scale.y = (1 + fp * 0.3);
     this.tooth.visible = f > 0.25;
     this.tooth.scale.set(Math.max(0.001, f), Math.max(0.001, f), Math.max(0.001, f) * (1 + fp * 0.2));
-    this.gland.visible = f > 0.2;
+    this.gland.visible = f > 0.2 && this.organs !== false;
     this.gland.scale.setScalar(Math.max(0.001, f) * (1 + fp * 0.3 + vm.charge * 0.2 + Math.sin(t * 2.2) * 0.04));
     this.muzzle.position.z = -0.31 * Math.max(0.001, f);
     // the discharge pulse travels from the gland to the muzzle in about 70 ms
@@ -199,6 +232,7 @@ export class ViewModel {
     this.right = new HandArm(this, 1, true);
     this.left = new HandArm(this, -1, false);
     this.tentacles = new TentacleSet(this, tentacleAsset, def);
+    this.right.setCreature(def); this.left.setCreature(def);
     this.tremor = 0; // 0..1 shake of both hands (the first moments of the intro)
   }
 
@@ -206,6 +240,7 @@ export class ViewModel {
   setCreature(def) {
     this.def = def;
     restyle(this.skinGel, def, 'body'); restyle(this.barrelGel, def, 'weapon');
+    this.right.setCreature(def); this.left.setCreature(def);
     this.tentacles.setCreature(def);
   }
 

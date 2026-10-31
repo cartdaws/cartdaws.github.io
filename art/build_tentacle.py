@@ -39,6 +39,14 @@ def radius_proboscis(t):
     return body + flare + rings + pad + pad_ridges
 
 
+def radius_proboscis_smooth(t):
+    """The same feeding tongue with smooth skin: no segment rings, no ridges on the pad."""
+    flare = 0.006 * math.exp(-t * 14)
+    body = 0.0028 + 0.0042 * (1 - t) ** 1.2
+    pad = 0.0085 * smooth(0.90, 0.955, t) * (1 - smooth(0.985, 1.0, t))
+    return body + flare + pad
+
+
 gel = bpy.data.materials.new('Gel')
 gel.use_nodes = True
 b = gel.node_tree.nodes['Principled BSDF']
@@ -110,6 +118,8 @@ rig_t = make_rig('TentRig', 'T')
 tent = make_mesh('Tentacle', rig_t, 'T', radius_tentacle)
 rig_p = make_rig('ProbRig', 'P')
 prob = make_mesh('Proboscis', rig_p, 'P', radius_proboscis)
+rig_s = make_rig('SmoothRig', 'Q')
+smooth_prob = make_mesh('ProboscisSmooth', rig_s, 'Q', radius_proboscis_smooth)
 
 # ---- collar: a flattened swelling, +Y outward
 bm2 = bmesh.new()

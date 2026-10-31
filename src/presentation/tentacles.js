@@ -5,6 +5,8 @@ import { lerp, smooth } from '../core/util.js';
 import { SpringChain, bezier } from './tentacle.js';
 import { makeSkin, skinParams, restyle } from '../creature/skin.js';
 
+const smoothstep = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
 // Absorption tentacles (art/build_tentacle.py -> public/models/tentacle.glb): one skinned gel mesh on a 12-bone chain each.
 // Every tentacle has a fixed root on the forearm (a socket, defined in the arm's own space) and a collar that blends it into the skin.
 // All maths runs in the view model's space (the camera's frame), so looking around cannot break the attachment: the root is recomputed
@@ -30,40 +32,57 @@ class Tentacle {
   constructor(set, arm, scene, gel, socketPos, socketDir, phase, opts = {}) {
     this.set = set; this.arm = arm; this.phase = phase;
     this.coil = !!opts.coil; this.collarScale = opts.collarScale || 1;
-    const meshName = opts.mesh || 'Tentacle', other = meshName === 'Tentacle' ? 'Proboscis' : 'Tentacle';
+    const meshName = opts.mesh || 'Tentacle';
     this.socketPos = socketPos.clone(); this.socketDir = socketDir.clone().normalize();
     const inst = cloneSkinned(scene);
-    const dropMesh = inst.getObjectByName(other);
-    const dropRig = dropMesh && dropMesh.parent;
-    if (dropMesh) dropMesh.removeFromParent();
-    if (dropRig && dropRig !== inst) dropRig.removeFromParent();
+    // every skinned mesh in the asset has its own rig; keep the surfaces this tentacle can use and drop the rest
+    const names = meshName === 'Tentacle' ? ['Tentacle'] : ['Proboscis', 'ProboscisSmooth'];
+    for (const n of ['Tentacle', 'Proboscis', 'ProboscisSmooth']) {
+      if (names.includes(n)) continue;
+      const m = inst.getObjectByName(n); if (!m) continue;
+      const rig = m.parent; m.removeFromParent(); if (rig && rig !== inst) rig.removeFromParent();
+    }
     this.holder = new THREE.Group();
     this.holder.add(inst);
-    this.mesh = inst.getObjectByName(meshName);
-    this.mesh.material = gel;
-    this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = 6;
-    this.bones = this.mesh.skeleton.bones.slice().sort((x, y) => x.name.localeCompare(y.name));
     this.collar = inst.getObjectByName('Collar');
     this.collar.material = gel;
     this.collar.renderOrder = 5;
     this.collar.frustumCulled = false;
     this.collar.removeFromParent();
     this.holder.add(this.collar);
-    // rest data in the holder's own frame (before it is attached anywhere)
     inst.updateMatrixWorld(true);
-    this.armature = this.bones[0].parent;
-    this.armPos = new THREE.Vector3(); this.armQuat = new THREE.Quaternion();
-    this.armature.getWorldPosition(this.armPos); this.armature.getWorldQuaternion(this.armQuat);
-    this.restPos = this.bones.map((b) => b.getWorldPosition(new THREE.Vector3()));
-    this.restQuat = this.bones.map((b) => b.getWorldQuaternion(new THREE.Quaternion()));
-    this.restDir = _a.subVectors(this.restPos[N - 1], this.restPos[0]).normalize().clone();
+    this.variants = {};
+    for (const n of names) {
+      const mesh = inst.getObjectByName(n);
+      mesh.material = gel; mesh.frustumCulled = false; mesh.renderOrder = 6;
+      const bones = mesh.skeleton.bones.slice().sort((x, y) => x.name.localeCompare(y.name));
+      const armature = bones[0].parent;
+      const v = { mesh, bones, armature, armPos: new THREE.Vector3(), armQuat: new THREE.Quaternion() };
+      armature.getWorldPosition(v.armPos); armature.getWorldQuaternion(v.armQuat);
+      v.restPos = bones.map((b) => b.getWorldPosition(new THREE.Vector3()));
+      v.restQuat = bones.map((b) => b.getWorldQuaternion(new THREE.Quaternion()));
+      v.restDir = _a.subVectors(v.restPos[N - 1], v.restPos[0]).normalize().clone();
+      v.wQuat = bones.map(() => new THREE.Quaternion());
+      this.variants[n] = v;
+    }
+    this.surface = null;
+    this.selectSurface(names.includes('Proboscis') ? 'Proboscis' : 'Tentacle');
+    this.rest = { len: 1, curl: 0.7 };
+    this.restVisible = false;
     this.chain = new SpringChain(N, 420, 150, 0.82);
     this.ideal = Array.from({ length: N }, () => new THREE.Vector3());
     this.root = new THREE.Vector3(); this.normal = new THREE.Vector3();
     this.goal = makeGoal();
     this.collarPulse = 0;
     this.visible = true;
+  }
+
+  selectSurface(n) {
+    if (this.surface === n) return;
+    this.surface = n;
+    const v = this.variants[n];
+    for (const [k, o] of Object.entries(this.variants)) o.mesh.visible = k === n;
+    Object.assign(this, { mesh: v.mesh, bones: v.bones, armature: v.armature, armPos: v.armPos, armQuat: v.armQuat, restPos: v.restPos, restQuat: v.restQuat, restDir: v.restDir, wQuat: v.wQuat });
   }
 
   // Root and outward direction of the socket in view model space, from the arm's current pose.
@@ -92,9 +111,10 @@ class Tentacle {
       if (this.coil) {
         // a tight spiral lying on the forearm, like a resting proboscis
         _e1.crossVectors(n, f).normalize(); _e2.crossVectors(n, _e1).normalize();
+        const L = this.rest.len, cu = this.rest.curl, reach = (0.028 + 0.14 * (1 - cu)) * L, rate = 0.45 + 0.9 * cu, amp = 0.016 * (0.35 + 0.65 * cu) * Math.sqrt(L);
         for (let j = 0; j < N; j++) {
-          const u = j / (N - 1), a = j * 1.15 + this.phase, r = 0.016 * (1 - 0.4 * u);
-          ideal[j].copy(R).addScaledVector(n, 0.012 + r * (0.6 + 0.4 * Math.sin(a)) + 0.006 * Math.sin(time * 1.6 + this.phase)).addScaledVector(f, u * 0.028 + Math.cos(a) * r * 0.7).addScaledVector(_e1, Math.sin(a) * r * 0.9);
+          const u = j / (N - 1), a = j * rate + this.phase, r = amp * (1 - 0.4 * u);
+          ideal[j].copy(R).addScaledVector(n, 0.012 + r * (0.6 + 0.4 * Math.sin(a)) + 0.006 * Math.sin(time * 1.6 + this.phase) * (0.4 + 0.6 * cu)).addScaledVector(f, u * reach + Math.cos(a) * r * 0.7).addScaledVector(_e1, Math.sin(a) * r * 0.9);
         }
       } else for (let j = 0; j < N; j++) {
         const u = j / (N - 1);
@@ -157,8 +177,9 @@ class Tentacle {
     this.collar.quaternion.setFromUnitVectors(FWD, n);
     this.collarPulse = Math.max(0, this.collarPulse - dt * 4);
     this.collar.scale.setScalar(this.collarScale * (1 + this.collarPulse * 0.5));
-    const used = e > 0.01;   // grows out of the arm when needed, no loose strands at rest
-    this.holder.visible = this.mesh.visible = this.collar.visible = this.visible && this.arm.root.visible && used;
+    const used = e > 0.01 || this.restVisible;   // grows out of the arm when needed; the creature's own resting tentacles lie coiled against the skin
+    this.holder.visible = this.collar.visible = this.visible && this.arm.root.visible && used;
+    this.mesh.visible = this.holder.visible;
   }
 
   // Drive the skeleton from the chain: parallel-transported frames, so the surface never twists or flips.
@@ -206,13 +227,55 @@ export class TentacleSet {
     // right forearm: one on top (used when the weapon hand takes the pistol)
     this.RA = mk(vm.right, [0, 0.06, 0.34], [0, 0.95, -0.3], 4.2);
     this.all = [...this.P, this.RA];
+    this.count = 6;
+    this.setCreature(def);
   }
 
-  setCreature(def) { restyle(this.gel, def, 'tentacle'); }
+  // Socket positions on the left forearm for a definition, in the arm's own space. Used by the tentacles and by the creator's placement markers.
+  socketsFor(def) {
+    const T = def.tentacles, A = def.arms, out = [];
+    const lenK = (A.length - 1) / 0.4, thK = (A.thickness - 1) / 0.35, ur = A.upperRatio;
+    const zBase = { wrist: 0.0, mid: 0.24, elbow: 0.52 }[T.region];
+    const spacing = 0.62 * T.arc / 0.7, mid = -0.25 + 2.5 * 0.62;
+    for (let k = 0; k < T.count; k++) {
+      const a = mid + (k - (T.count - 1) / 2) * spacing;
+      let z = (0.2 + (k % 3) * 0.1) + zBase;
+      const wl = smoothstep(0.05, 0.4, z);
+      z *= 1 + 0.4 * lenK * wl;                                            // the arm's length key stretches the skin beyond the wrist
+      const y = -z, t = Math.min(1, Math.max(0, (y + 1.3) / 1.3));
+      let r = 0.088 - 0.043 * Math.pow(t, 1.6) + 0.011 * Math.exp(-(((y + 0.3) / 0.11) ** 2));
+      r *= 1 + 0.35 * thK * smoothstep(0.02, 0.22, z);
+      r *= 1 + 0.3 * ur * (Math.min(1, Math.max(0, (z - 0.05) / 1.25)) * 2 - 1) * smoothstep(0.02, 0.2, z);
+      r *= 0.97;
+      out.push({ pos: new THREE.Vector3(Math.cos(a) * r, Math.sin(a) * r, z), dir: new THREE.Vector3(Math.cos(a), Math.sin(a), -0.25) });
+    }
+    return out;
+  }
+
+  // Apply the definition: how many tongues exist, where they leave the arm, how they rest and how they look. The absorption choreography only
+  // reads the tongues that exist (this.active); reach and timing never change.
+  setCreature(def) {
+    const T = def.tentacles;
+    restyle(this.gel, def, 'tentacle');
+    this.count = T.count;
+    const pts = this.socketsFor(def);
+    this.P.forEach((t, k) => {
+      t.exists = k < T.count;
+      t.restVisible = t.exists;
+      t.rest.len = T.length; t.rest.curl = T.curl;
+      t.selectSurface(T.surface === 'smooth' ? 'ProboscisSmooth' : 'Proboscis');
+      if (pts[k]) { t.socketPos.copy(pts[k].pos); t.socketDir.copy(pts[k].dir).normalize(); }
+      t.collarScale = 0.55 * (0.8 + 0.2 * T.thickness);
+      if (!t.exists) { t.goal.extend = 0; t.goal.wrap = 0; }
+    });
+    this.RA.restVisible = false;
+  }
+
+  get active() { return this.P.slice(0, this.count); }
 
   update(dt) {
     this.time += dt;
-    for (const t of this.all) t.update(dt, this.time);
+    for (const t of this.all) { if (t.exists === false) { t.holder.visible = false; continue; } t.update(dt, this.time); }
   }
 
   // Everything back to its resting stub.

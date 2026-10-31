@@ -4,6 +4,7 @@ import { makeGel } from '../world/materials.js';
 import { makeSkin, skinParams, restyle } from '../creature/skin.js';
 import { Shape, HOVER, BASE_DROP } from '../creature/shape.js';
 import { defaults } from '../creature/definition.js';
+import { HeadParts } from '../creature/parts.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _n = new THREE.Vector3();
 
@@ -22,6 +23,7 @@ export class AlienBody {
     this.land = 0;                       // landing squash, 0..1, decays
     this.def = def;
     this.shape = new Shape(asset);
+    this.parts = new HeadParts(this, asset.parts);
 
     this.bellMat = makeSkin(skinParams(def, 'body'));
     this.bell = new THREE.Mesh(asset.geometry, this.bellMat);
@@ -61,6 +63,7 @@ export class AlienBody {
     this.bell.position.y = BASE_DROP;
     this.notes = r.notes;
     restyle(this.bellMat, def, 'body'); restyle(this.armMat, def, 'body');
+    this.parts.apply(def, this.armMat);
     const gl = new THREE.Color(def.skin.glow);
     this.coreMat.uniforms.uColor.value.set(def.skin.primary).lerp(gl, 0.45);
     this.coreMat.uniforms.uRim.value.set(def.skin.marking);
@@ -106,6 +109,7 @@ export class AlienBody {
     this.core.rotation.y = t * 0.2;
     this.glow.position.set(p.pos.x, p.pos.y + 0.03, p.pos.z);
     this.glow.material.opacity = 0.7 + Math.sin(t * 1.6) * 0.15;
+    this.parts.tick(dt);
     this.group.updateMatrixWorld(true);
   }
 
@@ -117,11 +121,10 @@ export class AlienBody {
       tube.mesh.visible = show && arm.root.visible;
       if (!tube.mesh.visible) continue;
       arm.root.updateWorldMatrix(true, false);
-      const E = _a.copy(this.elbowOffset).applyMatrix4(arm.root.matrixWorld);                      // forearm end, world
+      const E = _a.copy(arm.elbowLocal).applyMatrix4(arm.root.matrixWorld);                        // forearm end, world
       const S = _b.copy(sock.p).addScaledVector(sock.n, -0.035).applyMatrix4(this.group.matrixWorld);   // just inside the surface
       const out = _n.copy(sock.n).transformDirection(this.group.matrixWorld);
-      const rE = 0.088 * 0.95 * (this.def.arms.thickness || 1) * 0.96;
-      tube.update(S, E, out, rE);
+      tube.update(S, E, out, arm.endRadius);
     }
   }
 }

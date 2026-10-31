@@ -91,6 +91,7 @@ export const CONTROLS = {
   ],
 };
 
+for (const c of CONTROLS.head) if (c.path !== 'head.enabled') c.when = 'head';
 export const ALL_CONTROLS = Object.values(CONTROLS).flat();
 const BY_PATH = Object.fromEntries(ALL_CONTROLS.map((c) => [c.path, c]));
 export const controlFor = (path) => BY_PATH[path];

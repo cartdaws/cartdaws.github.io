@@ -15,7 +15,9 @@ const SLIME = new THREE.Color(0.25, 1.0, 0.45);
 // secrete digestive fluid. Each component corrodes, sags and melts into a glowing puddle, which the tongues drink: beads of
 // luminous liquid are pumped up every tongue into the forearm. The core goes last. Times are seconds from the click.
 const MELT = [[0.55, 1.0], [0.65, 1.1], [1.0, 1.55], [1.35, 1.95]];       // per component: start and end of the meltdown
-const TONGUE_COMP = [0, 1, 2, 3, 2, 3];                                    // which component each of the six tongues works on
+// Which components each tongue works on, in order, for each supported tentacle count. With six tongues this is the original assignment;
+// fewer tongues double up (a tongue retracts from one component, then reaches the next). The timeline of the meltdown never changes.
+const COMP_MAP = { 3: [[0], [1], [2, 3]], 4: [[0], [1], [2], [3]], 5: [[0], [1], [2], [3], [2]], 6: [[0], [1], [2], [3], [2], [3]] };
 const TONGUE_T0 = [0.0, 0.05, 0.1, 0.15, 0.2, 0.25];                       // staggered start of the reach
 const REACH = 0.4;
 
@@ -133,7 +135,7 @@ export class Absorber {
         meshes, puddle, melt: MELT[Math.min(i, MELT.length - 1)], sag: Math.max(0.05, center.y - 0.05), f: {}, done: false,
       };
     });
-    this.seq = { e, t: 0, comps, tongue: [0, 1, 2, 3, 4, 5].map((k) => ({ k, drips: 0, pumped: 0 })), f: {} };
+    this.seq = { e, t: 0, comps, tongue: Array.from({ length: Math.min(6, Math.max(3, g.viewmodel.tentacles.count)) }, (_, k) => ({ k, drips: 0, pumped: 0 })), f: {} };
     this.target = null;
     g.ui.setPrompt('');
     g.audio.play('servo', { vol: 0.25 });
@@ -193,10 +195,17 @@ export class Absorber {
     // ---- tongues: unroll, press their tips on the robot, drink, recoil ----
     let beadN = 0, pumping = 0;
     S.tongue.forEach((tg, k) => {
-      const tent = tents[k], gl = tent.goal, c = S.comps[TONGUE_COMP[k]];
-      const t0 = TONGUE_T0[k], tEnd = c.melt[1] + 0.12;
+      const tent = tents[k], gl = tent.goal;
+      const list = COMP_MAP[S.tongue.length][k];
+      let c = S.comps[list[0]], t0 = TONGUE_T0[k], tEnd = c.melt[1] + 0.12, bestE = -1, prevEnd = 0, ext = 0;
+      list.forEach((ci, qi) => {
+        const cc = S.comps[ci], a0 = qi ? prevEnd + 0.1 : TONGUE_T0[k], a1 = cc.melt[1] + 0.12;
+        const e = ease(t, a0, a0 + REACH) * (1 - ease(t, a1, a1 + 0.32));
+        if (e > bestE) { bestE = e; c = cc; t0 = a0; tEnd = a1; }
+        ext = Math.max(ext, e); prevEnd = a1 + 0.32;
+      });
       const reach = ease(t, t0, t0 + REACH), retract = ease(t, tEnd, tEnd + 0.32);
-      gl.extend = reach * (1 - retract);
+      gl.extend = ext;
       gl.wrap = 0; gl.rho = 0.04; gl.phi0 = 0; gl.bow = 1.6 + (k % 2) * 0.8;
       // where the pad presses: a point on the near side of the component, a different spot for each tongue
       const ang = k * 2.4 + 0.7, rr = c.rho * 0.8;

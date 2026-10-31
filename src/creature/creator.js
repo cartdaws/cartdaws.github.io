@@ -5,7 +5,7 @@ import { RobotBug } from '../game/enemies/robotBug.js';
 import { clamp, damp } from '../core/util.js';
 
 const STAGE = new THREE.Vector3(0, 0, 900);                 // beyond the camera's far plane from the level (and the home), so none of it is ever in the preview
-const SECTIONS_READY = new Set(['body', 'skin']);
+const SECTIONS_READY = new Set(['body', 'arms', 'tentacles', 'head', 'skin']);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const UNDO_MAX = 60;
 
@@ -67,8 +67,9 @@ export class Creator {
   }
 
   // ------------------------------------------------------------------ open / close
-  open() {
+  async open() {
     const g = this.g, vm = g.viewmodel;
+    await g.viewmodel.asset.ensure('s3');                // the other modelled hands load now (they are not needed by the default creature)
     this.active = true;
     g.audio.init();
     this.prev = { state: g.state, cine: g.cinePose, vm: { cineW: vm.cineW, restrain: vm.restrain, restrainSlack: vm.restrainSlack, form: vm.form, curl: vm.curl, frag: vm.frag, crystal: vm.crystal, leftHidden: vm.leftHidden, reachW: vm.reachW, tremor: vm.tremor, xray: vm.xray, charge: vm.charge },
@@ -458,6 +459,7 @@ export class Creator {
     for (const r of this.rows || []) {
       const { c, input, val, row, rs } = r, v = getPath(this.cur, c.path);
       if (c.when === 'asym') row.style.display = this.cur.arms.symmetry ? 'none' : '';
+      if (c.when === 'head') row.style.display = this.cur.head.enabled ? '' : 'none';
       if (c.kind === 'num') { input.value = v; val.textContent = c.step >= 1 ? String(v) : (+v).toFixed(2); }
       else if (c.kind === 'opt') { for (const b of input.children) b.classList.toggle('on', String(b.dataset.k) === String(v)); val.textContent = ''; }
       else if (c.kind === 'bool') { input.classList.toggle('on', !!v); input.textContent = v ? 'On' : 'Off'; val.textContent = ''; }
