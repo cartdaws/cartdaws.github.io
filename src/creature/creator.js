@@ -4,7 +4,7 @@ import { save } from '../core/save.js';
 import { RobotBug } from '../game/enemies/robotBug.js';
 import { clamp, damp } from '../core/util.js';
 
-const STAGE = new THREE.Vector3(400, 0, 0);                 // far from the level, so nothing of the level is ever in the preview
+const STAGE = new THREE.Vector3(0, 0, 900);                 // beyond the camera's far plane from the level (and the home), so none of it is ever in the preview
 const SECTIONS_READY = new Set(['body', 'skin']);
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const UNDO_MAX = 60;
@@ -36,17 +36,13 @@ export class Creator {
   buildStage() {
     const g = this.g, s = this.stage = new THREE.Group();
     s.position.copy(STAGE); s.visible = false; g.scene.add(s);
-    const gc = document.createElement('canvas'); gc.width = gc.height = 256;
-    const x = gc.getContext('2d'); x.fillStyle = '#a9b3bd'; x.fillRect(0, 0, 256, 256); x.strokeStyle = '#7d8893'; x.lineWidth = 3; x.strokeRect(0, 0, 256, 256);
-    x.strokeStyle = '#929ca6'; x.lineWidth = 1; for (let i = 1; i < 4; i++) { x.beginPath(); x.moveTo(i * 64, 0); x.lineTo(i * 64, 256); x.moveTo(0, i * 64); x.lineTo(256, i * 64); x.stroke(); }
-    this.gridTex = new THREE.CanvasTexture(gc); this.gridTex.wrapS = this.gridTex.wrapT = THREE.RepeatWrapping; this.gridTex.repeat.set(10, 10);
-    this.gridTex.colorSpace = THREE.SRGBColorSpace;
-    this.floor = new THREE.Mesh(new THREE.CircleGeometry(9, 64).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: this.gridTex, roughness: 0.85, metalness: 0.1 }));
+    // plain floor plus a line grid: a tiled texture smears into vertical bands at grazing angles
+    this.floor = new THREE.Mesh(new THREE.CircleGeometry(60, 96).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xaab4be, roughness: 0.9, metalness: 0.05 }));
     s.add(this.floor);
+    this.grid = new THREE.GridHelper(60, 30, 0x8d97a2, 0x8d97a2); this.grid.position.y = 0.004; this.grid.material.transparent = true; this.grid.material.opacity = 0.5; s.add(this.grid);
     const bc = document.createElement('canvas'); bc.width = 4; bc.height = 256;
     this.bgCtx = bc.getContext('2d'); this.bgTex = new THREE.CanvasTexture(bc); this.bgTex.colorSpace = THREE.SRGBColorSpace;
-    this.backdrop = new THREE.Mesh(new THREE.SphereGeometry(60, 24, 16), new THREE.MeshBasicMaterial({ map: this.bgTex, side: THREE.BackSide, fog: false, depthWrite: false }));
-    this.backdrop.renderOrder = -10; s.add(this.backdrop);
+    this.bgTex.generateMipmaps = false; this.bgTex.minFilter = this.bgTex.magFilter = THREE.LinearFilter;   // a mipmapped 4 px strip leaves a dark seam straight ahead
     this.key = new THREE.DirectionalLight(0xffffff, 2.2); this.key.position.set(-3, 5, -4); s.add(this.key); s.add(this.key.target); this.key.target.position.set(0, 0.8, 0);
     this.fill = new THREE.HemisphereLight(0xdfe8f2, 0x39414a, 1.1); s.add(this.fill);
     this.rim = new THREE.PointLight(0xff3a28, 0, 14, 2); this.rim.position.set(2.5, 2.4, 2.2); this.rim.userData.keepOn = true; s.add(this.rim);
@@ -61,7 +57,7 @@ export class Creator {
     const ship = mode === 'ship', c = this.bgCtx;
     const gr = c.createLinearGradient(0, 0, 0, 256);
     if (ship) { gr.addColorStop(0, '#05080b'); gr.addColorStop(0.5, '#0a1015'); gr.addColorStop(1, '#030507'); } else { gr.addColorStop(0, '#6f7f8f'); gr.addColorStop(0.5, '#8d9aa6'); gr.addColorStop(1, '#4b545d'); }
-    c.fillStyle = gr; c.fillRect(0, 0, 4, 256); this.bgTex.needsUpdate = true;
+    c.fillStyle = gr; c.fillRect(0, 0, 4, 256); /* the gradient is identical across the strip */ this.bgTex.needsUpdate = true;
     this.key.intensity = ship ? 0.5 : 2.2; this.key.color.set(ship ? 0x9fc6d6 : 0xffffff);
     this.fill.intensity = ship ? 0.35 : 1.1; this.fill.color.set(ship ? 0x6a8190 : 0xdfe8f2);
     this.rim.intensity = ship ? 26 : 0;
@@ -86,7 +82,7 @@ export class Creator {
     g.body.reset(); g.body.setVisible(true);
     this.formTarget = 1; this.anim = { mode: 'idle', t: 0 };
     this.stage.visible = true;
-    g.scene.background = new THREE.Color(0x000000);
+    g.scene.background = this.bgTex;
     this.setLighting(this.light);
     this.setView(this.view);
     this.root.classList.remove('hidden');
@@ -247,7 +243,7 @@ export class Creator {
     }
     if (a.mode === 'move' || p.dashing || a.mode === 'dash') { p.vx = damp(p.vx, tvx, p.dashing ? 40 : 14, dt); p.vz = damp(p.vz, tvz, p.dashing ? 40 : 14, dt); }
     else { p.vx = damp(p.vx, 0, 13, dt); p.vz = damp(p.vz, 0, 13, dt); }
-    this.gridTex.offset.y += p.vz * dt * 0.05; this.gridTex.offset.x -= p.vx * dt * 0.05;
+    this.grid.position.z = (this.grid.position.z - p.vz * dt) % 2; this.grid.position.x = (this.grid.position.x - p.vx * dt) % 2;
     // jump / landing: the same gravity and jump speed as the game
     if (!p.grounded || p.vy > 0) {
       p.vy -= 24 * dt; p.pos.y += p.vy * dt;
