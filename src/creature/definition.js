@@ -22,18 +22,13 @@ export const SECTIONS = [
 
 export const CONTROLS = {
   body: [
-    num('body.height', 'Height', 0.8, 1.9, 1.0, 0.01, 'Taller bodies rise toward your shoulders; the camera keeps clear automatically.'),
-    num('body.width', 'Width', 0.75, 1.6, 1.0, 0.01, 'Side to side.'),
-    num('body.depth', 'Depth', 0.75, 1.6, 1.0, 0.01, 'Front to back.'),
-    num('body.upperWidth', 'Upper-body width', -1, 1, 0, 0.01, 'Broad chest or narrow neck, independent of the base.'),
-    num('body.taper', 'Lower-body taper', -1, 1, 0, 0.01, 'Pinch the base to a point, or let it flare into a skirt.'),
-    num('body.curve', 'Front/back curve', -1, 1, 0, 0.01, 'Belly out front, or hollow the front in.'),
-    num('body.lean', 'Forward lean', -0.6, 1, 0, 0.01, 'Tilt the whole mass toward or away from where you look.'),
-    num('body.roundness', 'Roundness', 0, 1, 1, 0.01, 'Soft cross-section to a boxy one.'),
-    num('body.softness', 'Surface softness', 0, 1, 0, 0.01, 'Blend the shoulder and skirt creases into a smooth blob.'),
-    num('body.shoulderWidth', 'Shoulder width', -1, 1, 0, 0.01, 'How far the shoulder masses stand out; arms move with them.'),
-    num('body.armRootHeight', 'Arm-root height', 0, 1, 0.5, 0.01, 'Where the arms leave the body. The surface swells to meet them.'),
-    num('body.ribs', 'Ribs', 0, 1.5, 1, 0.01, 'Vertical ridges in the skin; zero is smooth.'),
+    num('body.height', 'Height', 0.75, 1.0, 0.92, 0.01, 'Short to tall.'),
+    num('body.width', 'Width', 0.85, 1.3, 1.0, 0.01, 'Side to side.'),
+    num('body.depth', 'Depth', 0.85, 1.3, 1.0, 0.01, 'Front to back.'),
+    num('body.shoulderWidth', 'Shoulders', -0.4, 0.8, 0.15, 0.01, 'How broad the shoulders stand.'),
+    num('body.lean', 'Forward lean', -0.3, 0.6, 0, 0.01),
+    num('body.curve', 'Belly', -0.5, 1, 0, 0.01),
+    num('body.armRootHeight', 'Arm-root height', 0, 1, 0.5, 0.01),
   ],
   arms: [
     num('arms.length', 'Arm length', 0.8, 1.25, 1, 0.01, 'The visible forearm. Reach and hand contact never change.'),
@@ -60,8 +55,7 @@ export const CONTROLS = {
     opt('tentacles.surface', 'Surface', [['ridged', 'Ridged'], ['smooth', 'Smooth']], 'ridged'),
   ],
   head: [
-    bool('head.enabled', 'Sensory head', false, 'Off keeps the smooth body-only silhouette.'),
-    num('head.size', 'Size', 0.6, 1.4, 1, 0.01),
+    num('head.size', 'Size', 0.8, 1.25, 1, 0.01),
     num('head.width', 'Width', -1, 1, 0, 0.01),
     num('head.length', 'Forward length', -1, 1, 0, 0.01, 'Capped so it never blocks your aim.'),
     opt('head.eyes', 'Eyes', [['none', 'Eyeless'], ['pair', 'Pair'], ['trio', 'Three'], ['cyclops', 'Single'], ['cluster', 'Cluster']], 'pair'),
@@ -91,7 +85,6 @@ export const CONTROLS = {
   ],
 };
 
-for (const c of CONTROLS.head) if (c.path !== 'head.enabled') c.when = 'head';
 export const ALL_CONTROLS = Object.values(CONTROLS).flat();
 const BY_PATH = Object.fromEntries(ALL_CONTROLS.map((c) => [c.path, c]));
 export const controlFor = (path) => BY_PATH[path];
@@ -106,7 +99,7 @@ export function setPath(o, path, v) {
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 export function defaults() {
-  const d = { version: VERSION, name: 'Specimen' };
+  const d = { version: VERSION, name: 'Warden' };
   for (const c of ALL_CONTROLS) setPath(d, c.path, c.def);
   return d;
 }
@@ -187,8 +180,8 @@ export function hslHex(h, s, l) {
 
 // Style presets set several appearance values at once.
 export const STYLES = {
-  smooth: { 'skin.ridge': 0.05, 'skin.roughness': 0.25, 'skin.glowIntensity': 0.3, 'skin.translucency': 0.58, 'body.ribs': 0.3 },
-  ridged: { 'skin.ridge': 0.7, 'skin.roughness': 0.4, 'skin.glowIntensity': 0.3, 'skin.translucency': 0.6, 'body.ribs': 1.2 },
+  smooth: { 'skin.ridge': 0.05, 'skin.roughness': 0.25, 'skin.glowIntensity': 0.3, 'skin.translucency': 0.58 },
+  ridged: { 'skin.ridge': 0.7, 'skin.roughness': 0.4, 'skin.glowIntensity': 0.3, 'skin.translucency': 0.6 },
   luminous: { 'skin.ridge': 0.2, 'skin.roughness': 0.15, 'skin.glowIntensity': 0.8, 'skin.translucency': 0.7, 'skin.gradient': 0.8 },
   dark: { 'skin.ridge': 0.35, 'skin.roughness': 0.6, 'skin.glowIntensity': 0.12, 'skin.translucency': 0.34, 'skin.primary': '#10151d', 'skin.secondary': '#2a3a4d' },
   translucent: { 'skin.ridge': 0.1, 'skin.roughness': 0.1, 'skin.glowIntensity': 0.4, 'skin.translucency': 0.82, 'skin.gradient': 0.3 },
@@ -200,22 +193,26 @@ export function applyStyle(def, style) {
 
 const P = (name, patch) => { const d = defaults(); d.name = name; for (const [p, v] of Object.entries(patch)) setPath(d, p, v); return sanitize(d); };
 
-// The first preset is the creature the game has always had, so existing saves look unchanged.
+// Humanoid starting points. The first one is the default for new and existing saves.
 export const PRESETS = [
-  P('Original', {}),
-  P('Drifter', { 'body.height': 1.55, 'body.width': 0.85, 'body.depth': 0.85, 'body.taper': 0.6, 'body.upperWidth': 0.35, 'body.lean': 0.25, 'body.softness': 0.6, 'body.ribs': 0.3,
-    'arms.length': 1.15, 'arms.thickness': 0.85, 'arms.handSize': 0.9, 'arms.digits': 3, 'arms.fingerLength': 0.4, 'tentacles.count': 4, 'tentacles.length': 1.3, 'tentacles.taper': 0.9,
-    'head.enabled': true, 'head.size': 0.9, 'head.eyes': 'trio', 'head.feelers': 2, 'skin.style': 'luminous', 'skin.primary': '#16305e', 'skin.secondary': '#5a7fe0', 'skin.marking': '#bfe3ff', 'skin.glow': '#7fa8ff', 'skin.glowIntensity': 0.7, 'skin.pattern': 'veins', 'tentacles.color': '#1f3f86', 'tentacles.glow': '#cfe0ff' }),
-  P('Bulwark', { 'body.height': 1.0, 'body.width': 1.5, 'body.depth': 1.35, 'body.upperWidth': 0.7, 'body.taper': -0.4, 'body.roundness': 0.6, 'body.shoulderWidth': 0.7, 'body.ribs': 1.4, 'body.armRootHeight': 0.65,
-    'arms.length': 0.9, 'arms.thickness': 1.35, 'arms.handSize': 1.25, 'arms.hand': 'broad', 'arms.digits': 2, 'arms.fingerThickness': 0.5, 'tentacles.count': 3, 'tentacles.thickness': 1.5, 'tentacles.region': 'mid',
-    'head.enabled': true, 'head.size': 0.8, 'head.eyes': 'cyclops', 'head.crest': 'ridge', 'skin.style': 'dark', 'skin.primary': '#23182b', 'skin.secondary': '#6a2f5a', 'skin.marking': '#ff8ad0', 'skin.glow': '#ff5fb0', 'skin.glowIntensity': 0.3, 'skin.pattern': 'stripes', 'tentacles.color': '#3a2140', 'tentacles.glow': '#ffb3de' }),
-  P('Wisp', { 'body.height': 1.8, 'body.width': 0.78, 'body.depth': 0.78, 'body.taper': 0.9, 'body.curve': -0.3, 'body.lean': 0.4, 'body.softness': 0.9, 'body.shoulderWidth': -0.4, 'body.armRootHeight': 0.7, 'body.ribs': 0,
-    'arms.length': 1.2, 'arms.thickness': 0.78, 'arms.handSize': 1.0, 'arms.digits': 4, 'arms.fingerLength': 0.8, 'arms.fingerThickness': -0.5, 'arms.fingerSpacing': 0.4, 'tentacles.count': 5, 'tentacles.length': 1.5, 'tentacles.thickness': 0.7, 'tentacles.surface': 'smooth', 'tentacles.curl': 0.9,
-    'head.enabled': true, 'head.size': 1.1, 'head.width': -0.4, 'head.eyes': 'pair', 'head.eyeSize': 1.3, 'head.fins': 1, 'skin.style': 'translucent', 'skin.primary': '#6a3ca8', 'skin.secondary': '#e6a0ff', 'skin.marking': '#ffffff', 'skin.glow': '#d9a0ff', 'skin.glowIntensity': 0.5, 'skin.pattern': 'spots', 'tentacles.color': '#8a5ac0', 'tentacles.glow': '#f4dcff' }),
-  P('Ember', { 'body.height': 1.2, 'body.width': 1.15, 'body.depth': 1.0, 'body.curve': 0.6, 'body.roundness': 0.85, 'body.softness': 0.4, 'body.armRootHeight': 0.4, 'body.ribs': 0.8,
-    'arms.length': 1.0, 'arms.hand': 'broad', 'arms.digits': 3, 'arms.upperRatio': 0.4, 'tentacles.count': 6, 'tentacles.length': 0.9, 'tentacles.curl': 0.4,
-    'head.enabled': true, 'head.eyes': 'cluster', 'head.eyeSize': 0.8, 'head.feelers': 3, 'head.crest': 'fan', 'skin.style': 'ridged', 'skin.primary': '#4a1a10', 'skin.secondary': '#d8602a', 'skin.marking': '#ffd56a', 'skin.glow': '#ff8a3a', 'skin.glowIntensity': 0.55, 'skin.pattern': 'bands', 'tentacles.color': '#7a2e14', 'tentacles.glow': '#ffd9a0' }),
+  P('Warden', { 'body.height': 0.94, 'body.shoulderWidth': 0.25, 'arms.digits': 4, 'tentacles.count': 6, 'head.eyes': 'pair', 'head.crest': 'none',
+    'skin.style': 'smooth', 'skin.primary': '#0d6560', 'skin.secondary': '#2fb89a', 'skin.marking': '#b8fff4', 'skin.glow': '#6ff0e0', 'skin.glowIntensity': 0.35, 'skin.pattern': 'none' }),
+  P('Wraith', { 'body.height': 1.0, 'body.width': 0.88, 'body.depth': 0.9, 'body.shoulderWidth': -0.1, 'arms.thickness': 0.8, 'arms.digits': 3, 'arms.fingerLength': 0.6, 'arms.fingerThickness': -0.4,
+    'tentacles.count': 5, 'tentacles.length': 1.4, 'tentacles.surface': 'smooth', 'tentacles.curl': 0.9, 'head.eyes': 'cyclops', 'head.feelers': 2, 'head.size': 1.1,
+    'skin.style': 'translucent', 'skin.primary': '#4a2a8a', 'skin.secondary': '#c79bff', 'skin.marking': '#ffffff', 'skin.glow': '#d9a0ff', 'skin.glowIntensity': 0.55, 'skin.pattern': 'veins', 'tentacles.color': '#6a44b0', 'tentacles.glow': '#f1dcff' }),
+  P('Brute', { 'body.height': 0.84, 'body.width': 1.25, 'body.depth': 1.2, 'body.shoulderWidth': 0.75, 'body.curve': 0.5, 'arms.thickness': 1.3, 'arms.handSize': 1.25, 'arms.hand': 'broad', 'arms.digits': 3,
+    'tentacles.count': 3, 'tentacles.thickness': 1.5, 'tentacles.region': 'mid', 'head.eyes': 'trio', 'head.crest': 'ridge', 'head.size': 0.9,
+    'skin.style': 'dark', 'skin.primary': '#2a1a14', 'skin.secondary': '#8a4a2a', 'skin.marking': '#ffb36a', 'skin.glow': '#ff8a3a', 'skin.glowIntensity': 0.25, 'skin.pattern': 'stripes', 'tentacles.color': '#4a2a1a', 'tentacles.glow': '#ffd9a0' }),
+  P('Mantis', { 'body.height': 0.98, 'body.width': 0.92, 'body.depth': 0.92, 'body.shoulderWidth': 0.0, 'body.lean': 0.25, 'arms.length': 1.15, 'arms.thickness': 0.85, 'arms.hand': 'slender', 'arms.digits': 2, 'arms.fingerLength': 0.7,
+    'tentacles.count': 4, 'head.eyes': 'cluster', 'head.crest': 'fan', 'head.feelers': 2, 'head.size': 1.05,
+    'skin.style': 'ridged', 'skin.primary': '#16401a', 'skin.secondary': '#8ad04a', 'skin.marking': '#e6ff9a', 'skin.glow': '#b8ff5a', 'skin.glowIntensity': 0.45, 'skin.pattern': 'bands', 'tentacles.color': '#2a6a22', 'tentacles.glow': '#e6ffc0' }),
+  P('Siren', { 'body.height': 0.9, 'body.width': 0.95, 'body.shoulderWidth': 0.0, 'body.curve': 0.2, 'arms.length': 1.1, 'arms.thickness': 0.9, 'arms.digits': 4, 'arms.fingerSpacing': 0.3,
+    'tentacles.count': 6, 'tentacles.length': 1.3, 'tentacles.surface': 'smooth', 'head.eyes': 'pair', 'head.fins': 2, 'head.crest': 'fan', 'head.size': 1.05,
+    'skin.style': 'luminous', 'skin.primary': '#0e3a6a', 'skin.secondary': '#4ad0e8', 'skin.marking': '#d6fbff', 'skin.glow': '#6ae0ff', 'skin.glowIntensity': 0.75, 'skin.pattern': 'spots', 'tentacles.color': '#1f6aa0', 'tentacles.glow': '#d6fbff' }),
+  P('Ember', { 'body.height': 0.9, 'body.width': 1.08, 'body.shoulderWidth': 0.4, 'arms.hand': 'broad', 'arms.digits': 4, 'tentacles.count': 4, 'tentacles.curl': 0.4,
+    'head.eyes': 'trio', 'head.crest': 'ridge', 'head.fins': 1,
+    'skin.style': 'luminous', 'skin.primary': '#4a1a10', 'skin.secondary': '#e0702a', 'skin.marking': '#ffd56a', 'skin.glow': '#ff8a3a', 'skin.glowIntensity': 0.7, 'skin.pattern': 'bands', 'tentacles.color': '#7a2e14', 'tentacles.glow': '#ffd9a0' }),
 ];
 
 // Body limits depend on how much the player's own camera needs: derived, never user-set. Used by the layout and the tests.
-export const CAMERA = { eye: 1.6, clearance: 0.3 };
+export const CAMERA = { eye: 1.6, clearance: 0.18 };

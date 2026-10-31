@@ -111,7 +111,7 @@ class Tentacle {
       if (this.coil) {
         // a tight spiral lying on the forearm, like a resting proboscis
         _e1.crossVectors(n, f).normalize(); _e2.crossVectors(n, _e1).normalize();
-        const L = this.rest.len, cu = this.rest.curl, reach = Math.min((0.028 + 0.14 * (1 - cu)) * L, Math.max(0.03, this.socketPos.z - 0.05)), rate = 0.45 + 0.9 * cu, amp = 0.016 * (0.35 + 0.65 * cu) * Math.sqrt(L);
+        const L = this.rest.len, cu = this.rest.curl, reach = Math.min((0.028 + 0.14 * (1 - cu)) * L, Math.max(0.03, this.socketPos.z - 0.05)), rate = 0.45 + 0.9 * cu, amp = 0.012 * (0.35 + 0.65 * cu) * Math.sqrt(L);
         for (let j = 0; j < N; j++) {
           const u = j / (N - 1), a = j * rate + this.phase, r = amp * (1 - 0.4 * u);
           ideal[j].copy(R).addScaledVector(n, 0.012 + r * (0.6 + 0.4 * Math.sin(a)) + 0.006 * Math.sin(time * 1.6 + this.phase) * (0.4 + 0.6 * cu)).addScaledVector(f, u * reach + Math.cos(a) * r * 0.7).addScaledVector(_e1, Math.sin(a) * r * 0.9);
