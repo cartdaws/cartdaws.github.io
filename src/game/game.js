@@ -152,7 +152,12 @@ export class Game {
     const ui = this.ui, input = this.input;
     $('btn-play').onclick = () => this.play();
     const nb = $('btn-new');
-    if (save.introDone) { nb.classList.remove('hidden'); $('btn-play').textContent = 'CONTINUE'; }
+    if (save.introDone) { nb.classList.remove('hidden'); $('btn-play').querySelector('span').textContent = 'CONTINUE'; }
+    $('st-hp').textContent = 'VITALITY ' + this.player.maxHealth + (save.maxHpBonus ? '  (+' + save.maxHpBonus + ' ABSORBED)' : '');
+    $('st-cp').textContent = save.introDone ? 'CHECKPOINT: SHARDCASTER ACQUIRED' : 'NEW SPECIMEN';
+    const panels = { 'btn-opts': $('panel-opts'), 'btn-help': $('panel-help') };
+    for (const [id, p] of Object.entries(panels)) $(id).onclick = () => { const open = p.classList.contains('hidden'); for (const q of Object.values(panels)) q.classList.add('hidden'); p.classList.toggle('hidden', !open); };
+    for (const c of document.querySelectorAll('#menu-start .close')) c.onclick = () => { for (const q of Object.values(panels)) q.classList.add('hidden'); };
     nb.onclick = () => { save.setIntroDone(false); this.play(); };
     $('btn-resume').onclick = () => this.resume();
     $('btn-restart').onclick = () => this.restart();
@@ -160,12 +165,12 @@ export class Game {
     $('btn-replay').onclick = () => this.restart();
     $('btn-intro').onclick = () => this.replayFromStart();
     for (const id of ['btn-gfx', 'btn-gfx2']) $(id).onclick = () => this.toggleGfx();
-    $('set-volume').oninput = (e) => { this.audio.setVolume(+e.target.value); this.saveSettings(); };
-    $('set-sens').oninput = (e) => { this.sens = +e.target.value; this.saveSettings(); };
+    for (const id of ['set-volume', 'set-volume-2']) $(id).oninput = (e) => { this.audio.setVolume(+e.target.value); $('set-volume').value = $('set-volume-2').value = e.target.value; this.saveSettings(); };
+    for (const id of ['set-sens', 'set-sens-2']) $(id).oninput = (e) => { this.sens = +e.target.value; $('set-sens').value = $('set-sens-2').value = e.target.value; this.saveSettings(); };
     try {
       const s = JSON.parse(localStorage.getItem('intruder-settings') || '{}');
-      if (s.volume != null) { this.audio.volume = s.volume; $('set-volume').value = s.volume; }
-      if (s.sens != null) { this.sens = s.sens; $('set-sens').value = s.sens; }
+      if (s.volume != null) { this.audio.volume = s.volume; $('set-volume').value = $('set-volume-2').value = s.volume; }
+      if (s.sens != null) { this.sens = s.sens; $('set-sens').value = $('set-sens-2').value = s.sens; }
     } catch (e) { /* settings are optional */ }
 
     input.onLockChange = (locked) => {
@@ -445,6 +450,7 @@ export class Game {
     }
 
     this.opening.update(dt);
+    if (this.state === 'menu') { const q = this.opening.pose; q.yaw = 0.22 * Math.sin(this.time * 0.16); q.pitch = 0.02 * Math.sin(this.time * 0.23); q.x = Math.sin(this.time * 0.11) * 0.06; }
 
     const steps = Math.max(1, Math.ceil(dt / STEP));
     const h = dt / steps;
