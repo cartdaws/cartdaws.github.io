@@ -250,3 +250,11 @@ body.touch #subtitle { bottom: 20%; max-width: 54vw; }
   .cr-bar { left: 8px; bottom: 8px; max-width: 48vw; }
   .cr-panel { padding-top: 44px; width: min(380px, 50vw); }
 }
+@media (max-width: 900px), (max-height: 520px) {
+  .cr-top { max-width: calc(100vw - min(380px, 50vw) - 8px); }
+}
+@media (max-height: 520px) {
+  .cr-blurb, .cr-hint { display: none; }
+  .cr-row { padding: 4px 0; }
+  .cr-foot { padding: 4px 0 2px; }
+}
