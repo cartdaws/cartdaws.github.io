@@ -49,6 +49,9 @@ export class AlienBody {
     this.legs = [1, -1].map(() => makeTube(this.armMat, scene, (s, r) => r * (1 - 0.55 * Math.pow(s, 0.8)) * (s > 0.94 ? 1 - (s - 0.94) * 2 : 1)));
     this.feet = [1, -1].map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), this.armMat); m.scale.set(0.05, 0.032, 0.095); m.renderOrder = 2; m.frustumCulled = false; this.group.add(m); return m; });
     this.footPos = [new THREE.Vector3(), new THREE.Vector3()];
+    // eight limbs grow from the upper back, always present: they sway on their own and trail behind the player's motion
+    this.back = Array.from({ length: 8 }, () => makeTube(this.armMat, scene, (s, r) => r * (1 - 0.8 * Math.pow(s, 1.15)) * (s > 0.94 ? 1 - (s - 0.94) * 12 : 1)));
+    this.backLag = new THREE.Vector3();
     this.armsVisible = true;
 
     // soft contact glow on the floor
@@ -122,6 +125,41 @@ export class AlienBody {
     this.parts.tick(dt);
     this.group.updateMatrixWorld(true);
     this.stepLegs(dt, speed, sy, cy, S);
+    this.stepBack(dt, t, sy, cy, S);
+  }
+
+  // The eight back limbs: roots sampled from the deformed upper back, a fan of curves that wave slowly, lag behind the motion, and are kept
+  // behind the camera plane so they can never enter the player's view or the line of aim.
+  stepBack(dt, t, sy, cy, S) {
+    const show = this.group.visible, mw = this.group.matrixWorld;
+    const right = this.vel.x * cy - this.vel.z * sy, fwd = -(this.vel.x * sy + this.vel.z * cy);
+    this.backLag.x = damp(this.backLag.x, clamp(-right * 0.03, -0.18, 0.18), 5, dt);
+    this.backLag.z = damp(this.backLag.z, clamp(fwd * 0.035, -0.12, 0.2), 5, dt);
+    const root = _a, nrm = _n, ctrl = _b, tip = _c, dir = _d;
+    for (let k = 0; k < 8; k++) {
+      const tube = this.back[k];
+      tube.mesh.visible = show;
+      if (!show) continue;
+      const u = (k - 3.5) / 3.5;                                   // -1 .. 1 across the back
+      const upper = k % 2 === 0;
+      this.shape.surface(upper ? 0.74 : 0.6, -Math.PI / 2 + u * 1.05, root, nrm);
+      root.addScaledVector(nrm, -0.03);
+      const len = (upper ? 0.74 : 0.62) * (0.8 + 0.2 * S.y);
+      const ph = t * 1.15 + k * 0.83;
+      dir.set(u * 0.85 + Math.sin(ph) * 0.12, (upper ? 0.5 : -0.12) + Math.cos(ph * 0.8) * 0.1, 0.9).normalize();
+      const L = this.backLag;
+      ctrl.copy(root).addScaledVector(dir, len * 0.5); ctrl.x += L.x * 0.4; ctrl.z += L.z * 0.4;
+      tip.copy(root).addScaledVector(dir, len);
+      tip.y += upper ? 0.16 + Math.sin(ph * 1.3) * 0.06 : -0.3 + Math.sin(ph * 1.3) * 0.05;     // the upper ones arch up, the lower ones droop
+      tip.x += L.x + Math.sin(ph) * 0.05; tip.z += L.z;
+      tip.y = Math.max(0.06, tip.y);
+      // never in front of the shoulders' plane: nothing can reach the camera, whatever the lean
+      ctrl.z = Math.max(ctrl.z, 0.03); tip.z = Math.max(tip.z, 0.06);
+      ctrl.multiplyScalar(2).addScaledVector(root, -0.5).addScaledVector(tip, -0.5);
+      ctrl.z = Math.max(ctrl.z, 0.03);
+      const wr = root.clone().applyMatrix4(mw), wc = ctrl.clone().applyMatrix4(mw), wt = tip.clone().applyMatrix4(mw);
+      tube.updateCurve(wr, wc, wt, 0.05 * Math.min(S.x, S.z) + 0.004);
+    }
   }
 
   // Two-bone legs that walk with the player: feet swing along the direction of travel, lift mid-stride, and plant when standing.
