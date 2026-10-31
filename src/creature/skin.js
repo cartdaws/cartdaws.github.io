@@ -39,7 +39,7 @@ export function makeSkin(p = {}) {
       uAlpha: { value: p.alpha }, uGrad: { value: p.gradient }, uPattern: { value: PATTERN[p.pattern] || 0 }, uPScale: { value: p.patternScale },
       uRough: { value: p.rough }, uRidge: { value: p.ridge }, uBase: { value: p.glow },
       uTime: { value: 0 }, uGlow: { value: 0 }, uHeat: { value: 0 }, uAxis: { value: 1 }, uLimb: { value: p.role === 'body' ? 0 : 1 },
-      uThick: { value: 1 }, uTaper: { value: 0 }, uSeg: { value: 0 },
+      uThick: { value: 1 }, uTaper: { value: 0 }, uSeg: { value: 0 }, uClip: { value: 0 }, uFade: { value: 0 },
     },
     vertexShader: `
       #include <common>
@@ -77,12 +77,13 @@ export function makeSkin(p = {}) {
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
-      uniform vec3 uColor, uColor2, uMark, uRim, uGlowCol; uniform float uAlpha, uGrad, uPScale, uRough, uRidge, uBase, uTime, uGlow, uHeat, uLimb, uSeg; uniform int uPattern;
+      uniform vec3 uColor, uColor2, uMark, uRim, uGlowCol; uniform float uAlpha, uGrad, uPScale, uRough, uRidge, uBase, uTime, uGlow, uHeat, uLimb, uSeg, uClip, uFade; uniform int uPattern;
       varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec2 vUv;
       float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
         return mix(mix(h21(i), h21(i+vec2(1,0)), f.x), mix(h21(i+vec2(0,1)), h21(i+vec2(1,1)), f.x), f.y); }
       void main(){
+        if (uClip > 0.0 && vP.z > uClip) discard;      // the hand mesh's own straight forearm is replaced by the continuous gel limb
         vec3 n = normalize(vN), v = normalize(vV);
         float along = uLimb > 0.5 ? vUv.y : vUv.y;
         // fine surface ridges: shading only, no geometry
@@ -114,6 +115,7 @@ export function makeSkin(p = {}) {
         float flow = 0.5 + 0.5 * sin(vP.z * 18.0 + uTime * 1.6);
         c += uGlowCol * (uBase * inner * 0.3 + flow * 0.03 * uBase + uGlow * 0.5 + uHeat * 0.25);
         float a = clamp(uAlpha + pat * 0.2 + f * 0.5 + spec * 0.4 + uGlow * 0.2 + uHeat * 0.12, 0.0, 0.94);
+        if (uFade > 0.0) a *= smoothstep(0.0, uFade, vUv.y);              // and the limb melts in from the wrist
         gl_FragColor = vec4(pow(c, vec3(2.2)), a);
       }`,
   });

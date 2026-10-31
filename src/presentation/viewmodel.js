@@ -3,7 +3,9 @@ import { lerp, damp, clamp } from '../core/util.js';
 import { TentacleSet } from './tentacles.js';
 import { updateHandGels } from './hand.js';
 import { makeSkin, skinParams, restyle, updateSkins } from '../creature/skin.js';
+import { FlowLimb } from '../creature/limb.js';
 
+const _a1 = new THREE.Vector3(), _s1 = new THREE.Vector3(), _o1 = new THREE.Vector3();
 const _el = new THREE.Vector3(), _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 const ELBOW = new THREE.Vector3(0.5, -0.78, 0.2); // where the reaching arm emerges from (camera space)
@@ -38,7 +40,7 @@ class HandArm {
     this.setHand('s4');
 
     const inner = (n, mat, order = 1) => { const m = A[n].clone(); m.material = mat; m.renderOrder = order; m.frustumCulled = false; this.root.add(m); return m; };
-    this.cord = inner('Core', vm.coreMat);
+    this.cord = inner('Core', vm.coreMat); this.cord.visible = false;           // no rod inside the arm: it is jelly all the way
     this.palmCore = inner('PalmCore', vm.coreMat);
     this.tip = new THREE.Object3D(); // palm: where the absorbed pistol parts travel
     this.root.add(this.tip);
@@ -170,7 +172,7 @@ class HandArm {
     this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + Math.abs(whip) * 1.6 + vm.charge * 0.35 + (this.weapon ? vm.bulge : 0) + this.fxBulge, 0, 1.4));
 
     for (const n in this.keys) this.setKey(n, this.keys[n]);
-    this.cord.visible = this.palmCore.visible = this.organs !== false;
+    this.palmCore.visible = this.organs !== false;
     this.palmCore.scale.setScalar((1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6) * this.hs);
     if (!this.weapon) return;
     const sq = 1 - rec * 0.12;
@@ -222,7 +224,8 @@ export class ViewModel {
     this.root.add(key);
 
     this.skinGel = makeSkin(skinParams(def, 'body'));
-    this.skinGel.uniforms.uSeg.value = 1;                 // the arms are ringed and segmented
+    this.skinGel.uniforms.uClip.value = 0.15;             // the hand mesh stops at the wrist; the gel limb carries on from there
+    this.flowMat = makeSkin(skinParams(def, 'body'));
     this.barrelGel = makeSkin(skinParams(def, 'weapon'));
     this.coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8f86 });
     this.maw = new THREE.MeshBasicMaterial({ color: 0x8ff5e6 });
@@ -254,7 +257,8 @@ export class ViewModel {
     this.left = new HandArm(this, -1, false);
     this.extras = EXTRA_RESTS.map((r, i) => new HandArm(this, r.side, false, { extra: true, limb: i + 2, rest: r.pos, s: r.s, yaw: r.yaw }));
     this.limbs = [this.right, this.left, ...this.extras];     // indexed by arm number
-    this.loadout = null; this.stowR = 0; this.stowL = 0; this.extrasHidden = false;   // the opening and menus own the arms: no extra arms there
+    this.loadout = null; this.stowR = 0; this.stowL = 0;
+    this.flows = this.limbs.map((a, i) => new FlowLimb(this.flowMat, this.root, i * 1.37)); this.extrasHidden = false;   // the opening and menus own the arms: no extra arms there
     this.tentacles = new TentacleSet(this, tentacleAsset, def);
     this.right.setCreature(def); this.left.setCreature(def); for (const a of this.extras) a.setCreature(def);
     this.tremor = 0; // 0..1 shake of both hands (the first moments of the intro)
@@ -263,9 +267,46 @@ export class ViewModel {
   // Re-skin every part of the view model (hands, weapon, tentacles) from a creature definition. Materials are updated in place.
   setCreature(def) {
     this.def = def;
-    restyle(this.skinGel, def, 'body'); restyle(this.barrelGel, def, 'weapon');
+    restyle(this.skinGel, def, 'body'); restyle(this.barrelGel, def, 'weapon'); restyle(this.flowMat, def, 'body');
     this.right.setCreature(def); this.left.setCreature(def); for (const a of this.extras) a.setCreature(def);
     this.tentacles.setCreature(def);
+  }
+
+  // The continuous limb of every arm: from the wrist straight back along the forearm, then a smooth bend into the body's shoulder. Call after the
+  // view model has been posed and its matrix synced (camera, or the creator's eye frame).
+  updateFlow(body) {
+    const L = this.loadout, t = this.time;
+    this.root.updateMatrixWorld(true);
+    const inv = _m.copy(this.root.matrixWorld).invert();
+    const act = [];
+    for (let i = 0; i < 8; i++) {
+      const arm = this.limbs[i], f = this.flows[i], sock = body.limbSockets[i];
+      const vis = body && sock && arm.root.visible && (!arm.extra || arm.present > 0.3);
+      f.mesh.visible = !!vis;
+      if (!vis) continue;
+      const W = arm.root.position, axis = _a1.set(0, 0, 1).applyQuaternion(arm.root.quaternion);
+      const S = _s1.copy(sock.p).addScaledVector(sock.n, -0.04).applyMatrix4(body.group.matrixWorld).applyMatrix4(inv);
+      const out = _o1.copy(sock.n).transformDirection(body.group.matrixWorld).transformDirection(inv);
+      const k = arm.keys, thick = 1 + 0.35 * 0.72 * (k.ArmThick || 0);
+      f.rw = 0.0517 * Math.abs(arm.root.scale.y / 0.95) * thick;
+      f.solve(W, axis, S, out, this._dt);
+      act.push(f);
+    }
+    // separation: nudge the bends of any two limbs that would touch (a few relaxation passes), so arms never pass through each other
+    for (let pass = 0; pass < 5; pass++) {
+      for (let a = 0; a < act.length; a++) for (let b = a + 1; b < act.length; b++) {
+        const A = act[a], B = act[b], need = (A.rw + B.rw) * 1.75 + 0.012;
+        let best = 9, pa = null, pb = null;
+        for (const p of A.bez) for (const q of B.bez) { const d = p.distanceTo(q); if (d < best) { best = d; pa = p; pb = q; } }
+        if (best < need) {
+          const push = _o1.subVectors(pa, pb); if (push.lengthSq() < 1e-8) push.set(a % 2 ? 1 : -1, 0.3, 0);
+          push.normalize().multiplyScalar((need - best) * 0.9);
+          A.c1.add(push); A.c2.add(push); B.c1.sub(push); B.c2.sub(push);
+          A.sample(); B.sample();
+        }
+      }
+    }
+    for (const f of act) f.write(t, 1);
   }
 
   // palm of either hand, camera space
@@ -301,7 +342,7 @@ export class ViewModel {
 
   // ctx: { lookX, lookY, velX, velZ, dashing }
   update(dt, ctx) {
-    this.time += dt;
+    this.time += dt; this._dt = dt;
     const t = this.time;
     this.recoilVel += (-190 * this.recoil - 17 * this.recoilVel) * dt;
     this.recoil += this.recoilVel * dt;

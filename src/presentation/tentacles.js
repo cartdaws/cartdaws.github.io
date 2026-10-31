@@ -235,7 +235,7 @@ export class TentacleSet {
   socketsFor(def) {
     const T = def.tentacles, A = def.arms, out = [];
     const lenK = (A.length - 1) / 0.4, thK = (A.thickness - 1) / 0.35, ur = A.upperRatio;
-    const zBase = { wrist: 0.0, mid: 0.24, elbow: 0.52 }[T.region];
+    const zBase = { wrist: 0.0, mid: 0.13, elbow: 0.26 }[T.region];       // sockets stay on the straight stretch of the limb
     const spacing = 0.62 * T.arc / 0.7, mid = -0.25 + 2.5 * 0.62;
     for (let k = 0; k < T.count; k++) {
       const a = mid + (k - (T.count - 1) / 2) * spacing;

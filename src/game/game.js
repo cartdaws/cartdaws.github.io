@@ -616,7 +616,7 @@ export class Game {
         dashing, yaw: this.cinePose ? this.cinePose.yaw : p.yaw, pitch: this.cinePose ? this.cinePose.pitch : p.pitch,
       });
       this.viewmodel.syncToCamera(c);
-      this.body.updateArms(this.viewmodel, c);
+      this.viewmodel.updateFlow(this.body);
     }
     this.cullLights();
     this.post.render(dt, this.time);

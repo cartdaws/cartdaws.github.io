@@ -49,10 +49,6 @@ export class AlienBody {
     this.group.add(this.core);
 
     this.armMat = makeSkin(skinParams(def, 'body'));
-    this.arms = Array.from({ length: 8 }, () => makeTube(this.armMat, scene, (s, r) => r * (1.1 - 0.25 * s) * (1 + 0.1 * (Math.pow(Math.abs(Math.sin(s * Math.PI * 9)), 0.5) - 0.64))));
-    // ball joints: one at each shoulder socket and one at each elbow, where the forearm begins
-    const ball = () => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), this.armMat); m.frustumCulled = false; m.renderOrder = 2; scene.add(m); return m; };
-    this.shoulders = Array.from({ length: 8 }, ball); this.elbows = Array.from({ length: 8 }, ball);
     this.legs = [1, -1].map(() => makeTube(this.armMat, scene, (s, r) => r * (1 - 0.55 * Math.pow(s, 0.8)) * (s > 0.94 ? 1 - (s - 0.94) * 2 : 1)));
     this.feet = [1, -1].map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), this.armMat); m.scale.set(0.05, 0.032, 0.095); m.renderOrder = 2; m.frustumCulled = false; this.group.add(m); return m; });
     this.footPos = [new THREE.Vector3(), new THREE.Vector3()];
@@ -104,7 +100,7 @@ export class AlienBody {
   }
 
   dispose(scene) { scene.remove(this.group); scene.remove(this.glow); }
-  setVisible(v) { this.group.visible = v; this.glow.visible = v; if (!v) for (let i = 0; i < 8; i++) this.shoulders[i].visible = this.elbows[i].visible = false; }
+  setVisible(v) { this.group.visible = v; this.glow.visible = v; }
   setHeadVisible(v) { this.headGroup.visible = v; }
   reset() { this.yaw = this.player.yaw; this.vel.set(0, 0, 0); this.acc.set(0, 0, 0); this.land = 0; this.walk = 0; }
   setArmsVisible(v) { this.armsVisible = v; }
@@ -172,49 +168,7 @@ export class AlienBody {
   }
 
   // Joins each body shoulder to the end of the matching first-person arm. Call after the view model has been posed and synced to its frame.
-  updateArms(vm, cam) {
-    const show = this.armsVisible && this.group.visible, t = this.time;
-    const act = [];
-    for (let i = 0; i < 8; i++) {
-      const arm = vm.limbs[i], sock = this.limbSockets[i];
-      const vis = show && arm.root.visible && arm.present > 0.3;
-      this.arms[i].mesh.visible = this.shoulders[i].visible = this.elbows[i].visible = vis;
-      if (!vis) continue;
-      arm.root.updateWorldMatrix(true, false);
-      const E = new THREE.Vector3().copy(arm.elbowLocal).applyMatrix4(arm.root.matrixWorld);
-      const S = new THREE.Vector3().copy(sock.p).addScaledVector(sock.n, -0.04).applyMatrix4(this.group.matrixWorld);
-      const out = new THREE.Vector3().copy(sock.n).transformDirection(this.group.matrixWorld);
-      // a long, sinuous S: out from the shoulder, a slow swell sideways, then in toward the elbow
-      const d = E.clone().sub(S), len = d.length(), side = new THREE.Vector3(0, 1, 0).cross(d).normalize(), sg = i % 2 ? 1 : -1, sway = Math.sin(t * 1.1 + i * 1.7) * 0.025;
-      const c1 = S.clone().addScaledVector(out, 0.2).addScaledVector(d, 0.22).addScaledVector(side, sg * (0.08 + sway) * (0.6 + len)); c1.y += 0.08;
-      const c2 = S.clone().addScaledVector(d, 0.74).addScaledVector(side, -sg * (0.09 - sway) * (0.6 + len)); c2.y -= 0.05;
-      const scl = Math.abs(arm.baseScale.y) / 0.95;                      // the smaller extra arms get slimmer joins
-      act.push({ i, arm, S, E, c1, c2, out, r: arm.endRadius * scl * Math.max(0.3, arm.present) });
-    }
-    // separation: sample every upper arm and push the two bends of any pair that would touch apart (a few relaxation passes)
-    const pt = (k, s) => { const u = 1 - s; return new THREE.Vector3().addScaledVector(k.S, u * u * u).addScaledVector(k.c1, 3 * u * u * s).addScaledVector(k.c2, 3 * u * s * s).addScaledVector(k.E, s * s * s); };
-    for (let pass = 0; pass < 8; pass++) {
-      for (const k of act) { k.pts = []; for (let n = 2; n <= 10; n++) k.pts.push(pt(k, n / 10)); }       // each arm sampled once per pass
-      for (let a = 0; a < act.length; a++) for (let b = a + 1; b < act.length; b++) {
-        const A = act[a], B = act[b], need = (A.r + B.r) * 1.2 + 0.01;
-        let best = 9, pa = null, pb = null;
-        for (const p of A.pts) for (const q of B.pts) { const dd = p.distanceTo(q); if (dd < best) { best = dd; pa = p; pb = q; } }
-        if (best < need) {
-          const push = new THREE.Vector3().subVectors(pa, pb); if (push.lengthSq() < 1e-8) push.set(A.i % 2 ? 1 : -1, 0.2, 0);
-          push.normalize().multiplyScalar((need - best) * 0.9);
-          A.c1.add(push); A.c2.add(push); B.c1.sub(push); B.c2.sub(push);
-        }
-      }
-    }
-    for (const k of act) {
-      const { i, arm, S, E, c1, c2, out, r } = k;
-      this.arms[i].updateCurve(S, c1, E, r, c2);
-      // the joints fade out as the camera gets close to them (they would fill the view from inside)
-      const fade = (p) => cam ? Math.min(1, Math.max(0, (cam.position.distanceTo(p) - 0.35) / 0.5)) : 1;
-      this.shoulders[i].position.copy(S).addScaledVector(out, 0.03); this.shoulders[i].scale.setScalar(r * 1.4 * fade(this.shoulders[i].position));
-      this.elbows[i].position.copy(E); this.elbows[i].scale.setScalar(r * 1.1 * fade(E));
-    }
-  }
+  updateArms() { /* the arms are continuous gel limbs owned by the view model (ViewModel.updateFlow) */ }
 }
 
 const RINGS = 16, RAD = 14;
