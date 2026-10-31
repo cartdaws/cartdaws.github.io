@@ -142,6 +142,7 @@ class Tentacle {
       }
     }
     // idle/follow-through
+    if (e < 0.002) this.chain.ready = false;   // while hidden, stay locked to the rest shape: no lag, no swing on reappearing
     this.chain.step(ideal, dt);
     const p = this.chain.p;
     p[0].copy(R);
@@ -156,7 +157,7 @@ class Tentacle {
     this.collar.quaternion.setFromUnitVectors(FWD, n);
     this.collarPulse = Math.max(0, this.collarPulse - dt * 4);
     this.collar.scale.setScalar(this.collarScale * (1 + this.collarPulse * 0.5));
-    const used = e > 0.01 || this.chain.p[N - 1].distanceToSquared(this.ideal[N - 1]) > 0.0004;   // grows out of the arm when needed, no loose strands at rest
+    const used = e > 0.01;   // grows out of the arm when needed, no loose strands at rest
     this.holder.visible = this.mesh.visible = this.collar.visible = this.visible && this.arm.root.visible && used;
   }
 
