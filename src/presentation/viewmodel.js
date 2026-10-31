@@ -12,9 +12,9 @@ const ELBOW = new THREE.Vector3(0.5, -0.78, 0.2); // where the reaching arm emer
 // inside it, and for the right arm the Shardcaster organ (barrel, maw, crystal tooth, venom gland).
 // Resting places of the six extra arms, in camera space: low and wide at the screen edges, partly out of frame, so they never crowd the view.
 const EXTRA_RESTS = [
-  { side: -1, pos: [-0.66, -0.42, -0.5], s: 0.72 }, { side: 1, pos: [0.66, -0.42, -0.5], s: 0.72 },
-  { side: -1, pos: [-0.8, -0.28, -0.32], s: 0.66 }, { side: 1, pos: [0.8, -0.28, -0.32], s: 0.66 },
-  { side: -1, pos: [-0.5, -0.6, -0.42], s: 0.68 }, { side: 1, pos: [0.5, -0.6, -0.42], s: 0.68 },
+  { side: -1, pos: [-0.5, -0.3, -0.46], s: 0.72 }, { side: 1, pos: [0.5, -0.3, -0.46], s: 0.72 },
+  { side: -1, pos: [-0.63, -0.15, -0.46], s: 0.66 }, { side: 1, pos: [0.63, -0.15, -0.46], s: 0.66 },
+  { side: -1, pos: [-0.4, -0.3, -0.4], s: 0.68 }, { side: 1, pos: [0.4, -0.3, -0.4], s: 0.68 },
 ];
 const _rh = new THREE.Vector3();
 
@@ -247,7 +247,7 @@ export class ViewModel {
     this.left = new HandArm(this, -1, false);
     this.extras = EXTRA_RESTS.map((r, i) => new HandArm(this, r.side, false, { extra: true, limb: i + 2, rest: r.pos, s: r.s }));
     this.limbs = [this.right, this.left, ...this.extras];     // indexed by arm number
-    this.loadout = null; this.stow = 0;
+    this.loadout = null; this.stow = 0; this.extrasHidden = false;   // the opening and menus own the arms: no extra arms there
     this.tentacles = new TentacleSet(this, tentacleAsset, def);
     this.right.setCreature(def); this.left.setCreature(def); for (const a of this.extras) a.setCreature(def);
     this.tremor = 0; // 0..1 shake of both hands (the first moments of the intro)
@@ -315,9 +315,9 @@ export class ViewModel {
     this.camYaw = ctx.yaw || 0; this.camPitch = ctx.pitch || 0;
     // extra arms grow out when their weapon is learned, and the arm whose weapon is selected comes forward
     const L = this.loadout, sel = L ? L.selectedLimb() : 0;
-    this.stow = damp(this.stow, sel !== 0 && L && L.shown(sel) ? 1 : 0, 6, dt);
+    this.stow = damp(this.stow, sel !== 0 && L && L.armShown(sel) ? 1 : 0, 6, dt);
     for (const a of this.extras) {
-      const show = !!L && L.shown(a.limb) && this.cineW <= 0 && this.restrain <= 0.01;
+      const show = !!L && L.armShown(a.limb) && !this.extrasHidden && this.restrain <= 0.01;
       a.present = damp(a.present, show ? 1 : 0, 4, dt);
       a.forward = damp(a.forward, a.limb === sel && show ? 1 : 0, 6, dt);
       const k = Math.max(0.001, a.present) * (1 + (1 / Math.abs(a.baseScale.y / 0.95) - 1) * a.forward);

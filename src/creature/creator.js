@@ -291,6 +291,7 @@ export class Creator {
     const w = window.innerWidth, h = window.innerHeight;
     eye.aspect = w / h; eye.position.set(p.pos.x, p.eye, p.pos.z); eye.rotation.set(p.pitch, p.yaw, 0); eye.updateMatrixWorld(); eye.updateProjectionMatrix();
     const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
+    vm.extrasHidden = false;
     vm.update(dt, { lookX: 0, lookY: 0, velX: p.vx * cos - p.vz * sin, velZ: -(p.vx * -sin + p.vz * -cos), dashing: p.dashing, yaw: p.yaw, pitch: p.pitch });
     const panel = this.panelOpen ? Math.min(this.panelEl.offsetWidth, w * 0.5) : 0;
     c.fov = 78; c.aspect = w / h;
@@ -333,7 +334,7 @@ export class Creator {
     for (const [id, label] of [['front', 'Front'], ['side', 'Side'], ['back', 'Back']]) this.btn(views, label, () => this.snap(id));
     this.viewBtns.body = this.btn(views, 'Full body', () => this.setView('body'));
     this.viewBtns.fp = this.btn(views, 'First person', () => this.setView('fp'));
-    this.btnArms = this.btn(views, 'Show 8 arms', () => { const L = this.g.loadout; L.preview = !L.preview; this.btnArms.classList.toggle('on', L.preview); });
+    this.btnArms = this.btn(views, 'Preview fully evolved', () => { const L = this.g.loadout; L.preview = !L.preview; this.btnArms.classList.toggle('on', L.preview); });
     this.btnLight = this.btn(views, 'Neutral light', () => { this.setLighting(this.light === 'neutral' ? 'ship' : 'neutral'); this.refreshBar(); });
     this.btnPanel = this.btn(views, 'Hide controls', () => { this.panelOpen = !this.panelOpen; this.panelEl.classList.toggle('collapsed', !this.panelOpen); this.refreshBar(); });
     const bar = mk('div', 'cr-bar', root);

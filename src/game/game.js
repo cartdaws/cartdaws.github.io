@@ -127,7 +127,7 @@ export class Game {
     this.viewmodel.cineW = 1;
     this.viewmodel.restrain = 1;
 
-    if (debug) { window.__g = this; window.__THREE = THREE; import('../creature/definition.js').then((m) => { window.__PRESET = (n) => JSON.parse(JSON.stringify(m.PRESETS.find((p) => p.name === n))); window.__DEF = m; }); }
+    if (debug) { window.__g = this; this.devArms = (n) => { this.loadout.devArms = n; }; this.devForms = (on = true) => { this.loadout.devForms = on; }; window.__THREE = THREE; import('../creature/definition.js').then((m) => { window.__PRESET = (n) => JSON.parse(JSON.stringify(m.PRESETS.find((p) => p.name === n))); window.__DEF = m; }); }
     this.last = performance.now();
     this.loop = this.loop.bind(this);
     requestAnimationFrame(this.loop);
@@ -253,7 +253,7 @@ export class Game {
 
   pause() {
     if (this.paused) return;
-    this.wheel.close();
+    this.wheel.cancel(); this.qHeld = 0;
     this.paused = true;
     this.input.clear();
     this.audio.suspend();
@@ -470,6 +470,7 @@ export class Game {
     }
 
     this.opening.update(dt);
+    this.viewmodel.extrasHidden = this.opening.active || this.state === 'menu';
     if (this.state === 'menu') { const q = this.opening.pose; q.yaw = 0.22 * Math.sin(this.time * 0.16); q.pitch = 0.02 * Math.sin(this.time * 0.23); q.x = Math.sin(this.time * 0.11) * 0.06; }
 
     const steps = Math.max(1, Math.ceil(dt / STEP));
