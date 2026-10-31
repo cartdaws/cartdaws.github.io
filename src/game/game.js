@@ -468,7 +468,7 @@ export class Game {
 
     this.level.update(this.time);
     this.effects.update(dt);
-    this.body.setVisible(!this.cinePose && !this.opening.hideBody && (this.player.pitch < -0.62 || this.opening.phase === 'home'));   // the body only exists in view when you look down at it
+    this.body.setVisible(!this.cinePose && !this.opening.hideBody);
     this.body.update(dt);
     this.ui.update(dt);
     if (this.touchUI) this.touchUI.setVisible(this.paused ? false : this.state === 'playing' ? (this.opening.active ? 'intro' : 'play') : false, this.opening.active ? this.opening.buttons() : null);
