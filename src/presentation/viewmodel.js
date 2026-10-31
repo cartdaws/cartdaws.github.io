@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { lerp, damp, clamp } from '../core/util.js';
 import { TentacleSet } from './tentacles.js';
-import { makeHandGel, updateHandGels } from './hand.js';
+import { updateHandGels } from './hand.js';
+import { makeSkin, skinParams, restyle, updateSkins } from '../creature/skin.js';
 
 const _el = new THREE.Vector3(), _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -156,8 +157,9 @@ class HandArm {
 
 // First-person view: the arms are rendered in a separate pass so they never clip into level geometry.
 export class ViewModel {
-  constructor(asset, tentacleAsset) {
+  constructor(asset, tentacleAsset, def) {
     this.asset = asset;
+    this.def = def;
     this.scene = new THREE.Scene();
     this.root = new THREE.Group();
     this.scene.add(this.root);
@@ -166,8 +168,8 @@ export class ViewModel {
     key.position.set(0.6, 0.9, 0.5);
     this.root.add(key);
 
-    this.skinGel = makeHandGel({ color: 0x0d6560, rim: 0x7fe8da, alpha: 0.58 });
-    this.barrelGel = makeHandGel({ color: 0x118078, rim: 0xb8fff4, alpha: 0.5 });
+    this.skinGel = makeSkin(skinParams(def, 'body'));
+    this.barrelGel = makeSkin(skinParams(def, 'weapon'));
     this.coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8f86 });
     this.maw = new THREE.MeshBasicMaterial({ color: 0x8ff5e6 });
     this.crystalMat = new THREE.MeshBasicMaterial({ color: 0xb8fff6 });
@@ -196,8 +198,15 @@ export class ViewModel {
 
     this.right = new HandArm(this, 1, true);
     this.left = new HandArm(this, -1, false);
-    this.tentacles = new TentacleSet(this, tentacleAsset);
+    this.tentacles = new TentacleSet(this, tentacleAsset, def);
     this.tremor = 0; // 0..1 shake of both hands (the first moments of the intro)
+  }
+
+  // Re-skin every part of the view model (hands, weapon, tentacles) from a creature definition. Materials are updated in place.
+  setCreature(def) {
+    this.def = def;
+    restyle(this.skinGel, def, 'body'); restyle(this.barrelGel, def, 'weapon');
+    this.tentacles.setCreature(def);
   }
 
   // palm of either hand, camera space
@@ -243,7 +252,8 @@ export class ViewModel {
     this.squeeze = Math.max(0, this.squeeze - dt * 16);
     this.pulseAge += dt;
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
-    this.skinGel.uniforms.uAlpha.value = lerp(0.58, 0.16, this.xray);
+    updateSkins(t, this.pulse + this.charge * 0.6, this.charge);
+    this.skinGel.uniforms.uAlpha.value = lerp(skinParams(this.def, 'body').alpha, 0.16, this.xray);
 
     this.swayX = damp(this.swayX, clamp(-ctx.lookX * 0.0012, -0.06, 0.06), 7, dt);
     this.swayY = damp(this.swayY, clamp(ctx.lookY * 0.0012, -0.06, 0.06), 7, dt);

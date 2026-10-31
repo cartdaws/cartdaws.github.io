@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { lerp, smooth } from '../core/util.js';
 import { SpringChain, bezier } from './tentacle.js';
-import { makeHandGel } from './hand.js';
+import { makeSkin, skinParams, restyle } from '../creature/skin.js';
 
 // Absorption tentacles (art/build_tentacle.py -> public/models/tentacle.glb): one skinned gel mesh on a 12-bone chain each.
 // Every tentacle has a fixed root on the forearm (a socket, defined in the arm's own space) and a collar that blends it into the skin.
@@ -187,10 +187,11 @@ class Tentacle {
 
 // The set of tentacles on both forearms. Sockets are defined in each arm's own space (model forward is -Z, the forearm trails along +Z).
 export class TentacleSet {
-  constructor(vm, scene) {
+  constructor(vm, scene, def) {
     this.vm = vm;
     this.time = 0;
-    this.gel = makeHandGel({ color: 0x147a6c, rim: 0xd2fff0, alpha: 0.86 });
+    this.gel = makeSkin(skinParams(def, 'tentacle'));
+    restyle(this.gel, def, 'tentacle');
     const mk = (arm, pos, dir, phase, opts) => {
       const t = new Tentacle(this, arm, scene, this.gel, new THREE.Vector3(...pos), new THREE.Vector3(...dir), phase, opts);
       vm.root.add(t.holder);
@@ -206,6 +207,8 @@ export class TentacleSet {
     this.RA = mk(vm.right, [0, 0.06, 0.34], [0, 0.95, -0.3], 4.2);
     this.all = [...this.P, this.RA];
   }
+
+  setCreature(def) { restyle(this.gel, def, 'tentacle'); }
 
   update(dt) {
     this.time += dt;

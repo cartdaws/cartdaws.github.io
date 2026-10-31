@@ -6,7 +6,7 @@
 
 export const VERSION = 1;
 
-const num = (path, label, min, max, def, step, hint) => ({ kind: 'num', path, label, min, max, def, step, hint });
+const num = (path, label, min, max, def, step, hint, when) => ({ kind: 'num', path, label, min, max, def, step, hint, when });
 const opt = (path, label, options, def, hint) => ({ kind: 'opt', path, label, options, def, hint });
 const bool = (path, label, def, hint) => ({ kind: 'bool', path, label, def, hint });
 const col = (path, label, def, hint) => ({ kind: 'col', path, label, def, hint });
@@ -197,7 +197,6 @@ export function applyStyle(def, style) {
   const d = clone(def); for (const [p, v] of Object.entries(s)) setPath(d, p, v); d.skin.style = style; return sanitize(d);
 }
 
-function preset(name, o) { return sanitize({ ...clone(defaults()), ...o, name }); }
 const P = (name, patch) => { const d = defaults(); d.name = name; for (const [p, v] of Object.entries(patch)) setPath(d, p, v); return sanitize(d); };
 
 // The first preset is the creature the game has always had, so existing saves look unchanged.

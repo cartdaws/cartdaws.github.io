@@ -26,7 +26,7 @@ const STEP = 1 / 60;
 const BASE_FOV = 78;
 
 export class Game {
-  constructor(canvas, armGeos, kit, handAsset, robots, tentacle, homeAsset) {
+  constructor(canvas, armGeos, kit, handAsset, robots, tentacle, homeAsset, creatureAsset) {
     this.canvas = canvas;
     this.homeAsset = homeAsset;
     this.robots = robots;
@@ -65,8 +65,8 @@ export class Game {
       });
     }
     this.player = new Player(this);
-    this.viewmodel = new ViewModel(handAsset, tentacle);
-    this.body = new AlienBody(this.scene, this.world, this.player, armGeos);
+    this.viewmodel = new ViewModel(handAsset, tentacle, save.creature);
+    this.body = new AlienBody(this.scene, this.world, this.player, armGeos, creatureAsset, save.creature);
     this.weapon = new Shardcaster(this);
     this.absorber = new Absorber(this);
     this.projectiles = new Projectiles(this);
@@ -582,6 +582,7 @@ export class Game {
         dashing, yaw: this.cinePose ? this.cinePose.yaw : p.yaw, pitch: this.cinePose ? this.cinePose.pitch : p.pitch,
       });
       this.viewmodel.syncToCamera(c);
+      this.body.updateArms(this.viewmodel);
     }
     this.cullLights();
     this.post.render(dt, this.time);
