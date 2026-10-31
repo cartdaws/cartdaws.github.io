@@ -117,7 +117,7 @@ export class Intro {
     s.carriage.position.z = -1.9; s.link.rotation.set(0, 0, 0); s.head.rotation.set(0, 0, 0); s.probe.scale.set(1, 0.12, 1);
     c.researcher.visible = true; c.researcher.position.set(7.45, 0, 8.2); c.researcher.rotation.set(0, -Math.PI / 2, 0);
     seatHuman(c.researcher, 0);
-    c.officer.visible = false; c.officer.position.set(0, 0, -4.5); c.officer.rotation.set(0, Math.PI, 0);
+    c.officer.visible = false; c.officer.position.set(0, 0, -4.5); c.officer.rotation.set(0, Math.PI, 0); c.officer.scale.set(1, 1, 1);
     if (L.pistol.parent !== g.scene) g.scene.attach(L.pistol);
     L.pistol.visible = false; L.pistolLight.intensity = 0;
     L.pistol.scale.setScalar(1.25);
@@ -532,10 +532,10 @@ export class Intro {
       p.pos.set(lerp(CX, CX + 0.15, k), 0, lerp(CZ, CZ - 2.35, k));
       p.pitch = damp(p.pitch, 0, 3, dt);
     } else if (!f.free) {
-      f.free = true; this.moveLocked = false; this.cellBox(true);
-      this.setObjective('GET OUT OF THE WORKSHOP');
+      f.free = true; this.cellBox(true);
     }
     this.officer(os, dt);
+    if (os >= 1.5) this.moveLocked = !f.landed;      // held in place (the camera stays free) until the officer's pistol comes to rest
     // the dropped pistol appears once it comes to rest
     if (f.landed && this.phase === 'escape') { this.phase = 'pistol'; this.t = 0; this.step = 0; this.stepT = 0; this.h = 0; this.f.os = os; this.f.landed = true; this.setObjective('ABSORB THE DROPPED PISTOL'); }
     this.finishEscapeLines(os);
@@ -545,42 +545,43 @@ export class Intro {
     const g = this.g;
     if (os > 1.0) this.once('aiOpen', () => { g.level.doors.containment.open(); g.audio.play('door', { vol: 0.9 }); });
     if (os > 3.0) this.once('l5', () => this.say('It is out! Seal the bulkhead!', 'SECURITY', 2.3));
-    if (os > 3.9) this.once('shut', () => { g.level.doors.containment.close(); g.audio.play('door', { vol: 1 }); });
+    if (os > 3.5) this.once('shut', () => { this.f.shutCmd = true; g.level.doors.containment.close(); g.audio.play('door', { vol: 1 }); });
   }
 
   officer(os, dt) {
     const g = this.g, c = g.level.cut, O = c.officer, L = g.level, a = g.audio, f = this.f;
-    const T = { open: 1.0, aim: 2.8, shut: 3.9, strike: 4.3, retreat: 4.9 };
-    if (os >= T.open && os < T.retreat + 1.6) {
+    const door = L.doors.containment, T = { open: 1.0, aim: 2.8 };
+    const DOOR_Z = door.mesh.position.z;                               // he stands in the doorway the door is about to close on
+    if (os >= T.open && !f.crushedAt) {
       O.visible = true; O.rotation.y = Math.PI;
       if (!f.pistolOn) { f.pistolOn = true; L.pistol.visible = true; O.userData.hand.add(L.pistol); L.pistol.position.set(0, 0, -0.02); L.pistol.rotation.set(-1.45, 0, 0); L.pistol.scale.setScalar(1.25); }
       if (os < T.aim) {
-        const k = seg(os, T.open + 0.3, T.aim), z = lerp(-4.6, -0.95, smooth(k));
+        const k = seg(os, T.open + 0.3, T.aim), z = lerp(-4.6, DOOR_Z, smooth(k));
         this.stride += Math.abs(z - O.position.z) / 0.85;
         O.position.set(0, 0, z);
         poseHuman(O, this.stride * Math.PI, k < 1 ? 1 : 0, 0.1, 0);
         O.userData.armR.rotation.x = -0.5 - 1.0 * k;
         if (k > 0 && k < 1 && Math.floor(this.stride) !== this.lastStep) { this.lastStep = Math.floor(this.stride); a.play('step', { vol: 0.4 }); }
-      } else if (os < T.strike) {
-        O.position.set(0, 0, -0.95); poseHuman(O, 0, 0, 0.05, 0);
+      } else if (!f.struck) {
+        O.position.set(0, 0, DOOR_Z); poseHuman(O, 0, 0, 0.05, 0);
         O.userData.armR.rotation.x = -1.57; O.userData.armL.rotation.x = -1.35; O.userData.armL.rotation.z = 0.25;
-      } else if (os < T.retreat) {
-        const k = ease(os, T.strike, T.retreat);
-        O.position.set(0, 0, -0.95 - 0.35 * k); poseHuman(O, 0, 0, -0.1 * k, 0);
-        O.userData.armR.rotation.x = lerp(-1.57, -0.3, k); O.userData.armL.rotation.x = -0.6;
-      } else {
-        const k = (os - T.retreat) / 1.6, z = -1.3 - 7 * k * k;
-        this.stride += Math.abs(z - O.position.z) / 0.85;
-        O.position.set(0, 0, z); O.rotation.y = 0; poseHuman(O, this.stride * Math.PI, 1, 0.15, 0);
-        if (Math.floor(this.stride) !== this.lastStep) { this.lastStep = Math.floor(this.stride); a.play('step', { vol: 0.3 }); }
       }
-    } else if (os >= T.retreat + 1.6) O.visible = false;
-    if (os >= T.strike && !f.struck) {
-      f.struck = true; L.pistol.updateMatrixWorld(true);
-      this.pFrom = L.pistol.getWorldPosition(new THREE.Vector3());
-      g.scene.attach(L.pistol); this.dropT = 0;
-      a.play('clatter', { vol: 0.8 }); g.addShake(0.08); g.effects.hitSparks(this.pFrom, [1, 0.8, 0.4], 12);
+      // the guillotine door comes down on him: his height is pinned to the door's lower edge
+      const bottom = (1 - door.closeness) * door.h;
+      if (f.shutCmd && door.target === 1 && bottom < 1.85) {
+        const sq = Math.max(0.05, bottom / 1.85);
+        if (!f.struck) {
+          f.struck = true; L.pistol.updateMatrixWorld(true);
+          this.pFrom = L.pistol.getWorldPosition(new THREE.Vector3());
+          g.scene.attach(L.pistol); this.dropT = 0;            // thrown clear as he goes down
+          a.play('clatter', { vol: 0.9 }); a.play('land', { vol: 0.9 }); g.addShake(0.14); g.effects.hitSparks(this.pFrom, [1, 0.8, 0.4], 14);
+          O.userData.armR.rotation.x = -2.6; O.userData.armL.rotation.x = -2.2;
+        }
+        O.scale.set(1 + (1 - sq) * 0.45, sq, 1 + (1 - sq) * 0.3);
+        if (door.closeness >= 1 && !f.crushedAt) { f.crushedAt = os; a.play('crack', { vol: 0.6 }); g.addShake(0.1); }
+      }
     }
+    if (f.crushedAt && os > f.crushedAt + 0.9) { O.visible = false; O.scale.set(1, 1, 1); }
     if (this.dropT >= 0) {
       this.dropT += dt;
       const land = new THREE.Vector3(PISTOL_POS.x - 0.2, 0.07, PISTOL_POS.z - 0.35);
@@ -754,7 +755,7 @@ export class Intro {
     c.display.power = 0.2; c.display.fieldLevel = 0.03; c.display.set('breach');
     c.sealPower = 0;
     const s = c.scanner; s.carriage.position.z = 1.5; s.link.rotation.set(0.2, 0, 0); s.head.rotation.set(-0.5, 0, 0); s.probe.scale.set(1, 0.3, 1);
-    c.researcher.visible = false; c.officer.visible = false;
+    c.researcher.visible = false; c.officer.visible = false; c.officer.scale.set(1, 1, 1);
     if (L.pistol.parent !== g.scene) g.scene.attach(L.pistol);
     L.pistol.visible = false; L.pistolLight.intensity = 0; L.pistol.scale.setScalar(1.25);
     this.pistolMarker.visible = false; this.seamMarker.visible = false; this.glassPrint.material.opacity = 0;
@@ -768,7 +769,8 @@ export class Intro {
     this.barrier.visible = true;
     if (!this.barrierBox) this.barrierBox = g.world.add(-1.7, 0, BARRIER_Z - 0.25, 1.7, 0.45, BARRIER_Z + 0.25, { tag: 'barrier' });
     this.barrierBox.enabled = true;
-    g.player.reset(PLAYER_START.x, PLAYER_START.z, 0);
+    const keep = !skipped && g.player;                   // finishing the intro leaves you exactly where you stood
+    g.player.reset(keep ? g.player.pos.x : PLAYER_START.x, keep ? g.player.pos.z : PLAYER_START.z, keep ? g.player.yaw : 0);
     g.weaponAcquired = true; this.granted = true;
     g.weapon.reset();
     save.setIntroDone(true);                           // the checkpoint: the Shardcaster exists
