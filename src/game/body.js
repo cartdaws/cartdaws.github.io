@@ -4,8 +4,8 @@ import { makeGel } from '../world/materials.js';
 import { TentacleMesh, makeTentacleGel, updateTentacleGels, bezier, SpringChain } from '../presentation/tentacle.js';
 
 const LEGS = [ // angle from forward (rad), reach (m), gait group: short, slim legs so the body never fills the view
-  { a: -0.66, reach: 1.45, g: 0 }, { a: 0.66, reach: 1.45, g: 1 },
-  { a: -1.57, reach: 1.15, g: 1 }, { a: 1.57, reach: 1.15, g: 0 },
+  { a: -1.0, reach: 1.1, g: 0 }, { a: 1.0, reach: 1.1, g: 1 },
+  { a: -1.75, reach: 1.15, g: 1 }, { a: 1.75, reach: 1.15, g: 0 },
   { a: -2.55, reach: 1.2, g: 0 }, { a: 2.55, reach: 1.2, g: 1 },
 ];
 const N = 10;
@@ -50,7 +50,7 @@ export class AlienBody {
         chain: new SpringChain(N, 360, 90, 0.8),
         ideal: Array.from({ length: N }, () => new THREE.Vector3()),
         c1: new THREE.Vector3(), c2: new THREE.Vector3(), root: new THREE.Vector3(),
-        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: (t) => lerp(0.085, 0.022, Math.pow(t, 0.8)) * (1 + 0.12 * Math.sin(t * 9)), material: this.legGel }),
+        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: (t) => lerp(0.085, 0.03, Math.pow(t, 0.8)) * (1 + 0.12 * Math.sin(t * 9) + 0.35 * Math.max(0, (t - 0.82) / 0.18) * (1 - Math.max(0, (t - 0.96) / 0.04))), material: this.legGel }),
       };
       leg.mesh.mesh.renderOrder = 2;
       scene.add(leg.mesh.mesh);
@@ -138,14 +138,16 @@ export class AlienBody {
       const lift = Math.max(0, leg.foot.y - (this.world.groundHeight(leg.foot.x, leg.foot.z, p.pos.y + 0.4, 0.2)));
       leg.c1.set(leg.root.x + ox * hd * 0.35, leg.root.y + 0.28 + hd * 0.14, leg.root.z + oz * hd * 0.35);
       leg.c2.set(leg.foot.x - ox * hd * 0.2, leg.foot.y + 0.3 + hd * 0.1 + lift * 0.5, leg.foot.z - oz * hd * 0.2);
-      for (let i = 0; i < N; i++) bezier(leg.root, leg.c1, leg.c2, leg.foot, i / (N - 1), leg.ideal[i]);
-      for (let i = 1; i < N - 1; i++) {
-        const w = i / (N - 1), amp = 0.02 * Math.sin(w * Math.PI) * (1 + Math.min(1, speed));
+      const PL = N - 3;                                   // the leg plants here; the last joints curl up and forward like an octopus arm tip
+      for (let i = 0; i <= PL; i++) bezier(leg.root, leg.c1, leg.c2, leg.foot, i / PL, leg.ideal[i]);
+      for (let i = PL + 1; i < N; i++) { const k = (i - PL) / (N - 1 - PL); leg.ideal[i].set(leg.foot.x + ox * 0.1 * k, leg.foot.y + 0.02 + 0.13 * k * k + 0.03 * Math.sin(t * 2 + leg.d.a), leg.foot.z + oz * 0.1 * k); }
+      for (let i = 1; i < PL; i++) {
+        const w = i / PL, amp = 0.03 * Math.sin(w * Math.PI) * (1 + Math.min(1, speed));
         leg.ideal[i].x += Math.sin(t * 2.0 + leg.d.a * 4 - w * 5) * amp;
         leg.ideal[i].y += Math.sin(t * 1.7 + leg.d.a * 3 - w * 4) * amp;
       }
       leg.chain.step(leg.ideal, dt);
-      leg.chain.p[N - 1].copy(leg.foot); // tip stays planted exactly
+      leg.chain.p[PL].copy(leg.foot); // the plant point stays put exactly
       leg.mesh.update(leg.chain.p);
     }
     updateTentacleGels(t, 0);
