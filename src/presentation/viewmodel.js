@@ -11,10 +11,10 @@ const ELBOW = new THREE.Vector3(0.5, -0.78, 0.2); // where the reaching arm emer
 // One first-person arm: the Blender-modelled hand (continuous gel skin driven by morph targets), a nerve cord and palm core
 // inside it, and for the right arm the Shardcaster organ (barrel, maw, crystal tooth, venom gland).
 // Resting places of the six extra arms, in camera space: low and wide at the screen edges, partly out of frame, so they never crowd the view.
-const EXTRA_RESTS = [
-  { side: -1, pos: [-0.5, -0.3, -0.46], s: 0.72 }, { side: 1, pos: [0.5, -0.3, -0.46], s: 0.72 },
-  { side: -1, pos: [-0.63, -0.15, -0.46], s: 0.66 }, { side: 1, pos: [0.63, -0.15, -0.46], s: 0.66 },
-  { side: -1, pos: [-0.4, -0.3, -0.4], s: 0.68 }, { side: 1, pos: [0.4, -0.3, -0.4], s: 0.68 },
+const EXTRA_RESTS = [      // three per side, each at its own depth, height and outward angle so no two arms ever touch (checked in motion)
+  { side: -1, pos: [-0.66, -0.18, -0.55], s: 0.7, yaw: 0.12 }, { side: 1, pos: [0.66, -0.18, -0.55], s: 0.7, yaw: 0.12 },
+  { side: -1, pos: [-0.56, -0.42, -0.5], s: 0.66, yaw: 0.04 }, { side: 1, pos: [0.56, -0.42, -0.5], s: 0.66, yaw: 0.04 },
+  { side: -1, pos: [-0.86, -0.34, -0.42], s: 0.66, yaw: 0.0 }, { side: 1, pos: [0.86, -0.34, -0.42], s: 0.66, yaw: 0.0 },
 ];
 const _rh = new THREE.Vector3();
 
@@ -23,10 +23,11 @@ class HandArm {
     this.vm = vm; this.side = side; this.weapon = weapon;
     this.limb = opts.limb ?? (weapon ? 0 : 1); this.extra = !!opts.extra;
     this.present = this.extra ? 0 : 1; this.forward = 0;       // grown out (0..1) and brought to the firing position (0..1)
-    this.yawOff = this.extra ? -side * 0.45 : 0;
+    this.yawOff = this.extra ? -side * (opts.yaw ?? 0.45) : 0;
     const A = vm.asset;
     this.root = new THREE.Group(); // wrist pivot, model forward is -Z
-    this.baseScale = new THREE.Vector3(side * 0.95, 0.95, 0.95).multiplyScalar(opts.s || 1); this.baseScale.x = Math.sign(side) * Math.abs(this.baseScale.x);
+    this.s0 = opts.s || 1;
+    this.baseScale = new THREE.Vector3(side * 0.95, 0.95, 0.95).multiplyScalar(this.s0); this.baseScale.x = Math.sign(side) * Math.abs(this.baseScale.x);
     this.root.scale.copy(this.baseScale);
     vm.root.add(this.root);
 
@@ -97,6 +98,10 @@ class HandArm {
   setCreature(def) {
     const a = def.arms, right = this.side > 0;
     const len = right ? a.rightLength : a.length, hs = right ? a.rightHandSize : a.handSize;
+    if (this.extra) {                                           // bigger hands and thicker arms mean smaller spare arms, so the layout never crowds
+      const k = this.s0 / Math.max(1, hs, a.thickness);
+      this.baseScale.set(Math.sign(this.side) * 0.95 * k, 0.95 * k, 0.95 * k);
+    }
     const key = a.hand[0] + a.digits;
     if (key !== this.hand) this.setHand(key);
     const k = this.keys;
@@ -120,7 +125,8 @@ class HandArm {
 
     // ---- pose: hold, restrained, or reaching ----
     const pos = _v.copy(this.hold);
-    if (this.extra && this.forward > 0) pos.lerp(_rh.set(0.3, -0.17, -0.6), this.forward);
+    if (this.extra && this.yield > 0.001) { pos.y -= 0.3 * this.yield; pos.z += 0.2 * this.yield; }      // idle arms on that side drop out of the way
+    if (this.extra && this.forward > 0) pos.lerp(_rh.set(this.side * 0.3, -0.17, -0.6), this.forward); pos.y += Math.sin(Math.PI * this.forward) * 0.28;   // up and over, never through, the arms below   // an extra arm comes to the firing position on its own side
     pos.x += vm.swayX * 0.5 + vm.lagX;
     pos.y += vm.swayY * 0.5 + Math.sin(t * 1.5 + this.phase) * 0.004 - vm.dashK * 0.1;
     pos.z += vm.lagZ + vm.dashK * 0.1 + (this.weapon ? rk * 0.34 : vm.recoil * 0.05);   // backward impulse through the firing hand, a flinch in the other
@@ -154,7 +160,7 @@ class HandArm {
       pos.x += (Math.sin(t * 37 + this.phase) + Math.sin(t * 23 + 1.3)) * k;
       pos.y += (Math.sin(t * 31 + this.phase * 2) + Math.sin(t * 19)) * k;
     }
-    if (this.limb === 0 && !this.extra && vm.stow > 0) { pos.y -= 0.5 * vm.stow; pos.z += 0.25 * vm.stow; }   // another arm's weapon is in hand
+    { const st = this.extra ? 0 : (this.side > 0 ? vm.stowR : vm.stowL); if (st > 0) { pos.y -= 0.7 * st; pos.z += 0.35 * st; } }   // another arm's weapon is in hand
     this.root.position.copy(pos);
 
     // ---- shape: morph targets drive grip, weapon form, recoil flare ----
@@ -216,6 +222,7 @@ export class ViewModel {
     this.root.add(key);
 
     this.skinGel = makeSkin(skinParams(def, 'body'));
+    this.skinGel.uniforms.uSeg.value = 1;                 // the arms are ringed and segmented
     this.barrelGel = makeSkin(skinParams(def, 'weapon'));
     this.coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8f86 });
     this.maw = new THREE.MeshBasicMaterial({ color: 0x8ff5e6 });
@@ -245,9 +252,9 @@ export class ViewModel {
 
     this.right = new HandArm(this, 1, true);
     this.left = new HandArm(this, -1, false);
-    this.extras = EXTRA_RESTS.map((r, i) => new HandArm(this, r.side, false, { extra: true, limb: i + 2, rest: r.pos, s: r.s }));
+    this.extras = EXTRA_RESTS.map((r, i) => new HandArm(this, r.side, false, { extra: true, limb: i + 2, rest: r.pos, s: r.s, yaw: r.yaw }));
     this.limbs = [this.right, this.left, ...this.extras];     // indexed by arm number
-    this.loadout = null; this.stow = 0; this.extrasHidden = false;   // the opening and menus own the arms: no extra arms there
+    this.loadout = null; this.stowR = 0; this.stowL = 0; this.extrasHidden = false;   // the opening and menus own the arms: no extra arms there
     this.tentacles = new TentacleSet(this, tentacleAsset, def);
     this.right.setCreature(def); this.left.setCreature(def); for (const a of this.extras) a.setCreature(def);
     this.tremor = 0; // 0..1 shake of both hands (the first moments of the intro)
@@ -315,12 +322,20 @@ export class ViewModel {
     this.camYaw = ctx.yaw || 0; this.camPitch = ctx.pitch || 0;
     // extra arms grow out when their weapon is learned, and the arm whose weapon is selected comes forward
     const L = this.loadout, sel = L ? L.selectedLimb() : 0;
-    this.stow = damp(this.stow, sel !== 0 && L && L.armShown(sel) ? 1 : 0, 6, dt);
+    // The selected extra arm takes the firing position on its own side. The main arm there lowers first; the incoming arm only rises once it is down,
+    // and on the way back the extra arm lowers completely before the main arm rises, so no two arms are ever in the same place.
+    const selSide = sel >= 2 ? (sel % 2 ? 1 : -1) : 0;
+    const lowering = (side) => this.extras.some((a) => a.side === side && a.limb !== sel && a.forward > 0.06);
+    const wantR = selSide > 0 && L.armShown(sel) ? 1 : 0, wantL = selSide < 0 && L.armShown(sel) ? 1 : 0;
+    this.stowR = damp(this.stowR, wantR || lowering(1) ? 1 : 0, 6, dt);
+    this.stowL = damp(this.stowL, wantL || lowering(-1) ? 1 : 0, 6, dt);
     for (const a of this.extras) {
       const show = !!L && L.armShown(a.limb) && !this.extrasHidden && this.restrain <= 0.01;
       a.present = damp(a.present, show ? 1 : 0, 4, dt);
-      a.forward = damp(a.forward, a.limb === sel && show ? 1 : 0, 6, dt);
-      const k = Math.max(0.001, a.present) * (1 + (1 / Math.abs(a.baseScale.y / 0.95) - 1) * a.forward);
+      const stowed = (a.side > 0 ? this.stowR : this.stowL) > 0.92;
+      a.forward = damp(a.forward, a.limb === sel && show && stowed ? 1 : 0, 6, dt);
+      a.yield = damp(a.yield || 0, this.extras.some((o) => o !== a && o.side === a.side && o.forward > 0.02) ? 1 : 0, 7, dt);   // idle arms on that side step aside
+      const k = Math.max(0.001, a.present) * (1 + (1 / Math.abs(a.baseScale.y / 0.95) - 1) * a.forward) * (1 - 0.45 * (a.yield || 0));   // arms stepping aside also fold smaller
       a.root.scale.set(a.baseScale.x * k, a.baseScale.y * k, a.baseScale.z * k);
     }
     this.right.update(dt, ctx);

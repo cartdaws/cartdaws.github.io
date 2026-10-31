@@ -28,20 +28,20 @@ export const CONTROLS = {
     num('body.shoulderWidth', 'Shoulders', -0.4, 0.8, 0.15, 0.01, 'How broad the shoulders stand.'),
     num('body.lean', 'Forward lean', -0.3, 0.6, 0, 0.01),
     num('body.curve', 'Belly', -0.5, 1, 0, 0.01),
-    num('body.armRootHeight', 'Arm-root height', 0, 1, 0.5, 0.01),
+    num('body.armRootHeight', 'Arm-root height', 0, 1, 0.9, 0.01),
   ],
   arms: [
-    num('arms.length', 'Arm length', 0.8, 1.25, 1, 0.01, 'The visible forearm. Reach and hand contact never change.'),
+    num('arms.length', 'Arm length', 0.8, 1.25, 1.12, 0.01, 'The visible forearm. Reach and hand contact never change.'),
     num('arms.thickness', 'Arm thickness', 0.75, 1.4, 1, 0.01),
     num('arms.upperRatio', 'Upper arm / forearm', -1, 1, 0, 0.01, 'Slide the arm mass toward the shoulder or toward the wrist.'),
     num('arms.handSize', 'Hand size', 0.75, 1.35, 1, 0.01),
     opt('arms.hand', 'Hand structure', [['slender', 'Slender'], ['broad', 'Broad paw']], 'slender', 'Both fold around the barrel and grip a target.'),
-    opt('arms.digits', 'Digits', [[2, 'Two'], [3, 'Three'], [4, 'Four']], 4, 'Fewer digits means a stronger pincer look; the weapon still grows from the palm.'),
+    opt('arms.digits', 'Digits', [[2, 'Two'], [3, 'Three'], [4, 'Four']], 3, 'Fewer digits means a stronger pincer look; the weapon still grows from the palm.'),
     num('arms.fingerLength', 'Finger length', -1, 1, 0, 0.01),
     num('arms.fingerThickness', 'Finger thickness', -1, 1, 0, 0.01),
     num('arms.fingerSpacing', 'Finger spacing', -1, 1, 0, 0.01),
     bool('arms.symmetry', 'Symmetry', true, 'On: both arms match. Off: the right (weapon) arm can differ.'),
-    num('arms.rightLength', 'Right arm length', 0.8, 1.25, 1, 0.01, 'Only used when symmetry is off.', 'asym'),
+    num('arms.rightLength', 'Right arm length', 0.8, 1.25, 1.12, 0.01, 'Only used when symmetry is off.', 'asym'),
     num('arms.rightHandSize', 'Right hand size', 0.75, 1.35, 1, 0.01, 'Only used when symmetry is off.', 'asym'),
   ],
   tentacles: [
@@ -195,7 +195,7 @@ const P = (name, patch) => { const d = defaults(); d.name = name; for (const [p,
 
 // Humanoid starting points. The first one is the default for new and existing saves.
 export const PRESETS = [
-  P('Warden', { 'body.height': 0.94, 'body.shoulderWidth': 0.25, 'arms.digits': 4, 'tentacles.count': 6, 'head.eyes': 'pair', 'head.crest': 'none',
+  P('Warden', { 'body.height': 0.94, 'body.shoulderWidth': 0.25, 'arms.digits': 3, 'tentacles.count': 6, 'head.eyes': 'pair', 'head.crest': 'none',
     'skin.style': 'smooth', 'skin.primary': '#0d6560', 'skin.secondary': '#2fb89a', 'skin.marking': '#b8fff4', 'skin.glow': '#6ff0e0', 'skin.glowIntensity': 0.35, 'skin.pattern': 'none' }),
   P('Wraith', { 'body.height': 1.0, 'body.width': 0.88, 'body.depth': 0.9, 'body.shoulderWidth': -0.1, 'arms.thickness': 0.8, 'arms.digits': 3, 'arms.fingerLength': 0.6, 'arms.fingerThickness': -0.4,
     'tentacles.count': 5, 'tentacles.length': 1.4, 'tentacles.surface': 'smooth', 'tentacles.curl': 0.9, 'head.eyes': 'cyclops', 'head.feelers': 2, 'head.size': 1.1,

@@ -309,7 +309,8 @@ export class Creator {
       vm.root.updateMatrixWorld(true);
     }
     if (panel > 0) c.setViewOffset(w, h, panel / 2, 0, w, h); else c.clearViewOffset();
-    g.body.updateArms(vm);
+    g.body.updateArms(vm, c);
+    const gu = g.post.grade.uniforms; gu.uHit.value = gu.uHurt.value = gu.uPulse.value = 0;   // no damage flash or hurt fringing in the preview
     g.post.render(dt, g.time);
   }
 

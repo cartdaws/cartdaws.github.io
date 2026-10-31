@@ -39,13 +39,13 @@ export function makeSkin(p = {}) {
       uAlpha: { value: p.alpha }, uGrad: { value: p.gradient }, uPattern: { value: PATTERN[p.pattern] || 0 }, uPScale: { value: p.patternScale },
       uRough: { value: p.rough }, uRidge: { value: p.ridge }, uBase: { value: p.glow },
       uTime: { value: 0 }, uGlow: { value: 0 }, uHeat: { value: 0 }, uAxis: { value: 1 }, uLimb: { value: p.role === 'body' ? 0 : 1 },
-      uThick: { value: 1 }, uTaper: { value: 0 },
+      uThick: { value: 1 }, uTaper: { value: 0 }, uSeg: { value: 0 },
     },
     vertexShader: `
       #include <common>
       #include <morphtarget_pars_vertex>
       #include <skinning_pars_vertex>
-      uniform float uThick, uTaper;
+      uniform float uThick, uTaper, uSeg;
       varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec2 vUv;
       void main(){
         #include <beginnormal_vertex>
@@ -60,6 +60,15 @@ export function makeSkin(p = {}) {
           float g = uThick * (1.0 - uTaper * 0.55 * s) ;
           transformed.xy *= g;
         #endif
+        // segmented limb: vertebra-like rings along the forearm, a thick collar at the wrist, a slimmer neck behind the claw
+        #ifndef USE_SKINNING
+          if (uSeg > 0.0) {
+            float k = smoothstep(0.05, 0.32, position.z);
+            float ring = sin(position.z * 22.0) * 0.5;
+            float collar = exp(-pow((position.z - 0.115) / 0.05, 2.0));
+            transformed.xy *= 1.0 + uSeg * (k * ring * 0.2 + 0.2 * collar);
+          }
+        #endif
         #include <skinning_vertex>
         vec4 mv = modelViewMatrix * vec4(transformed, 1.0);
         vN = normalize(normalMatrix * objectNormal);
@@ -68,7 +77,7 @@ export function makeSkin(p = {}) {
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
-      uniform vec3 uColor, uColor2, uMark, uRim, uGlowCol; uniform float uAlpha, uGrad, uPScale, uRough, uRidge, uBase, uTime, uGlow, uHeat, uLimb; uniform int uPattern;
+      uniform vec3 uColor, uColor2, uMark, uRim, uGlowCol; uniform float uAlpha, uGrad, uPScale, uRough, uRidge, uBase, uTime, uGlow, uHeat, uLimb, uSeg; uniform int uPattern;
       varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec2 vUv;
       float h21(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
       float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
@@ -93,7 +102,12 @@ export function makeSkin(p = {}) {
         else if (uPattern == 2) { vec2 id = floor(q * vec2(1.0, 1.3)); vec2 fq = fract(q * vec2(1.0, 1.3)) - 0.5; float r = 0.16 + 0.2 * h21(id); pat = (h21(id + 7.0) > 0.45 ? 1.0 : 0.0) * (1.0 - smoothstep(r - 0.05, r, length(fq))); }
         else if (uPattern == 3) pat = smoothstep(0.45, 0.6, abs(sin(vUv.x * 6.2831 * 6.0 * uPScale + vn(vUv * 6.0) * 1.6)));
         else if (uPattern == 4) { float w = abs(vn(q * 0.8 + vn(q * 1.7) * 1.5) - 0.5); pat = 1.0 - smoothstep(0.0, 0.07, w); }
-        vec3 c = base * (0.45 + 0.75 * lam) + uRim * f * 0.6 + vec3(spec);
+        float segS = abs(sin(vP.z * 40.0));
+        float groove = uSeg > 0.0 ? (1.0 - smoothstep(0.0, 0.42, segS)) * smoothstep(0.05, 0.3, vP.z) : 0.0;
+        float edgeL = uSeg > 0.0 ? smoothstep(0.55, 0.85, segS) * (1.0 - smoothstep(0.85, 1.0, segS)) * smoothstep(0.05, 0.3, vP.z) : 0.0;
+        float collarBand = uSeg > 0.0 ? exp(-pow((vP.z - 0.115) / 0.05, 2.0)) : 0.0;
+        vec3 c = base * (0.45 + 0.75 * lam) * (1.0 - 0.62 * groove * min(uSeg, 1.0)) + uRim * f * 0.6 + vec3(spec) * (1.0 + 1.2 * collarBand);
+        c += uRim * (collarBand * 0.18 + edgeL * 0.22) * min(uSeg, 1.0);
         c = mix(c, uMark * (0.4 + 0.35 * lam), pat * 0.8);
         // inner light: strongest where the skin is thick toward the viewer, patchy rather than uniform
         float inner = (0.35 + 0.65 * vn(vUv * vec2(7.0, 4.0) + 3.0)) * (1.0 - f);
