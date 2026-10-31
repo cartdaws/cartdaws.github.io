@@ -291,3 +291,15 @@ body.touch #subtitle { bottom: 20%; max-width: 54vw; }
 #wheel .w-item.hi { background: rgba(60, 190, 200, 0.7); border-color: #fff; transform: translate(-50%, -50%) scale(1.14); }
 #t-weapons { right: calc(150px + env(safe-area-inset-right)); bottom: calc(212px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 11px !important; }
 #touch.no-fire #t-weapons { display: none !important; }
+
+/* ---- the interface takes the creature's palette (set from the confirmed design) ---- */
+:root { --acc: #7ffff0; --acc-l: #bffcff; --acc-d: #1a8f86; --acc-m: #7fb9c9; }
+.label { color: var(--acc-m); }
+#healthFill { background: linear-gradient(90deg, var(--acc-d), var(--acc)); }
+#healthFill.low { background: linear-gradient(90deg, #d4351f, #ff8a50); }
+#dashFill { background: var(--acc); }
+#weaponName, #objective, #rewardNote { color: var(--acc-l); }
+#crosshair i { background: var(--acc-l); }
+.bar { border-color: color-mix(in srgb, var(--acc) 35%, transparent); }
+#wheel .w-center b { color: var(--acc-l); }
+#wheel .w-item.hi { background: color-mix(in srgb, var(--acc) 55%, #0a1418); }

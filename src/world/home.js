@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { makeHandGel } from '../presentation/hand.js';
+import { makeSkin, skinParams } from '../creature/skin.js';
+import { makeShifter } from '../creature/palette.js';
+import { defaults } from '../creature/definition.js';
 
 // The homeworld memory: a small, composed place built from Blender assets (art/build_home.py -> public/models/home.glb).
 // It sits far from the ship (HOME) with its own sky, light and fog, which are swapped in while the memory plays.
@@ -16,9 +18,11 @@ export async function loadHome() {
 const rng = (seed) => () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
 const hash = (x) => Math.sin(x * 127.1 + 311.7) * 43758.5453 % 1;
 
+let SHIFT = null;                       // while the homeworld is built, every painted colour is rotated into the creature's palette
 function canvasTex(w, h, draw, repeat) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
+  const g0 = c.getContext('2d');
+  draw(SHIFT ? SHIFT.ctx(g0) : g0, w, h);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   if (repeat) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(repeat, repeat); }
@@ -27,8 +31,9 @@ function canvasTex(w, h, draw, repeat) {
 }
 
 export class HomeWorld {
-  constructor(scene, asset) {
+  constructor(scene, asset, def = defaults()) {
     this.scene = scene;
+    const S = SHIFT = makeShifter(def);
     const R = rng(4242);
     this.group = new THREE.Group();
     this.group.position.set(HOME.x, 0, HOME.z);
@@ -37,13 +42,13 @@ export class HomeWorld {
     const node = (n) => asset.getObjectByName(n);
 
     // ---- light and air
-    this.hemi = new THREE.HemisphereLight(0x9fe6dc, 0x1a2a3a, 1.15);
-    this.sun = new THREE.DirectionalLight(0xd6e4ff, 0.9);
+    this.hemi = new THREE.HemisphereLight(S.hex(0x9fe6dc), S.hex(0x1a2a3a), 1.15);
+    this.sun = new THREE.DirectionalLight(S.hex(0xd6e4ff), 0.9);
     this.sun.position.set(HOME.x - 60, 90, HOME.z - 40);
     this.hemi.visible = this.sun.visible = false;
     scene.add(this.hemi, this.sun);
-    this.fog = new THREE.FogExp2(0x1d3a56, 0.011);
-    this.bg = new THREE.Color(0x120c36);
+    this.fog = new THREE.FogExp2(S.hex(0x1d3a56), 0.011);
+    this.bg = new THREE.Color(S.hex(0x120c36));
 
     // ---- ground and pools
     const groundTex = canvasTex(512, 512, (g, w, h) => {
@@ -56,15 +61,15 @@ export class HomeWorld {
       g.strokeStyle = 'rgba(170,255,230,0.12)'; g.lineWidth = 1;
       for (let i = 0; i < 220; i++) { const x = R() * w, y = R() * h; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + R() * 30 - 15, y + R() * 30 - 15, x + R() * 40 - 20, y + R() * 40 - 20); g.stroke(); }
     }, 22);
-    const ground = new THREE.Mesh(new THREE.CircleGeometry(95, 64).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.92, emissive: 0x0b2a28, emissiveIntensity: 0.6 }));
+    const ground = new THREE.Mesh(new THREE.CircleGeometry(95, 64).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.92, emissive: S.hex(0x0b2a28), emissiveIntensity: 0.6 }));
     this.group.add(ground);
-    const poolMat = new THREE.MeshStandardMaterial({ color: 0x1a8f9a, emissive: 0x0a4a55, emissiveIntensity: 0.7, roughness: 0.05, metalness: 0.35, transparent: true, opacity: 0.86 });
+    const poolMat = new THREE.MeshStandardMaterial({ color: S.hex(0x1a8f9a), emissive: S.hex(0x0a4a55), emissiveIntensity: 0.7, roughness: 0.05, metalness: 0.35, transparent: true, opacity: 0.86 });
     for (const [x, z, r] of [[-9, -2, 4.5], [10, -14, 6], [-12, -16, 3.5], [8, 6, 2.8]]) {
       const p = new THREE.Mesh(new THREE.CircleGeometry(r, 36).rotateX(-Math.PI / 2), poolMat);
       p.position.set(x, 0.025, z); this.group.add(p);
     }
     // soft hills closing the horizon
-    const hillMat = new THREE.MeshStandardMaterial({ color: 0x143c46, roughness: 1, emissive: 0x08202a, emissiveIntensity: 0.8 });
+    const hillMat = new THREE.MeshStandardMaterial({ color: S.hex(0x143c46), roughness: 1, emissive: S.hex(0x08202a), emissiveIntensity: 0.8 });
     for (let i = 0; i < 16; i++) {
       const a = i / 16 * Math.PI * 2 + R() * 0.3, d = 62 + R() * 18;
       const h = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), hillMat);
@@ -74,8 +79,8 @@ export class HomeWorld {
     // ---- flora and stone, kept clear of the walking line from the start to the one who waits
     const path = (x, z) => { const t = Math.max(0, Math.min(1, (HOME_START.z - z) / (HOME_START.z - ELDER_AT.z))); const px = HOME_START.x + (ELDER_AT.x - HOME_START.x) * t; return Math.hypot(x - px, 0) < 3.2 && z < HOME_START.z + 3 && z > ELDER_AT.z - 4; };
     const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.frustumCulled = false; this.group.add(m); return m; };
-    const spireMat = new THREE.MeshStandardMaterial({ color: 0x1f6a64, roughness: 0.5, emissive: 0x0b3b3a, emissiveIntensity: 0.9 });
-    this.tipMat = new THREE.MeshBasicMaterial({ color: 0xb8ffe6, fog: true });
+    const spireMat = new THREE.MeshStandardMaterial({ color: S.hex(0x1f6a64), roughness: 0.5, emissive: S.hex(0x0b3b3a), emissiveIntensity: 0.9 });
+    this.tipMat = new THREE.MeshBasicMaterial({ color: S.hex(0xb8ffe6), fog: true });
     const NS = 60, spires = mk(node('Spire').geometry, spireMat, NS), tips = mk(node('SpireTip').geometry, this.tipMat, NS);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
     for (let i = 0, k = 0; k < NS && i < 400; i++) {
@@ -86,7 +91,7 @@ export class HomeWorld {
       m4.compose(v.set(x, 0, z), q, sc.set(s, s, s)); spires.setMatrixAt(k, m4); tips.setMatrixAt(k, m4); k++;
     }
     const stalkGeo = node('Stalk').geometry, bulbGeo = node('StalkBulb').geometry;
-    const NK = 700, stalks = mk(stalkGeo, spireMat, NK), bulbs = mk(bulbGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), NK);
+    const NK = 700, stalks = mk(stalkGeo, spireMat, NK), bulbs = mk(bulbGeo, new THREE.MeshBasicMaterial({ color: S.hex(0xffffff) }), NK);
     const col = new THREE.Color();
     for (let c = 0, k = 0; c < 90 && k < NK; c++) {
       const a = R() * Math.PI * 2, d = 4 + R() * 38, cx = Math.cos(a) * d, cz = Math.sin(a) * d;
@@ -96,10 +101,10 @@ export class HomeWorld {
         const s = 0.7 + R() * 1.3;
         e.set((R() - 0.5) * 0.25, R() * 6.28, (R() - 0.5) * 0.25); q.setFromEuler(e);
         m4.compose(v.set(x, 0, z), q, sc.set(s, s, s)); stalks.setMatrixAt(k, m4); bulbs.setMatrixAt(k, m4);
-        bulbs.setColorAt(k, col.set(R() < 0.65 ? 0x9affea : 0xd9a8ff)); k++;
+        bulbs.setColorAt(k, col.set(R() < 0.65 ? S.hex(0x9affea) : S.hex(0xd9a8ff))); k++;
       }
     }
-    const rockMat = new THREE.MeshStandardMaterial({ color: 0x27363e, roughness: 0.95, emissive: 0x06141a, emissiveIntensity: 0.8 });
+    const rockMat = new THREE.MeshStandardMaterial({ color: S.hex(0x27363e), roughness: 0.95, emissive: S.hex(0x06141a), emissiveIntensity: 0.8 });
     const rocks = mk(node('Rock').geometry, rockMat, 20);
     for (let i = 0; i < 20; i++) {
       const a = R() * Math.PI * 2, d = 6 + R() * 45, x = Math.cos(a) * d, z = Math.sin(a) * d;
@@ -112,15 +117,15 @@ export class HomeWorld {
     const NP = 260, pp = new Float32Array(NP * 3);
     for (let i = 0; i < NP; i++) { pp[i * 3] = (R() - 0.5) * 50; pp[i * 3 + 1] = 0.3 + R() * 5; pp[i * 3 + 2] = (R() - 0.5) * 50 - 4; }
     const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pp, 3));
-    this.spores = new THREE.Points(pg, new THREE.PointsMaterial({ color: 0xbfffe8, size: 0.09, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
+    this.spores = new THREE.Points(pg, new THREE.PointsMaterial({ color: S.hex(0xbfffe8), size: 0.09, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
     this.spores.frustumCulled = false; this.group.add(this.spores); this.sporeBase = pp.slice();
     const mistTex = canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(150,255,230,0.35)'); gr.addColorStop(1, 'rgba(150,255,230,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
     const mistMat = new THREE.MeshBasicMaterial({ map: mistTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
     for (const [x, z, sz] of [[-6, -2, 9], [6, -8, 11], [-2, -14, 12], [0, 3, 8], [11, -2, 9], [-12, -9, 10]]) { const m = new THREE.Mesh(new THREE.PlaneGeometry(sz, sz).rotateX(-Math.PI / 2), mistMat); m.position.set(x, 0.35, z); this.group.add(m); }
 
     // ---- the one who waits
-    const gel = makeHandGel({ color: 0x1fa08c, rim: 0xe6fff6, alpha: 0.62 });
-    const core = new THREE.MeshBasicMaterial({ color: 0xbffcf0, transparent: true, opacity: 0.92 });
+    const gel = makeSkin({ ...skinParams(def, 'body'), pattern: 'none' });
+    const core = new THREE.MeshBasicMaterial({ color: new THREE.Color(def.skin.glow).lerp(new THREE.Color(0xffffff), 0.7), transparent: true, opacity: 0.92 });
     const swap = (o) => { o.traverse((m) => { if (m.isMesh) { const nm = (m.material && m.material.name) || ''; m.material = nm === 'GelCore' ? core : gel; m.frustumCulled = false; } }); return o; };
     this.elder = new THREE.Group();
     this.elderBody = swap(node('Elder_Body').clone(true));
@@ -157,6 +162,9 @@ export class HomeWorld {
     this.moonSmall = new THREE.Mesh(new THREE.SphereGeometry(14, 20, 12), new THREE.MeshBasicMaterial({ color: 0xf0a050, fog: false })); this.moonSmall.position.set(130, 105, -350);
     this.sky.add(this.moonBig, this.moonSmall);
     this.sky.visible = false;
+
+    SHIFT = null;                      // the human ship keeps its own colours
+    this.tipBase = new THREE.Color(S.hex(0xb8ffe6));
 
     // ---- the human ship, its shadow and its searchlight
     this.ship = new THREE.Group();
@@ -196,6 +204,8 @@ export class HomeWorld {
   }
 
   // Swap the sky, light and fog in or out (the ship's own scene is restored on hide).
+  dispose() { this.scene.remove(this.group, this.hemi, this.sun, this.sky, this.spot, this.spot.target, this.cone); }
+
   show(v) {
     const s = this.scene;
     if (v && !this.shown) { this.saved = { bg: s.background, fog: s.fog }; s.background = this.bg; s.fog = this.fog; }
@@ -240,6 +250,6 @@ export class HomeWorld {
     if (!this.shown) return;
     this.sky.position.copy(camPos);
     { const a = this.spores.geometry.attributes.position, b = this.sporeBase; for (let i = 0; i < a.count; i++) { a.array[i * 3] = b[i * 3] + Math.sin(t * 0.3 + i) * 0.6; a.array[i * 3 + 1] = b[i * 3 + 1] + ((t * 0.12 + i * 0.37) % 1) * 0.8 + Math.sin(t * 0.7 + i * 2) * 0.15; a.array[i * 3 + 2] = b[i * 3 + 2] + Math.cos(t * 0.25 + i) * 0.6; } a.needsUpdate = true; }
-    this.tipMat.color.setScalar(0.8 + 0.2 * Math.sin(t * 1.3)).multiply(new THREE.Color(0xb8ffe6)).addScalar(0.15);
+    this.tipMat.color.setScalar(0.8 + 0.2 * Math.sin(t * 1.3)).multiply(this.tipBase).addScalar(0.15);
   }
 }

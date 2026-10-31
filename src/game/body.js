@@ -40,6 +40,10 @@ export class AlienBody {
     this.headGroup.visible = false;
     this.parts = new HeadParts(this, asset.parts);
 
+    // the creature's own soft light: it tints the floor and walls near the player in the creature's glow colour
+    this.glowLight = new THREE.PointLight(0xffffff, 0.8, 4.5, 2);
+    this.glowLight.position.set(0, 1.1, -0.05); this.glowLight.userData.keepOn = true;
+    this.group.add(this.glowLight);
     this.coreMat = makeGel({ color: 0x0f6a60, rim: 0xc6fff6, alpha: 0.55 });
     this.core = new THREE.Mesh(geos.BodyCore, this.coreMat);
     this.group.add(this.core);
@@ -91,6 +95,7 @@ export class AlienBody {
     this.coreBase = 0.8 * Math.min(S.x, S.z);
     this.core.scale.setScalar(this.coreBase);
     this.glow.material.color.set(def.skin.glow);
+    this.glowLight.color.set(def.skin.glow); this.glowLight.intensity = 0.25 + 1.4 * def.skin.glowIntensity;
     this.group.updateMatrixWorld(true);
     return r;
   }

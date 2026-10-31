@@ -1,3 +1,4 @@
+import { makeShifter } from '../creature/palette.js';
 import * as THREE from 'three';
 
 // ---------------------------------------------------------------- the homeworld, drawn once and reused so the research display and the memory match
@@ -154,6 +155,7 @@ export class MemoryScene {
   constructor(canvas) {
     this.canvas = canvas;
     this.g = canvas.getContext('2d');
+    this.setPalette(null);
     this.w = canvas.width = 1280;
     this.h = canvas.height = 720;
     this.horizon = 470;
@@ -173,6 +175,9 @@ export class MemoryScene {
     ];
     this.motes = Array.from({ length: 70 }, (_, i) => ({ x: R(i + 700) * 1280, y: R(i + 730) * 720, v: 6 + R(i + 760) * 16, ph: R(i + 790) * 6 }));
   }
+
+  // the memory is painted in the creature's colours
+  setPalette(def) { this.def = def; const raw = this.canvas.getContext('2d'); this.g = def ? makeShifter(def).ctx(raw) : raw; }
 
   // m = seconds since the memory began
   draw(m) {

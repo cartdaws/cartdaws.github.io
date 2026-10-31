@@ -120,7 +120,7 @@ export class Creator {
 
   close(commit) {
     const g = this.g, vm = g.viewmodel, pv = this.prev;
-    if (commit) save.setCreature(this.cur);
+    if (commit) { save.setCreature(this.cur); g.applyTheme(save.creature); g.opening.rebuildHome(); }
     this.cancelPreview();
     g.loadout.preview = false;
     this.setMount(false);

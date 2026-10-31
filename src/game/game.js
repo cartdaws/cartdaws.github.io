@@ -23,6 +23,7 @@ import { Absorber } from './absorb.js';
 import { save } from '../core/save.js';
 import { Creator } from '../creature/creator.js';
 import { Loadout } from './weapons.js';
+import { uiColors } from '../creature/palette.js';
 import { WeaponWheel } from '../presentation/wheel.js';
 
 const STEP = 1 / 60;
@@ -45,7 +46,8 @@ export class Game {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x04070a);
     this.scene.fog = new THREE.FogExp2(0x050709, 0.016);
-    this.scene.add(new THREE.HemisphereLight(0x7f95a4, 0x14181b, 0.42));
+    this.shipHemi = new THREE.HemisphereLight(0x7f95a4, 0x14181b, 0.42);
+    this.scene.add(this.shipHemi);
 
     this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.05, 500);
     this.camera.rotation.order = 'YXZ';
@@ -73,6 +75,7 @@ export class Game {
     this.body = new AlienBody(this.scene, this.world, this.player, armGeos, creatureAsset, save.creature);
     this.weapon = new Shardcaster(this);
     this.absorber = new Absorber(this);
+    this.applyTheme(save.creature);
     this.loadout = new Loadout(this);
     this.viewmodel.loadout = this.loadout;
     this.wheel = new WeaponWheel(this.loadout);
@@ -203,6 +206,15 @@ export class Game {
       else if (btn === 2) { if (this.opening.active) this.opening.press(); else this.absorber.request(); }
     };
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.state === 'playing' && !this.paused) this.pause(); });
+  }
+
+  // The creature's palette colours the interface and tints the ship's ambience (the homeworld is rebuilt in it by the opening).
+  applyTheme(def) {
+    const u = uiColors(def), s = document.documentElement.style;
+    s.setProperty('--acc', u.acc); s.setProperty('--acc-l', u.accLight); s.setProperty('--acc-d', u.accDark); s.setProperty('--acc-m', u.accMid);
+    const glow = new THREE.Color(def.skin.glow);
+    this.shipHemi.color.set(0x7f95a4).lerp(glow, 0.18);
+    if (this.scene.fog) this.scene.fog.color.set(0x050709).lerp(glow, 0.05);
   }
 
   refreshCreatureStatus() { $('st-hp').textContent = 'VITALITY ' + this.player.maxHealth + (save.maxHpBonus ? '  (+' + save.maxHpBonus + ' ABSORBED)' : ''); }

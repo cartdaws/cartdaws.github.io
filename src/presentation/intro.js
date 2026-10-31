@@ -42,7 +42,7 @@ export class Intro {
     this.f = {};
     this.h = 0;                // hold progress
     this.granted = false;
-    this.home = new HomeWorld(game.scene, game.homeAsset);
+    this.home = new HomeWorld(game.scene, game.homeAsset, save.creature);
     this.buildCuffs();
     this.buildLock();
     this.buildBarrier();
@@ -101,6 +101,12 @@ export class Intro {
     this.g.scene.add(grp);
     this.barrier = grp;
     this.barrierBox = null;
+  }
+
+  // the homeworld is painted in the creature's palette: rebuilt whenever the confirmed design changes
+  rebuildHome() {
+    const was = this.home; if (was.shown) was.show(false);
+    was.dispose(); this.home = new HomeWorld(this.g.scene, this.g.homeAsset, save.creature);
   }
 
   // everything back to the pre-breach state
