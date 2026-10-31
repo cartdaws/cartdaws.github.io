@@ -269,6 +269,10 @@ export class TentacleSet {
       if (!t.exists) { t.goal.extend = 0; t.goal.wrap = 0; }
     });
     this.RA.restVisible = false;
+    // the right forearm's grabbing tentacle (used when the pistol is taken) sits on the same skin, so it follows the right arm's proportions
+    const A = def.arms, lenK = (A.rightLength - 1) / 0.4, thK = (A.thickness - 1) / 0.35;
+    const z = 0.34 * (1 + 0.4 * lenK * smoothstep(0.05, 0.4, 0.34)), r = 0.06 * (1 + 0.35 * thK * smoothstep(0.02, 0.22, 0.34)) * (1 + 0.3 * A.upperRatio * (Math.min(1, (z - 0.05) / 1.25) * 2 - 1));
+    this.RA.socketPos.set(0, r, z);
   }
 
   get active() { return this.P.slice(0, this.count); }

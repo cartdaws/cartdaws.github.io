@@ -93,12 +93,12 @@ export function makeSkin(p = {}) {
         else if (uPattern == 2) { vec2 id = floor(q * vec2(1.0, 1.3)); vec2 fq = fract(q * vec2(1.0, 1.3)) - 0.5; float r = 0.16 + 0.2 * h21(id); pat = (h21(id + 7.0) > 0.45 ? 1.0 : 0.0) * (1.0 - smoothstep(r - 0.05, r, length(fq))); }
         else if (uPattern == 3) pat = smoothstep(0.45, 0.6, abs(sin(vUv.x * 6.2831 * 6.0 * uPScale + vn(vUv * 6.0) * 1.6)));
         else if (uPattern == 4) { float w = abs(vn(q * 0.8 + vn(q * 1.7) * 1.5) - 0.5); pat = 1.0 - smoothstep(0.0, 0.07, w); }
-        vec3 c = base * (0.5 + 0.9 * lam) + uRim * f * 0.7 + vec3(spec);
-        c = mix(c, uMark * (0.55 + 0.6 * lam), pat * 0.85);
+        vec3 c = base * (0.45 + 0.75 * lam) + uRim * f * 0.6 + vec3(spec);
+        c = mix(c, uMark * (0.4 + 0.35 * lam), pat * 0.8);
         // inner light: strongest where the skin is thick toward the viewer, patchy rather than uniform
         float inner = (0.35 + 0.65 * vn(vUv * vec2(7.0, 4.0) + 3.0)) * (1.0 - f);
         float flow = 0.5 + 0.5 * sin(vP.z * 18.0 + uTime * 1.6);
-        c += uGlowCol * (uBase * inner * 0.55 + flow * 0.04 * uBase + uGlow * 0.5 + uHeat * 0.25);
+        c += uGlowCol * (uBase * inner * 0.3 + flow * 0.03 * uBase + uGlow * 0.5 + uHeat * 0.25);
         float a = clamp(uAlpha + pat * 0.2 + f * 0.5 + spec * 0.4 + uGlow * 0.2 + uHeat * 0.12, 0.0, 0.94);
         gl_FragColor = vec4(pow(c, vec3(2.2)), a);
       }`,

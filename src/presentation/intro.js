@@ -225,7 +225,8 @@ export class Intro {
   updateCuffs() {
     const vm = this.g.viewmodel;
     const on = vm.restrain > 0.3;
-    for (const c of this.cuffs) c.visible = on;
+    // the clamps close around the creature's own forearms, whatever their thickness
+    this.cuffs.forEach((c, i) => { const arm = i === 0 ? vm.left : vm.right, k = 1 + 0.35 * (arm.keys.ArmThick || 0) * 0.95 - 0.3 * 0.1 * (arm.keys.UpperRatio || 0); c.visible = on && !(this.g.creator && this.g.creator.active); c.scale.set(k, k, 1); });
   }
 
   // ---------------------------------------------------------------------------------------------- 1. HOME
