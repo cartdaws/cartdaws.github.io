@@ -21,6 +21,7 @@ import { PostFX } from '../presentation/post.js';
 import { AlienBody } from './body.js';
 import { Absorber } from './absorb.js';
 import { save } from '../core/save.js';
+import { Creator } from '../creature/creator.js';
 
 const STEP = 1 / 60;
 const BASE_FOV = 78;
@@ -69,6 +70,8 @@ export class Game {
     this.body = new AlienBody(this.scene, this.world, this.player, armGeos, creatureAsset, save.creature);
     this.weapon = new Shardcaster(this);
     this.absorber = new Absorber(this);
+    this.eyeCam = this.camera;                           // the camera whose frame the view model is built around (the creator swaps in its own)
+    this.creator = new Creator(this);
     this.projectiles = new Projectiles(this);
     this.encounter = new Encounter(this);
     this.opening = new Intro(this);
@@ -117,7 +120,7 @@ export class Game {
     this.viewmodel.cineW = 1;
     this.viewmodel.restrain = 1;
 
-    if (debug) { window.__g = this; window.__THREE = THREE; }
+    if (debug) { window.__g = this; window.__THREE = THREE; import('../creature/definition.js').then((m) => { window.__PRESET = (n) => JSON.parse(JSON.stringify(m.PRESETS.find((p) => p.name === n))); window.__DEF = m; }); }
     this.last = performance.now();
     this.loop = this.loop.bind(this);
     requestAnimationFrame(this.loop);
@@ -151,6 +154,7 @@ export class Game {
   bind() {
     const ui = this.ui, input = this.input;
     $('btn-play').onclick = () => this.play();
+    $('btn-create').onclick = () => { this.ui.hideMenus(); this.creator.open(); };
     const nb = $('btn-new');
     if (save.introDone) { nb.classList.remove('hidden'); $('btn-play').querySelector('span').textContent = 'CONTINUE'; }
     $('st-hp').textContent = 'VITALITY ' + this.player.maxHealth + (save.maxHpBonus ? '  (+' + save.maxHpBonus + ' ABSORBED)' : '');
@@ -193,6 +197,8 @@ export class Game {
     };
     document.addEventListener('visibilitychange', () => { if (document.hidden && this.state === 'playing' && !this.paused) this.pause(); });
   }
+
+  refreshCreatureStatus() { $('st-hp').textContent = 'VITALITY ' + this.player.maxHealth + (save.maxHpBonus ? '  (+' + save.maxHpBonus + ' ABSORBED)' : ''); }
 
   toggleGfx() {
     this.gfx = this.gfx === 'realistic' ? 'retro' : 'realistic';
@@ -441,6 +447,7 @@ export class Game {
 
   frame(dt) {
     const { input, player } = this;
+    if (this.state === 'creator') { input.takeLook(); this.creator.step(dt); this.ui.update(dt); input.endFrame(); return; }
     const [lx, ly] = input.takeLook();
     this.lookX = lx; this.lookY = ly;
     const live = this.state === 'playing' && !player.dead;
@@ -555,6 +562,7 @@ export class Game {
   }
 
   render(dt) {
+    if (this.state === 'creator') { this.creator.render(dt); return; }
     const r = this.renderer, c = this.camera, p = this.player;
     if (!this.paused) {
       this.poseCamera();

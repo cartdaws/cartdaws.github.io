@@ -76,11 +76,11 @@ export class Absorber {
   eligible(e) {
     const g = this.game;
     if (!e.alive || !e.weak || e.absorbing || e.rewarded || !e.parts) return -1;
-    const cp = g.camera.position, c = e.hitSpheres[0].c;
+    const cp = g.eyeCam.position, c = e.hitSpheres[0].c;
     _t.subVectors(c, cp);
     const dist = _t.length();
     if (dist > ABSORB_RANGE || dist < 0.3) return -1;
-    g.camera.getWorldDirection(_d);
+    g.eyeCam.getWorldDirection(_d);
     const dot = _t.divideScalar(dist).dot(_d);
     if (dot < CONE) return -1;
     if (g.world.blocked(cp.x, cp.y, cp.z, c.x, c.y, c.z, (b) => b.tag !== 'barrel')) return -1;
@@ -154,7 +154,7 @@ export class Absorber {
   }
 
   run(dt) {
-    const g = this.game, vm = g.viewmodel, S = this.seq, e = S.e, cam = g.camera, left = vm.left;
+    const g = this.game, vm = g.viewmodel, S = this.seq, e = S.e, cam = g.eyeCam, left = vm.left;
     S.t += dt;
     const t = S.t, tents = vm.tentacles.P;
     cam.updateMatrixWorld();
@@ -244,6 +244,7 @@ export class Absorber {
     for (const c of S.comps) if (c.puddle) c.puddle.removeFromParent();
     this.clearFx();
     e.absorbing = false;
+    if (g.creator && g.creator.active) { e.rewarded = true; e.die(true); g.ui.setPrompt(''); return; }   // the creator's preview robot: no reward, no healing
     if (e.alive && !e.rewarded) {
       e.rewarded = true;
       g.grantMaxHp();
