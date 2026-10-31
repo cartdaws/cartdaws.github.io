@@ -151,6 +151,9 @@ export class Game {
   bind() {
     const ui = this.ui, input = this.input;
     $('btn-play').onclick = () => this.play();
+    const nb = $('btn-new');
+    if (save.introDone) { nb.classList.remove('hidden'); $('btn-play').textContent = 'CONTINUE'; }
+    nb.onclick = () => { save.setIntroDone(false); this.play(); };
     $('btn-resume').onclick = () => this.resume();
     $('btn-restart').onclick = () => this.restart();
     $('btn-retry').onclick = () => this.restart();
