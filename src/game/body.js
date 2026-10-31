@@ -45,13 +45,10 @@ export class AlienBody {
     this.group.add(this.core);
 
     this.armMat = makeSkin(skinParams(def, 'body'));
-    this.arms = [1, -1].map(() => makeTube(this.armMat, scene, (s, r) => r * (1 + 0.3 * Math.pow(1 - s, 2.2)) * (s > 0.92 ? 1 - (s - 0.92) * 0.8 : 1)));
+    this.arms = Array.from({ length: 8 }, () => makeTube(this.armMat, scene, (s, r) => r * (1 + 0.3 * Math.pow(1 - s, 2.2)) * (s > 0.92 ? 1 - (s - 0.92) * 0.8 : 1)));
     this.legs = [1, -1].map(() => makeTube(this.armMat, scene, (s, r) => r * (1 - 0.55 * Math.pow(s, 0.8)) * (s > 0.94 ? 1 - (s - 0.94) * 2 : 1)));
     this.feet = [1, -1].map(() => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10), this.armMat); m.scale.set(0.05, 0.032, 0.095); m.renderOrder = 2; m.frustumCulled = false; this.group.add(m); return m; });
     this.footPos = [new THREE.Vector3(), new THREE.Vector3()];
-    // eight limbs grow from the upper back, always present: they sway on their own and trail behind the player's motion
-    this.back = Array.from({ length: 8 }, () => makeTube(this.armMat, scene, (s, r) => r * (1 - 0.8 * Math.pow(s, 1.15)) * (s > 0.94 ? 1 - (s - 0.94) * 12 : 1)));
-    this.backLag = new THREE.Vector3();
     this.armsVisible = true;
 
     // soft contact glow on the floor
@@ -78,6 +75,14 @@ export class AlienBody {
     this.headGroup.position.copy(this.shape.neck).add(_a.set(0, -0.012, 0));
     this.headGroup.scale.set(hs * (1 + 0.25 * H.width) * (0.9 + 0.1 * S.x), hs, hs * (1 + 0.2 * H.length) * (0.9 + 0.1 * S.z));
     this.parts.apply(def, this.armMat);
+    // shoulder sockets for the eight arms: the two starting arms at the shoulders, the extra pairs lower and further back
+    const P = this.limbSockets = [this.shape.sockets.R, this.shape.sockets.L];
+    for (let i = 2; i < 8; i++) {
+      const pair = (i - 2) >> 1, right = i % 2 === 1, a = -0.5 - 0.35 * pair;
+      const p = new THREE.Vector3(), n = new THREE.Vector3();
+      this.shape.surface(0.6 - 0.08 * pair, right ? a : Math.PI - a, p, n);
+      P.push({ p, n });
+    }
     const gl = new THREE.Color(def.skin.glow);
     this.coreMat.uniforms.uColor.value.set(def.skin.primary).lerp(gl, 0.45);
     this.coreMat.uniforms.uRim.value.set(def.skin.marking);
@@ -125,41 +130,6 @@ export class AlienBody {
     this.parts.tick(dt);
     this.group.updateMatrixWorld(true);
     this.stepLegs(dt, speed, sy, cy, S);
-    this.stepBack(dt, t, sy, cy, S);
-  }
-
-  // The eight back limbs: roots sampled from the deformed upper back, a fan of curves that wave slowly, lag behind the motion, and are kept
-  // behind the camera plane so they can never enter the player's view or the line of aim.
-  stepBack(dt, t, sy, cy, S) {
-    const show = this.group.visible, mw = this.group.matrixWorld;
-    const right = this.vel.x * cy - this.vel.z * sy, fwd = -(this.vel.x * sy + this.vel.z * cy);
-    this.backLag.x = damp(this.backLag.x, clamp(-right * 0.03, -0.18, 0.18), 5, dt);
-    this.backLag.z = damp(this.backLag.z, clamp(fwd * 0.035, -0.12, 0.2), 5, dt);
-    const root = _a, nrm = _n, ctrl = _b, tip = _c, dir = _d;
-    for (let k = 0; k < 8; k++) {
-      const tube = this.back[k];
-      tube.mesh.visible = show;
-      if (!show) continue;
-      const u = (k - 3.5) / 3.5;                                   // -1 .. 1 across the back
-      const upper = k % 2 === 0;
-      this.shape.surface(upper ? 0.74 : 0.6, -Math.PI / 2 + u * 1.05, root, nrm);
-      root.addScaledVector(nrm, -0.03);
-      const len = (upper ? 0.74 : 0.62) * (0.8 + 0.2 * S.y);
-      const ph = t * 1.15 + k * 0.83;
-      dir.set(u * 0.85 + Math.sin(ph) * 0.12, (upper ? 0.5 : -0.12) + Math.cos(ph * 0.8) * 0.1, 0.9).normalize();
-      const L = this.backLag;
-      ctrl.copy(root).addScaledVector(dir, len * 0.5); ctrl.x += L.x * 0.4; ctrl.z += L.z * 0.4;
-      tip.copy(root).addScaledVector(dir, len);
-      tip.y += upper ? 0.16 + Math.sin(ph * 1.3) * 0.06 : -0.3 + Math.sin(ph * 1.3) * 0.05;     // the upper ones arch up, the lower ones droop
-      tip.x += L.x + Math.sin(ph) * 0.05; tip.z += L.z;
-      tip.y = Math.max(0.06, tip.y);
-      // never in front of the shoulders' plane: nothing can reach the camera, whatever the lean
-      ctrl.z = Math.max(ctrl.z, 0.03); tip.z = Math.max(tip.z, 0.06);
-      ctrl.multiplyScalar(2).addScaledVector(root, -0.5).addScaledVector(tip, -0.5);
-      ctrl.z = Math.max(ctrl.z, 0.03);
-      const wr = root.clone().applyMatrix4(mw), wc = ctrl.clone().applyMatrix4(mw), wt = tip.clone().applyMatrix4(mw);
-      tube.updateCurve(wr, wc, wt, 0.05 * Math.min(S.x, S.z) + 0.004);
-    }
   }
 
   // Two-bone legs that walk with the player: feet swing along the direction of travel, lift mid-stride, and plant when standing.
@@ -196,16 +166,16 @@ export class AlienBody {
   // Joins each body shoulder to the end of the matching first-person arm. Call after the view model has been posed and synced to its frame.
   updateArms(vm) {
     const show = this.armsVisible && this.group.visible;
-    for (let i = 0; i < 2; i++) {
-      const tube = this.arms[i], arm = i === 0 ? vm.right : vm.left, sock = i === 0 ? this.shape.sockets.R : this.shape.sockets.L;
-      tube.mesh.visible = show && arm.root.visible;
+    for (let i = 0; i < 8; i++) {
+      const tube = this.arms[i], arm = vm.limbs[i], sock = this.limbSockets[i];
+      tube.mesh.visible = show && arm.root.visible && arm.present > 0.3;
       if (!tube.mesh.visible) continue;
       arm.root.updateWorldMatrix(true, false);
       const E = _a.copy(arm.elbowLocal).applyMatrix4(arm.root.matrixWorld);
       const S = _b.copy(sock.p).addScaledVector(sock.n, -0.04).applyMatrix4(this.group.matrixWorld);
       const out = _n.copy(sock.n).transformDirection(this.group.matrixWorld);
       const mid = _c.copy(S).add(E).multiplyScalar(0.5).addScaledVector(out, 0.07); mid.y -= 0.05;
-      tube.updateCurve(S, mid.multiplyScalar(2).addScaledVector(S, -0.5).addScaledVector(E, -0.5), E, arm.endRadius);
+      tube.updateCurve(S, mid.multiplyScalar(2).addScaledVector(S, -0.5).addScaledVector(E, -0.5), E, arm.endRadius * Math.max(0.3, arm.present));
     }
   }
 }

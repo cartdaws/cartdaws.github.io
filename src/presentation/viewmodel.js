@@ -10,12 +10,24 @@ const ELBOW = new THREE.Vector3(0.5, -0.78, 0.2); // where the reaching arm emer
 
 // One first-person arm: the Blender-modelled hand (continuous gel skin driven by morph targets), a nerve cord and palm core
 // inside it, and for the right arm the Shardcaster organ (barrel, maw, crystal tooth, venom gland).
+// Resting places of the six extra arms, in camera space: low and wide at the screen edges, partly out of frame, so they never crowd the view.
+const EXTRA_RESTS = [
+  { side: -1, pos: [-0.66, -0.42, -0.5], s: 0.72 }, { side: 1, pos: [0.66, -0.42, -0.5], s: 0.72 },
+  { side: -1, pos: [-0.8, -0.28, -0.32], s: 0.66 }, { side: 1, pos: [0.8, -0.28, -0.32], s: 0.66 },
+  { side: -1, pos: [-0.5, -0.6, -0.42], s: 0.68 }, { side: 1, pos: [0.5, -0.6, -0.42], s: 0.68 },
+];
+const _rh = new THREE.Vector3();
+
 class HandArm {
-  constructor(vm, side, weapon) {
+  constructor(vm, side, weapon, opts = {}) {
     this.vm = vm; this.side = side; this.weapon = weapon;
+    this.limb = opts.limb ?? (weapon ? 0 : 1); this.extra = !!opts.extra;
+    this.present = this.extra ? 0 : 1; this.forward = 0;       // grown out (0..1) and brought to the firing position (0..1)
+    this.yawOff = this.extra ? -side * 0.45 : 0;
     const A = vm.asset;
     this.root = new THREE.Group(); // wrist pivot, model forward is -Z
-    this.root.scale.set(side * 0.95, 0.95, 0.95);
+    this.baseScale = new THREE.Vector3(side * 0.95, 0.95, 0.95).multiplyScalar(opts.s || 1); this.baseScale.x = Math.sign(side) * Math.abs(this.baseScale.x);
+    this.root.scale.copy(this.baseScale);
     vm.root.add(this.root);
 
     this.hand = 's4';
@@ -33,7 +45,7 @@ class HandArm {
     this.phase = side > 0 ? 0 : 2.1;
     // feeding-action overrides, driven by AbsorbFX (all zero at rest)
     this.rw = 0; this.rt = new THREE.Vector3(); this.fxSpread = 0; this.fxCurl = 0; this.fxBulge = 0;
-    this.hold = new THREE.Vector3(side * 0.3, -0.17, -0.6);
+    this.hold = opts.rest ? new THREE.Vector3(...opts.rest) : new THREE.Vector3(side * 0.3, -0.17, -0.6);
     this.restrainPos = new THREE.Vector3(side * 0.58, -0.41, -0.3);
 
     if (weapon) {
@@ -108,11 +120,12 @@ class HandArm {
 
     // ---- pose: hold, restrained, or reaching ----
     const pos = _v.copy(this.hold);
+    if (this.extra && this.forward > 0) pos.lerp(_rh.set(0.3, -0.17, -0.6), this.forward);
     pos.x += vm.swayX * 0.5 + vm.lagX;
     pos.y += vm.swayY * 0.5 + Math.sin(t * 1.5 + this.phase) * 0.004 - vm.dashK * 0.1;
     pos.z += vm.lagZ + vm.dashK * 0.1 + (this.weapon ? rk * 0.34 : vm.recoil * 0.05);   // backward impulse through the firing hand, a flinch in the other
     if (this.weapon) pos.y += rk * 0.1; else pos.y += vm.recoil * 0.012;
-    _e.set(0.44 + rk * 0.62 + whip * 1.5 + vm.swayY * 0.4 + vm.dashK * 0.1, side * -0.1 + vm.swayX * 0.5 - side * vm.dashK * 0.1, side * -0.08 + (this.weapon ? rk * 0.35 : 0), 'YXZ');
+    _e.set(0.44 + rk * 0.62 + whip * 1.5 + vm.swayY * 0.4 + vm.dashK * 0.1, side * -0.1 + this.yawOff * (1 - this.forward) + vm.swayX * 0.5 - side * vm.dashK * 0.1, side * -0.08 + (this.weapon ? rk * 0.35 : 0), 'YXZ');
     this.root.quaternion.setFromEuler(_e);
     if (vm.restrain > 0) {
       // the clamps are fixed in the world, so the held wrists follow them as the head turns and tilts
@@ -141,6 +154,7 @@ class HandArm {
       pos.x += (Math.sin(t * 37 + this.phase) + Math.sin(t * 23 + 1.3)) * k;
       pos.y += (Math.sin(t * 31 + this.phase * 2) + Math.sin(t * 19)) * k;
     }
+    if (this.limb === 0 && !this.extra && vm.stow > 0) { pos.y -= 0.5 * vm.stow; pos.z += 0.25 * vm.stow; }   // another arm's weapon is in hand
     this.root.position.copy(pos);
 
     // ---- shape: morph targets drive grip, weapon form, recoil flare ----
@@ -231,8 +245,11 @@ export class ViewModel {
 
     this.right = new HandArm(this, 1, true);
     this.left = new HandArm(this, -1, false);
+    this.extras = EXTRA_RESTS.map((r, i) => new HandArm(this, r.side, false, { extra: true, limb: i + 2, rest: r.pos, s: r.s }));
+    this.limbs = [this.right, this.left, ...this.extras];     // indexed by arm number
+    this.loadout = null; this.stow = 0;
     this.tentacles = new TentacleSet(this, tentacleAsset, def);
-    this.right.setCreature(def); this.left.setCreature(def);
+    this.right.setCreature(def); this.left.setCreature(def); for (const a of this.extras) a.setCreature(def);
     this.tremor = 0; // 0..1 shake of both hands (the first moments of the intro)
   }
 
@@ -240,7 +257,7 @@ export class ViewModel {
   setCreature(def) {
     this.def = def;
     restyle(this.skinGel, def, 'body'); restyle(this.barrelGel, def, 'weapon');
-    this.right.setCreature(def); this.left.setCreature(def);
+    this.right.setCreature(def); this.left.setCreature(def); for (const a of this.extras) a.setCreature(def);
     this.tentacles.setCreature(def);
   }
 
@@ -296,8 +313,19 @@ export class ViewModel {
     this.lagZ = damp(this.lagZ, ctx.velZ * 0.002, 6, dt);
     this.dashK = damp(this.dashK, ctx.dashing ? 1 : 0, ctx.dashing ? 30 : 9, dt);
     this.camYaw = ctx.yaw || 0; this.camPitch = ctx.pitch || 0;
+    // extra arms grow out when their weapon is learned, and the arm whose weapon is selected comes forward
+    const L = this.loadout, sel = L ? L.selectedLimb() : 0;
+    this.stow = damp(this.stow, sel !== 0 && L && L.shown(sel) ? 1 : 0, 6, dt);
+    for (const a of this.extras) {
+      const show = !!L && L.shown(a.limb) && this.cineW <= 0 && this.restrain <= 0.01;
+      a.present = damp(a.present, show ? 1 : 0, 4, dt);
+      a.forward = damp(a.forward, a.limb === sel && show ? 1 : 0, 6, dt);
+      const k = Math.max(0.001, a.present) * (1 + (1 / Math.abs(a.baseScale.y / 0.95) - 1) * a.forward);
+      a.root.scale.set(a.baseScale.x * k, a.baseScale.y * k, a.baseScale.z * k);
+    }
     this.right.update(dt, ctx);
     this.left.update(dt, ctx);
+    for (const a of this.extras) { a.update(dt, ctx); a.root.position.y -= (1 - a.present) * 0.4; a.root.visible = a.present > 0.02; }
     this.tentacles.update(dt);
     this.left.setVisible(!this.leftHidden);
   }

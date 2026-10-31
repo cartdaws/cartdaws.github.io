@@ -3,7 +3,7 @@
 export const isTouchDevice = () => /[?&]touch\b/.test(location.search) || window.matchMedia('(pointer: coarse)').matches;
 
 export class TouchControls {
-  constructor(input, { onPause, onSkip }) {
+  constructor(input, { onPause, onSkip, onWeapons }) {
     this.input = input;
     const root = document.createElement('div');
     root.id = 'touch';
@@ -14,6 +14,7 @@ export class TouchControls {
       <button id="t-jump">JUMP</button>
       <button id="t-dash">DASH</button>
       <button id="t-absorb">ABSORB</button>
+      <button id="t-weapons">ARMS</button>
       <button id="t-pause">II</button>`;
     document.body.appendChild(root);
     this.root = root;
@@ -75,6 +76,13 @@ export class TouchControls {
     hold($('t-jump'), () => input.pressed.add('Space'));
     hold($('t-dash'), () => input.pressed.add('ShiftLeft'));
     hold($('t-pause'), () => onPause());
+    {
+      const wb = $('t-weapons'); let wid = null, wx = 0, wy = 0;
+      wb.addEventListener('pointerdown', (e) => { wid = e.pointerId; wb.setPointerCapture(wid); wx = e.clientX; wy = e.clientY; wb.classList.add('on'); onWeapons && onWeapons(true); e.preventDefault(); e.stopPropagation(); });
+      wb.addEventListener('pointermove', (e) => { if (e.pointerId !== wid) return; input.dx += (e.clientX - wx) * 1.7; input.dy += (e.clientY - wy) * 1.7; wx = e.clientX; wy = e.clientY; });
+      const end = (e) => { if (e.pointerId !== wid) return; wid = null; wb.classList.remove('on'); onWeapons && onWeapons(false); e.stopPropagation(); };
+      wb.addEventListener('pointerup', end); wb.addEventListener('pointercancel', end);
+    }
     this.absorbBtn = $('t-absorb');
     hold(this.absorbBtn, () => { input.touchInteract = true; input.onMouseDown(2); }, () => { input.touchInteract = false; });
 

@@ -97,6 +97,7 @@ export class Creator {
     await g.viewmodel.asset.ensure('s3');                // the other modelled hands load now (they are not needed by the default creature)
     this.active = true;
     g.audio.init();
+    g.loadout.preview = false;
     this.prev = { state: g.state, cine: g.cinePose, vm: { cineW: vm.cineW, restrain: vm.restrain, restrainSlack: vm.restrainSlack, form: vm.form, curl: vm.curl, frag: vm.frag, crystal: vm.crystal, leftHidden: vm.leftHidden, reachW: vm.reachW, tremor: vm.tremor, xray: vm.xray, charge: vm.charge },
       pl: { x: g.player.pos.x, z: g.player.pos.z, yaw: g.player.yaw, pitch: g.player.pitch }, fogDensity: g.scene.fog.density, emerg: g.level.emergencyOn, weapon: g.weaponAcquired, bg: g.scene.background };
     g.state = 'creator'; g.cinePose = null; g.paused = false; g.eyeCam = this.eyeCam;
@@ -121,6 +122,7 @@ export class Creator {
     const g = this.g, vm = g.viewmodel, pv = this.prev;
     if (commit) save.setCreature(this.cur);
     this.cancelPreview();
+    g.loadout.preview = false;
     this.setMount(false);
     g.body.setHeadVisible(false);
     g.camera.clearViewOffset();
@@ -331,6 +333,7 @@ export class Creator {
     for (const [id, label] of [['front', 'Front'], ['side', 'Side'], ['back', 'Back']]) this.btn(views, label, () => this.snap(id));
     this.viewBtns.body = this.btn(views, 'Full body', () => this.setView('body'));
     this.viewBtns.fp = this.btn(views, 'First person', () => this.setView('fp'));
+    this.btnArms = this.btn(views, 'Show 8 arms', () => { const L = this.g.loadout; L.preview = !L.preview; this.btnArms.classList.toggle('on', L.preview); });
     this.btnLight = this.btn(views, 'Neutral light', () => { this.setLighting(this.light === 'neutral' ? 'ship' : 'neutral'); this.refreshBar(); });
     this.btnPanel = this.btn(views, 'Hide controls', () => { this.panelOpen = !this.panelOpen; this.panelEl.classList.toggle('collapsed', !this.panelOpen); this.refreshBar(); });
     const bar = mk('div', 'cr-bar', root);

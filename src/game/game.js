@@ -22,6 +22,8 @@ import { AlienBody } from './body.js';
 import { Absorber } from './absorb.js';
 import { save } from '../core/save.js';
 import { Creator } from '../creature/creator.js';
+import { Loadout } from './weapons.js';
+import { WeaponWheel } from '../presentation/wheel.js';
 
 const STEP = 1 / 60;
 const BASE_FOV = 78;
@@ -63,6 +65,7 @@ export class Game {
       this.touchUI = new TouchControls(this.input, {
         onPause: () => { if (this.state === 'playing') this.input.unlock(); },
         onSkip: () => { if (this.opening.active && !this.paused) this.opening.skip(); },
+        onWeapons: (down) => { if (down) this.input.keys.add('KeyQ'); else this.input.keys.delete('KeyQ'); },
       });
     }
     this.player = new Player(this);
@@ -70,6 +73,10 @@ export class Game {
     this.body = new AlienBody(this.scene, this.world, this.player, armGeos, creatureAsset, save.creature);
     this.weapon = new Shardcaster(this);
     this.absorber = new Absorber(this);
+    this.loadout = new Loadout(this);
+    this.viewmodel.loadout = this.loadout;
+    this.wheel = new WeaponWheel(this.loadout);
+    this.qHeld = 0;
     this.eyeCam = this.camera;                           // the camera whose frame the view model is built around (the creator swaps in its own)
     this.creator = new Creator(this);
     this.projectiles = new Projectiles(this);
@@ -246,6 +253,7 @@ export class Game {
 
   pause() {
     if (this.paused) return;
+    this.wheel.close();
     this.paused = true;
     this.input.clear();
     this.audio.suspend();
@@ -335,7 +343,7 @@ export class Game {
   }
 
   canFire() {
-    return this.state === 'playing' && !this.paused && this.input.locked && !this.player.dead && this.weaponAcquired && !this.absorber.busy;
+    return this.state === 'playing' && !this.paused && this.input.locked && !this.player.dead && this.weaponAcquired && !this.absorber.busy && this.loadout.active.fires && !this.wheel.open;
   }
 
   // ---------- gameplay hooks ----------
@@ -451,8 +459,13 @@ export class Game {
     const [lx, ly] = input.takeLook();
     this.lookX = lx; this.lookY = ly;
     const live = this.state === 'playing' && !player.dead;
+    // hold the weapon button (Q) to open the weapon wheel; a quick tap cycles to the next learned weapon
+    const canWheel = live && input.locked && this.weaponAcquired && !this.opening.active && !this.absorber.busy;
+    if (canWheel && input.down('KeyQ')) { this.qHeld += dt; if (!this.wheel.open && this.qHeld > 0.16) this.wheel.show(); }
+    else { if (this.wheel.open) this.wheel.close(); else if (canWheel && this.qHeld > 0 && this.qHeld <= 0.16) this.loadout.cycle(); this.qHeld = 0; }
+    if (this.wheel.open) { this.wheel.feed(lx, ly); this.lookX = this.lookY = 0; }
     if (live && input.locked) {
-      player.look(lx, ly, this.sens);
+      if (!this.wheel.open) player.look(lx, ly, this.sens);
       player.latch(input);
     }
 

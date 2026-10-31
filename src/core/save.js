@@ -25,7 +25,14 @@ function readCreature() {
 }
 let creature = readCreature();
 
+// Weapons learned so far (indices into the arsenal in game/weapons.js). Everyone starts with the Shardcaster.
+const WKEY = 'intruder-weapons';
+let weapons = [0];
+try { const a = JSON.parse(localStorage.getItem(WKEY) || '[0]'); if (Array.isArray(a)) weapons = [...new Set([0, ...a.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 8)])]; } catch (e) { /* default */ }
+
 export const save = {
+  get weapons() { return weapons.slice(); },
+  unlockWeapon(i) { if (!weapons.includes(i)) weapons.push(i); try { localStorage.setItem(WKEY, JSON.stringify(weapons)); } catch (e) { /* session only */ } },
   get creature() { return creature; },
   setCreature(def) {
     creature = sanitize(def);
