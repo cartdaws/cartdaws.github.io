@@ -4,14 +4,14 @@ import { progress } from './progress.js';
 
 const RANGE = 4.4;          // metres from the eye
 const CONE = 0.9;           // cosine of the aiming cone
-const HOLD = 0.6;           // seconds of contact before the body is drawn in
-const DRAW = 0.5;           // seconds the body takes to be drawn into the arm
+const REACH = 0.3;          // seconds the arm reaches out before the body moves
+const DRAW = 0.85;          // total seconds from the tap until the body is gone
 const HEAL = { bug: 14, drone: 24 };
 
 const _d = new THREE.Vector3(), _t = new THREE.Vector3(), _m = new THREE.Vector3();
 
-// Absorb weakened enemies: hold E (or the ABSORB button) while looking at one that is nearly dead.
-// The body is pulled into the weapon arm, the player recovers health, and the kill counts for the encounter.
+// Absorb shut-down enemies: tap right click (or E, or the ABSORB button) while looking at a powered-down one.
+// The body is pulled into the weapon arm, the player recovers health and grows permanently sturdier, and the kill counts for the room.
 export class Absorber {
   constructor(game) {
     this.game = game;
@@ -35,7 +35,7 @@ export class Absorber {
     const cp = g.camera.position;
     let best = null, bestDot = CONE;
     for (const e of g.enemies) {
-      if (!e.alive || !e.weak || e.absorbing) continue;
+      if (!e.absorbable) continue;
       const c = e.hitSpheres[0].c;
       _t.subVectors(c, cp);
       const dist = _t.length();
@@ -50,48 +50,42 @@ export class Absorber {
 
   update(dt) {
     const g = this.game, vm = g.viewmodel, input = g.input, ui = g.ui;
+    const tap = input.clicked(2) || input.was('KeyE') || input.absorbTap;
+    input.absorbTap = false;
     if (this.drawing) {
       const D = this.drawing;
       D.t += dt;
-      const k = smooth(D.t / DRAW);
-      const mouth = vm.right.muzzle.getWorldPosition(_m);
-      D.e.pos.set(lerp(D.from.x, mouth.x, k), lerp(D.from.y, mouth.y - 0.4, k), lerp(D.from.z, mouth.z, k));
-      D.e.group.scale.setScalar(lerp(D.e.baseScale, 0.05, k));
-      D.e.group.rotation.y += dt * 9 * k;
+      g.camera.updateMatrixWorld();
+      vm.reachTarget.copy(g.camera.worldToLocal(D.e.hitSpheres[0].c.clone()));
+      vm.reachW = smooth(D.t / REACH);
+      const k = smooth((D.t - REACH) / (DRAW - REACH));
+      if (D.t >= REACH) {
+        const mouth = vm.right.muzzle.getWorldPosition(_m);
+        D.e.pos.set(lerp(D.from.x, mouth.x, k), lerp(D.from.y, mouth.y - 0.4, k), lerp(D.from.z, mouth.z, k));
+        D.e.group.scale.setScalar(lerp(D.e.baseScale, 0.05, k));
+        D.e.group.rotation.y += dt * 9 * k;
+      }
       if (Math.random() < 0.9) g.effects.glowP.emit(D.e.pos.x, D.e.pos.y + 0.4, D.e.pos.z, (Math.random() - 0.5) * 1.5, (Math.random() - 0.2) * 1.5, (Math.random() - 0.5) * 1.5, 0.35, 0.05, 0.4, 1, 0.9);
-      vm.pulseGlow(0.5);
+      vm.pulseGlow(0.3 + 0.4 * k);
       if (D.t >= DRAW) this.finish(D.e);
       return;
     }
 
     const target = this.pick();
-    const wants = input.mouse(2) || input.down('KeyE') || input.touchAbsorb;
-    if (target !== this.target) { this.target = target; this.progress = 0; }
+    if (target !== this.target) this.target = target;
     if (g.touchUI) g.touchUI.setAbsorb(!!target);
 
     if (!target) {
-      this.progress = 0;
-      ui.setHold(null);
       vm.reachW = Math.max(0, vm.reachW - dt * 5);
       ui.setPrompt('');
       return;
     }
-    if (!this.hinted) { this.hinted = true; ui.hint(g.touchMode ? 'HOLD ABSORB ON DISABLED ROBOTS' : 'HOLD RIGHT CLICK TO ABSORB DISABLED ROBOTS', 4); }
+    if (!this.hinted) { this.hinted = true; ui.hint(g.touchMode ? 'TAP ABSORB ON DISABLED ROBOTS' : 'RIGHT CLICK TO ABSORB DISABLED ROBOTS', 4); }
     ui.setPrompt(g.touchMode ? 'ABSORB' : 'RIGHT CLICK — ABSORB');
-    ui.setHold(this.progress);
-    if (wants) {
-      this.progress = clamp(this.progress + dt / HOLD, 0, 1);
-      g.camera.updateMatrixWorld();
-      vm.reachTarget.copy(g.camera.worldToLocal(target.hitSpheres[0].c.clone()));
-      vm.reachW = smooth(this.progress);
-      vm.pulseGlow(0.25 + 0.35 * this.progress);
-      const c = target.hitSpheres[0].c;
-      if (Math.random() < 0.6) g.effects.glowP.emit(c.x + (Math.random() - 0.5) * 0.5, c.y + (Math.random() - 0.5) * 0.4, c.z + (Math.random() - 0.5) * 0.5, 0, 0.6, 0, 0.3, 0.04, 0.4, 1, 0.9);
-      if (this.progress >= 1) this.begin(target);
-    } else {
-      this.progress = Math.max(0, this.progress - dt * 2.5);
-      vm.reachW = Math.max(0, vm.reachW - dt * 5);
-    }
+    vm.reachW = Math.max(0, vm.reachW - dt * 5);
+    const c = target.hitSpheres[0].c;
+    if (Math.random() < 0.5) g.effects.glowP.emit(c.x + (Math.random() - 0.5) * 0.5, c.y + (Math.random() - 0.5) * 0.4, c.z + (Math.random() - 0.5) * 0.5, 0, 0.6, 0, 0.3, 0.04, 0.4, 1, 0.9);
+    if (tap) this.begin(target);
   }
 
   begin(e) {
