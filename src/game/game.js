@@ -155,6 +155,7 @@ export class Game {
     this.run = generateRun(this);
     const rooms = [workshopRoom(this.level), ...this.run.rooms];
     this.run.all = rooms;
+    this.level.extraDoors = this.run.doors;
     this.level.alarmLights = this.level.baseAlarm.concat(this.run.alarmLights);
     this.level.flicker = this.level.baseFlicker.concat(this.run.flicker);
     this.lightList = null;

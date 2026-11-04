@@ -566,6 +566,7 @@ export function generateRun(game) {
 
   run.rooms = rooms;
   run.lift = lift;
+  run.doors = rooms.flatMap((r) => Object.values(r.doors));
   run.merged = mergeStatic(group);
   return run;
 }

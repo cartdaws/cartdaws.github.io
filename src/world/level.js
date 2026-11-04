@@ -375,7 +375,8 @@ export function buildLevel(scene, world, kit) {
       beaconMat.emissiveIntensity = L.emergencyOn ? 0.2 + strobe * 3 : 0.1;
     }
   };
-  L.updateDoors = (dt) => { for (const d of Object.values(L.doors)) d.update(dt); };
+  L.extraDoors = []; // doors of the generated facility
+  L.updateDoors = (dt) => { for (const d of Object.values(L.doors)) d.update(dt); for (const d of L.extraDoors) d.update(dt); };
 
   // Encounter layout.
   L.enemySpawns = [
