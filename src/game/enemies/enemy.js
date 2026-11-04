@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 
 // Shared behaviour for all enemies: hit spheres, damage flash, death bookkeeping.
+// Hurt badly enough (below DISABLE_AT of max health) a machine powers down, helpless but intact: it can be absorbed, or finished off.
+const DISABLE_AT = 0.35;
 export class Enemy {
   constructor(game, x, y, z) {
     this.game = game;
@@ -18,6 +20,9 @@ export class Enemy {
     this.vx = 0;
     this.vz = 0;
     this.baseScale = 1;
+    this.disabled = false;
+    this.downDone = false;
+    this.downT = 0;
   }
 
   setScale(s) {
@@ -38,7 +43,18 @@ export class Enemy {
     this.hp -= amount;
     this.flashT = 0.1;
     if (this.hp <= 0) { this.die(false); return true; }
+    if (this.active && !this.disabled && this.hp <= this.maxHp * DISABLE_AT) this.disable();
     return false;
+  }
+
+  disable() {
+    if (this.disabled) return;
+    this.disabled = true;
+    this.downDone = false;
+    this.downT = 0;
+    this.vx = this.vz = 0;
+    this.group.rotation.order = 'YXZ';
+    this.onDisable?.();
   }
 
   die(silent) {
@@ -54,13 +70,14 @@ export class Enemy {
 
   centerPoint() { return new THREE.Vector3(this.pos.x, this.pos.y + 0.4, this.pos.z); }
 
-  // Nearly dead: the body glows and can be absorbed.
-  get weak() { return this.alive && this.active && this.hp <= this.maxHp * 0.35; }
+  // Shut down: the body glows and can be absorbed (once its power-down has finished).
+  get weak() { return this.alive && this.disabled; }
+  get absorbable() { return this.alive && this.disabled && this.downDone && !this.absorbing; }
 
   updateFlash(dt) {
     if (this.flashT > 0) this.flashT -= dt;
     const f = this.flashT > 0 ? 1 : 0;
-    const weak = !f && this.weak && !this.absorbing;
+    const weak = !f && this.weak && this.downDone && !this.absorbing;
     const wp = 0.55 + 0.45 * Math.sin(performance.now() * 0.008);
     for (const { mat, base, baseI } of this.flashMats) {
       if (f) { mat.emissive.setRGB(1, 0.9, 0.8); mat.emissiveIntensity = 1.2; }

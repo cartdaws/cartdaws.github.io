@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { Enemy } from './enemy.js';
-import { clamp, damp, yawTo, angleDiff, rand } from '../../core/util.js';
+import { clamp, damp, yawTo, angleDiff, rand, lerp, smooth } from '../../core/util.js';
 
 const SHOT_SPEED = 15;
 
@@ -40,6 +40,7 @@ export class SentryDrone extends Enemy {
     const trim = this.trackFlash(new THREE.MeshStandardMaterial({ color: this.v.trim, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
     this.lensMat = new THREE.MeshStandardMaterial({ color: 0x120404, emissive: 0xff2a10, emissiveIntensity: 0.1 });
     const glow = new THREE.MeshStandardMaterial({ color: 0, emissive: 0xffa030, emissiveIntensity: 2 });
+    this.glowMat = glow;
     const core = new THREE.Mesh(new THREE.SphereGeometry(0.34, 20, 14), body);
     core.scale.set(1, 0.85, 1);
     g.add(core);
@@ -122,6 +123,12 @@ export class SentryDrone extends Enemy {
     this.updateFlash(dt);
     const g = this.game;
     this.bob += dt;
+    if (this.disabled) {
+      this.powerDown(dt);
+      this.hitSpheres[0].c.set(this.pos.x, this.pos.y, this.pos.z);
+      this.lensLight.material.opacity = 0;
+      return;
+    }
     const p = g.player.pos;
     let lens = 0.1;
     let targetY = this.baseY;
@@ -199,6 +206,96 @@ export class SentryDrone extends Enemy {
     this.lensLight.scale.setScalar(0.6 + this.charge * 0.8);
     if (this.state !== 'aim') this.charge = damp(this.charge, 0, 10, dt);
     this.hitSpheres[0].c.set(this.pos.x, this.pos.y, this.pos.z);
+  }
+
+  onDisable() {
+    this.state = 'down';
+    this.fx = {};
+    this.vy = 0;
+    this.bounced = false;
+    this.landed = false;
+    this.tiltSign = Math.random() < 0.5 ? -1 : 1;
+    this.charge = 0;
+    this.game.sfxAt('powerdown', this.pos, this.variant === 'armored' ? 1.8 : 1.4);
+  }
+
+  impact(size) {
+    const g = this.game, c = this.hitSpheres[0].c;
+    g.sfxAt('clatter', this.pos, 1.2 * size);
+    g.effects.hitSparks(c, [1, 0.7, 0.25], Math.round(8 * size));
+    for (let i = 0; i < 4 * size; i++) g.effects.smokeP.emit(this.pos.x, 0.15, this.pos.z, rand(-1.4, 1.4), rand(0.3, 1), rand(-1.4, 1.4), rand(0.7, 1.2), rand(0.4, 0.7), 0.12, 0.12, 0.13, -0.2, 1, 1.2);
+    g.addShake(0.1 * size * clamp(1 - this.pos.distanceTo(g.player.pos) / 18, 0, 1));
+  }
+
+  // Each sentry shuts down in its own way:
+  //  std     - thrusters sputter and cut, it drops, bounces once and settles tilted with its ring spinning down
+  //  armored - grinds down in stages with spark showers, then crashes hard and rocks to a stop
+  powerDown(dt) {
+    const g = this.game, fx = g.effects, s = this.baseScale;
+    this.downT += dt;
+    const t = this.downT, floorY = 0.34 * s;
+    this.vx = damp(this.vx, 0, 2.5, dt); this.vz = damp(this.vz, 0, 2.5, dt);
+    this.pos.x += this.vx * dt; this.pos.z += this.vz * dt;
+    const a = g.arena;
+    this.pos.x = clamp(this.pos.x, a.minX + 0.7, a.maxX - 0.7);
+    this.pos.z = clamp(this.pos.z, a.minZ + 0.7, a.maxZ - 0.7);
+    let rz = 0, rx = 0, lens = 0;
+    if (this.variant === 'armored') {
+      const h0 = this.baseY;
+      let y;
+      if (t < 0.5) y = lerp(h0, h0 - 0.4, smooth(t / 0.5)) + Math.sin(t * 70) * 0.02;
+      else if (t < 0.9) y = h0 - 0.4;
+      else if (t < 1.5) y = lerp(h0 - 0.4, h0 - 1.3, smooth((t - 0.9) / 0.6));
+      else {
+        if (!this.fx.crash) { this.fx.crash = true; this.vy = -2; }
+        if (!this.landed) {
+          this.vy -= 26 * dt;
+          y = this.pos.y + this.vy * dt;
+          if (y <= floorY) {
+            y = floorY;
+            if (!this.bounced) { this.bounced = true; this.vy = 3; this.impact(2); } else { this.vy = 0; this.landed = true; }
+          }
+        } else y = floorY;
+      }
+      if (t >= 0.5 && t < 1.5 && Math.random() < 0.35) fx.hitSparks(this.hitSpheres[0].c, [1, 0.6, 0.2], 2);
+      this.pos.y = y;
+      const rock = this.fx.crash ? Math.sin((t - 1.6) * 12) * 0.12 * Math.exp(-Math.max(0, t - 1.6) * 3) : 0;
+      rz = this.tiltSign * 0.5 * smooth((t - 1.4) / 0.5) + rock;
+      rx = 0.12 * smooth((t - 1.4) / 0.5);
+      this.ring.rotation.y += dt * 2.4 * Math.max(0, 1 - t / 1.8);
+      this.ring.rotation.x = Math.sin(t * 9) * 0.12 * Math.max(0, 1 - t / 2);
+      lens = 2.5 * Math.max(0, 1 - t / 1.7) * (0.6 + 0.4 * Math.sin(t * 18));
+      this.glowMat.emissiveIntensity = t < 1.5 ? 2 * Math.max(0, 1 - t / 1.5) : 0;
+      if (this.landed && t > 2.1) this.downDone = true;
+    } else {
+      let y = this.pos.y;
+      if (t < 0.55) {
+        y = lerp(this.baseY, this.baseY - 0.35, smooth(t / 0.55)) + (Math.random() - 0.5) * 0.06;
+        this.glowMat.emissiveIntensity = Math.random() < 0.5 ? 2 : 0.2;
+        lens = Math.random() < 0.4 ? 3 : 0.1;
+        this.ring.rotation.y += dt * 2.4 * (1 - 0.6 * (t / 0.55));
+        if (!this.fx.a && t > 0.2) { this.fx.a = true; fx.hitSparks(this.hitSpheres[0].c, [1, 0.75, 0.3], 6); }
+      } else {
+        this.glowMat.emissiveIntensity = 0;
+        if (!this.fx.fall) { this.fx.fall = true; this.vy = -1; }
+        if (!this.landed) {
+          this.vy -= 22 * dt;
+          y = this.pos.y + this.vy * dt;
+          if (y <= floorY) {
+            y = floorY;
+            if (!this.bounced && this.vy < -3) { this.vy = -this.vy * 0.3; this.bounced = true; this.impact(1); } else { this.vy = 0; this.landed = true; }
+          }
+        } else y = floorY;
+        this.ring.rotation.y += dt * 1.5 * Math.max(0, 1 - t / 1.4);
+        const tilt = smooth((t - 0.4) / 0.6);
+        rz = this.tiltSign * 0.7 * tilt;
+        rx = 0.25 * tilt;
+      }
+      this.pos.y = y;
+      if (this.landed && t > 1.3) this.downDone = true;
+    }
+    this.lensMat.emissiveIntensity = lens;
+    this.group.rotation.set(rx, this.yaw, rz);
   }
 
   startAim() {
