@@ -350,12 +350,18 @@ function furnish(B, r, placer, L) {
 
 function freeSpot(r, placer, { pad = 1.0, minFromIn = 0, avoid = [], tries = 120 } = {}) {
   const ip = r.inPoint;
-  for (let t = 0; t < tries; t++) {
-    const x = rand(r.x0 + 1.8, r.x1 - 1.8), z = rand(r.z0 + 1.8, r.z1 - 1.8);
-    if (!placer.free(x - 0.3, x + 0.3, z - 0.3, z + 0.3, pad)) continue;
-    if (ip && Math.hypot(x - ip.x, z - ip.z) < minFromIn) continue;
-    if (avoid.some((a) => Math.hypot(a.x - x, a.z - z) < 2.4)) continue;
-    return { x, z };
+  // Crowded rooms relax the spacing step by step; a final scan takes any open spot so nothing ever lands inside a prop.
+  for (const k of [1, 0.8, 0.65]) {
+    for (let t = 0; t < tries; t++) {
+      const x = rand(r.x0 + 1.8, r.x1 - 1.8), z = rand(r.z0 + 1.8, r.z1 - 1.8);
+      if (!placer.free(x - 0.3, x + 0.3, z - 0.3, z + 0.3, Math.max(0.7, pad * k))) continue;
+      if (k === 1 && ip && Math.hypot(x - ip.x, z - ip.z) < minFromIn) continue;
+      if (k < 1 ? false : avoid.some((a) => Math.hypot(a.x - x, a.z - z) < 2.4)) continue;
+      return { x, z };
+    }
+  }
+  for (let x = r.x0 + 1.8; x <= r.x1 - 1.8; x += 0.6) for (let z = r.z0 + 1.8; z <= r.z1 - 1.8; z += 0.6) {
+    if (placer.free(x - 0.3, x + 0.3, z - 0.3, z + 0.3, 0.7)) return { x, z };
   }
   return { x: r.cx, z: r.cz };
 }
