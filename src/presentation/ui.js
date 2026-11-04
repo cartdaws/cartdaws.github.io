@@ -20,6 +20,7 @@ export class UI {
     this.hintTimer = 0;
     this.hitT = 0; this.vigT = 0; this.bannerT = 0;
     this.lastHealth = -1;
+    this.lastMax = -1;
   }
 
   showMenu(name) {
@@ -32,11 +33,11 @@ export class UI {
 
   setHealth(h, max) {
     const v = Math.max(0, Math.ceil(h));
-    if (v === this.lastHealth) return;
-    this.lastHealth = v;
+    if (v === this.lastHealth && max === this.lastMax) return;
+    this.lastHealth = v; this.lastMax = max;
     $('healthFill').style.width = `${(v / max) * 100}%`;
     $('healthFill').classList.toggle('low', v <= 30);
-    $('healthNum').textContent = v;
+    $('healthNum').innerHTML = `${v}<small>/${max}</small>`;
   }
 
   setDash(ready) {
@@ -57,6 +58,22 @@ export class UI {
 
   setPrompt(t) { const el = $('prompt'); if (el.textContent !== t) el.textContent = t; el.style.opacity = t ? 1 : 0; }
   setObjective(t) { $('objective').textContent = t; }
+
+  // Small note under the health bar, e.g. a permanent upgrade.
+  rewardNote(t) {
+    const el = $('rewardNote');
+    el.textContent = t;
+    el.classList.remove('show');
+    void el.offsetWidth;
+    el.classList.add('show');
+  }
+
+  // Hold-to-act progress bar (0..1, null hides it).
+  setHold(p) {
+    const el = $('hold');
+    if (p === null || p <= 0.001) el.style.opacity = 0;
+    else { el.style.opacity = 1; el.firstChild.style.width = `${Math.min(100, p * 100)}%`; }
+  }
 
   hitMarker(kill) {
     this.hitEl.classList.toggle('kill', !!kill);

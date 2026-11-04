@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clamp, lerp, smooth } from '../core/util.js';
+import { progress } from './progress.js';
 
 const RANGE = 4.4;          // metres from the eye
 const CONE = 0.9;           // cosine of the aiming cone
@@ -24,6 +25,7 @@ export class Absorber {
     this.target = null; this.progress = 0; this.drawing = null;
     this.game.viewmodel.reachW = 0;
     this.game.ui.setPrompt('');
+    this.game.ui.setHold(null);
     if (this.game.touchUI) this.game.touchUI.setAbsorb(false);
   }
 
@@ -63,18 +65,20 @@ export class Absorber {
     }
 
     const target = this.pick();
-    const wants = input.down('KeyE') || input.touchAbsorb;
+    const wants = input.mouse(2) || input.down('KeyE') || input.touchAbsorb;
     if (target !== this.target) { this.target = target; this.progress = 0; }
     if (g.touchUI) g.touchUI.setAbsorb(!!target);
 
     if (!target) {
       this.progress = 0;
+      ui.setHold(null);
       vm.reachW = Math.max(0, vm.reachW - dt * 5);
       ui.setPrompt('');
       return;
     }
-    if (!this.hinted) { this.hinted = true; ui.hint(g.touchMode ? 'TAP ABSORB ON WEAKENED ENEMIES' : 'HOLD E TO ABSORB WEAKENED ENEMIES', 4); }
-    ui.setPrompt(g.touchMode ? 'ABSORB' : 'HOLD E — ABSORB');
+    if (!this.hinted) { this.hinted = true; ui.hint(g.touchMode ? 'HOLD ABSORB ON DISABLED ROBOTS' : 'HOLD RIGHT CLICK TO ABSORB DISABLED ROBOTS', 4); }
+    ui.setPrompt(g.touchMode ? 'ABSORB' : 'RIGHT CLICK — ABSORB');
+    ui.setHold(this.progress);
     if (wants) {
       this.progress = clamp(this.progress + dt / HOLD, 0, 1);
       g.camera.updateMatrixWorld();
@@ -98,6 +102,7 @@ export class Absorber {
     g.audio.play('absorb', { vol: 0.6 });
     g.audio.play('swallow', { vol: 0.8 });
     g.ui.setPrompt('');
+    g.ui.setHold(null);
   }
 
   finish(e) {
@@ -106,7 +111,12 @@ export class Absorber {
     g.viewmodel.reachW = 0;
     e.group.scale.setScalar(e.baseScale);
     e.die(true); // counts for the encounter, no explosion
-    p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14));
+    // every absorbed machine makes the body permanently sturdier
+    progress.addMaxHp();
+    p.maxHealth += 1;
+    p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14) + 1);
+    g.ui.setHealth(p.health, p.maxHealth);
+    g.ui.rewardNote('MAX HP +1');
     g.ui.hitMarker(true);
     g.audio.play('crystal', { vol: 0.5 });
     g.viewmodel.pulseGlow(0.8);

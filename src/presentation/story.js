@@ -4,6 +4,7 @@ import { PLAYER_START, PISTOL_POS, CELL } from '../world/level.js';
 import { MemoryScene } from '../world/screens.js';
 import { poseHuman, seatHuman } from '../world/humans.js';
 import { makeHandGel } from './hand.js';
+import { progress } from '../game/progress.js';
 
 // ------------------------------------------------------------------------------------------------------------------
 // THE OPENING (about 62 s). Every visual state is derived from the clock `t`, so skipping lands on the same playable state.
@@ -513,6 +514,7 @@ export class Opening {
     g.ui.clearSubtitle();
     g.ui.fade(0);
     g.player.reset(PLAYER_START.x, PLAYER_START.z, 0);
+    progress.setIntroDone(true);
     if (!this.granted) { this.granted = true; g.weaponAcquired = true; } // the Shardcaster is granted exactly once per run
     g.cinePose = null;
     g.ui.showSkip(false);
