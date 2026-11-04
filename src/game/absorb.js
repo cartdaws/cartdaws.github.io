@@ -65,7 +65,7 @@ export class Absorber {
         D.e.group.scale.setScalar(lerp(D.e.baseScale, 0.05, k));
         D.e.group.rotation.y += dt * 9 * k;
       }
-      if (Math.random() < 0.9) g.effects.glowP.emit(D.e.pos.x, D.e.pos.y + 0.4, D.e.pos.z, (Math.random() - 0.5) * 1.5, (Math.random() - 0.2) * 1.5, (Math.random() - 0.5) * 1.5, 0.35, 0.05, 0.4, 1, 0.9);
+      if (Math.random() < 0.9) g.effects.glowP.emit(D.e.pos.x, D.e.pos.y + 0.4, D.e.pos.z, (Math.random() - 0.5) * 1.5, (Math.random() - 0.2) * 1.5, (Math.random() - 0.5) * 1.5, 0.35, 0.05, 0.15, 0.6, 1);
       vm.pulseGlow(0.3 + 0.4 * k);
       if (D.t >= DRAW) this.finish(D.e);
       return;
@@ -84,7 +84,7 @@ export class Absorber {
     ui.setPrompt(g.touchMode ? 'ABSORB' : 'RIGHT CLICK — ABSORB');
     vm.reachW = Math.max(0, vm.reachW - dt * 5);
     const c = target.hitSpheres[0].c;
-    if (Math.random() < 0.5) g.effects.glowP.emit(c.x + (Math.random() - 0.5) * 0.5, c.y + (Math.random() - 0.5) * 0.4, c.z + (Math.random() - 0.5) * 0.5, 0, 0.6, 0, 0.3, 0.04, 0.4, 1, 0.9);
+    if (Math.random() < 0.5) g.effects.glowP.emit(c.x + (Math.random() - 0.5) * 0.5, c.y + (Math.random() - 0.5) * 0.4, c.z + (Math.random() - 0.5) * 0.5, 0, 0.6, 0, 0.3, 0.04, 0.15, 0.6, 1);
     if (tap) this.begin(target);
   }
 

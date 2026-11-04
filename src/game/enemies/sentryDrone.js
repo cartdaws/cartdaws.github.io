@@ -216,6 +216,8 @@ export class SentryDrone extends Enemy {
     this.landed = false;
     this.tiltSign = Math.random() < 0.5 ? -1 : 1;
     this.charge = 0;
+    this.lensMat.emissive.setRGB(0.1, 0.55, 1);
+    this.glowMat.emissive.setRGB(0.1, 0.55, 1);
     this.game.sfxAt('powerdown', this.pos, this.variant === 'armored' ? 1.8 : 1.4);
   }
 

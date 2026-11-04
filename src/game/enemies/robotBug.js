@@ -182,6 +182,7 @@ export class RobotBug extends Enemy {
     this.state = 'down';
     this.fx = {};
     this.raise = 0;
+    this.eyeMat.emissive.setRGB(0.1, 0.55, 1);
     const sfx = this.variant === 'brute' ? 'groan' : this.variant === 'swarm' ? 'spark' : 'powerdown';
     this.game.sfxAt(sfx, this.pos, 1.3);
   }
