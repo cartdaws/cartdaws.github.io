@@ -2,7 +2,8 @@ import * as THREE from 'three';
 
 // Shared behaviour for all enemies: hit spheres, damage flash, death bookkeeping.
 // Hurt badly enough (below DISABLE_AT of max health) a machine powers down, helpless but intact: it can be absorbed, or finished off.
-const DISABLE_AT = 0.35;
+const DISABLE_AT = 0.2;
+const BLUE = [0.04, 0.38, 1];
 export class Enemy {
   constructor(game, x, y, z) {
     this.game = game;
@@ -52,8 +53,12 @@ export class Enemy {
     this.disabled = true;
     this.downDone = false;
     this.downT = 0;
+    this.flashT = 0; // no white hit-flash: it goes straight to blue
     this.vx = this.vz = 0;
     this.group.rotation.order = 'YXZ';
+    // the instant it shuts down the whole machine turns blue
+    for (const { mat } of this.flashMats) { mat.emissive.setRGB(BLUE[0], BLUE[1], BLUE[2]); mat.emissiveIntensity = 0.9; }
+    this.game.effects.hitSparks(this.centerPoint(), BLUE, 12);
     this.onDisable?.();
   }
 
@@ -77,11 +82,11 @@ export class Enemy {
   updateFlash(dt) {
     if (this.flashT > 0) this.flashT -= dt;
     const f = this.flashT > 0 ? 1 : 0;
-    const weak = !f && this.weak && this.downDone && !this.absorbing;
+    const weak = !f && this.weak && !this.absorbing;
     const wp = 0.55 + 0.45 * Math.sin(performance.now() * 0.008);
     for (const { mat, base, baseI } of this.flashMats) {
       if (f) { mat.emissive.setRGB(1, 0.9, 0.8); mat.emissiveIntensity = 1.2; }
-      else if (weak) { mat.emissive.setRGB(0.1, 0.95, 0.8); mat.emissiveIntensity = 0.5 + 1.1 * wp; }
+      else if (weak) { mat.emissive.setRGB(BLUE[0], BLUE[1], BLUE[2]); mat.emissiveIntensity = 0.45 + 0.6 * wp; }
       else { mat.emissive.copy(base); mat.emissiveIntensity = baseI; }
     }
   }
