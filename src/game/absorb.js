@@ -54,7 +54,7 @@ export class Absorber {
       const k = smooth(D.t / DRAW);
       const mouth = vm.right.muzzle.getWorldPosition(_m);
       D.e.pos.set(lerp(D.from.x, mouth.x, k), lerp(D.from.y, mouth.y - 0.4, k), lerp(D.from.z, mouth.z, k));
-      D.e.group.scale.setScalar(lerp(1, 0.05, k));
+      D.e.group.scale.setScalar(lerp(D.e.baseScale, 0.05, k));
       D.e.group.rotation.y += dt * 9 * k;
       if (Math.random() < 0.9) g.effects.glowP.emit(D.e.pos.x, D.e.pos.y + 0.4, D.e.pos.z, (Math.random() - 0.5) * 1.5, (Math.random() - 0.2) * 1.5, (Math.random() - 0.5) * 1.5, 0.35, 0.05, 0.4, 1, 0.9);
       vm.pulseGlow(0.5);
@@ -104,9 +104,9 @@ export class Absorber {
     const g = this.game, p = g.player;
     this.drawing = null; this.target = null; this.progress = 0;
     g.viewmodel.reachW = 0;
-    e.group.scale.setScalar(1);
+    e.group.scale.setScalar(e.baseScale);
     e.die(true); // counts for the encounter, no explosion
-    p.health = Math.min(p.maxHealth, p.health + (HEAL[e.kind] || 14));
+    p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14));
     g.ui.hitMarker(true);
     g.audio.play('crystal', { vol: 0.5 });
     g.viewmodel.pulseGlow(0.8);

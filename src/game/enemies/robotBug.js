@@ -6,13 +6,23 @@ import { clamp, damp, yawTo, angleDiff, lerp } from '../../core/util.js';
 const _dir = { x: 0, z: 0 };
 const BODY = { color: 0x2d343b, roughness: 0.4, metalness: 0.75, emissive: 0x000000 };
 
+// std: the workshop bug. swarm: small, fast, fragile. brute: heavy, slow, hits hard and tells you about it.
+export const BUG_VARIANTS = {
+  std: { hp: 30, speed: 5.2, scale: 1, dmg: 12, heal: 14, plate: 0xd9a21b, wind: 0.65, recover: 1.15 },
+  swarm: { hp: 18, speed: 7.6, scale: 0.78, dmg: 8, heal: 9, plate: 0x2aa8b0, wind: 0.5, recover: 0.85 },
+  brute: { hp: 80, speed: 4.1, scale: 1.45, dmg: 22, heal: 30, plate: 0xa8281c, wind: 0.85, recover: 1.5 },
+};
+
 // Small mechanical insect: runs in, raises its front legs, lunges once, then recovers.
 export class RobotBug extends Enemy {
-  constructor(game, x, z) {
+  constructor(game, x, z, variant = 'std') {
     super(game, x, 0, z);
     this.kind = 'bug';
+    this.variant = variant;
+    this.v = BUG_VARIANTS[variant] || BUG_VARIANTS.std;
+    this.heal = this.v.heal;
     this.radius = 0.42;
-    this.hp = this.maxHp = 30;
+    this.hp = this.maxHp = this.v.hp;
     this.state = 'dormant';
     this.timer = 0;
     this.attackCd = 0;
@@ -22,13 +32,14 @@ export class RobotBug extends Enemy {
     this.hitSpheres = [{ c: new THREE.Vector3(), r: 0.5 }];
     this.raise = 0;
     this.build();
+    this.setScale(this.v.scale);
     this.group.rotation.y = this.yaw = Math.random() * 6.28;
   }
 
   build() {
     const g = this.group;
     const body = this.trackFlash(new THREE.MeshStandardMaterial(BODY));
-    const plate = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0xd9a21b, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
+    const plate = this.trackFlash(new THREE.MeshStandardMaterial({ color: this.v.plate, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
     this.eyeMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xff2a10, emissiveIntensity: 0.3 });
     const add = (geo, mat, x, y, z, sx = 1, sy = 1, sz = 1, parent = g) => {
       const m = new THREE.Mesh(geo, mat);
@@ -85,7 +96,7 @@ export class RobotBug extends Enemy {
   update(dt) {
     this.updateFlash(dt);
     const g = this.game;
-    this.hitSpheres[0].c.set(this.pos.x, this.pos.y + 0.38, this.pos.z);
+    this.hitSpheres[0].c.set(this.pos.x, this.pos.y + 0.38 * this.baseScale, this.pos.z);
     let move = 0;
     if (this.active && this.alive) {
       const p = g.player.pos;
@@ -101,13 +112,13 @@ export class RobotBug extends Enemy {
         if (los) { dirx = dx / (dist || 1); dirz = dz / (dist || 1); }
         else if (g.nav.dir(this.pos.x, this.pos.z, _dir)) { dirx = _dir.x; dirz = _dir.z; }
         else { dirx = dx / (dist || 1); dirz = dz / (dist || 1); }
-        const speed = 5.2;
+        const speed = this.v.speed;
         this.vx = damp(this.vx, dirx * speed, 10, dt);
         this.vz = damp(this.vz, dirz * speed, 10, dt);
         move = Math.hypot(this.vx, this.vz);
-        if (dist < 3.4 && los && this.attackCd <= 0) {
+        if (dist < 3.4 * this.baseScale && los && this.attackCd <= 0) {
           this.state = 'windup';
-          this.timer = 0.65;
+          this.timer = this.v.wind;
           g.sfxAt('bugWarn', this.pos, 1.4);
         }
       } else if (this.state === 'windup') {
@@ -129,11 +140,11 @@ export class RobotBug extends Enemy {
         move = 6;
         this.timer -= dt;
         // One-shot damage: only the first contact during a lunge counts.
-        if (!this.lungeHit && dist < 0.95 && p.y < this.pos.y + 1.1 && !g.player.dead) {
+        if (!this.lungeHit && dist < 0.95 * this.baseScale && p.y < this.pos.y + 1.1 && !g.player.dead) {
           this.lungeHit = true;
-          g.damagePlayer(12, this.pos);
+          g.damagePlayer(this.v.dmg, this.pos);
         }
-        if (this.timer <= 0) { this.state = 'recover'; this.timer = 1.15; }
+        if (this.timer <= 0) { this.state = 'recover'; this.timer = this.v.recover; }
       } else if (this.state === 'recover') {
         this.vx = damp(this.vx, 0, 9, dt);
         this.vz = damp(this.vz, 0, 9, dt);
