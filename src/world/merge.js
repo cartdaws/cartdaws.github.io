@@ -4,6 +4,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 // Collapse static opaque level meshes into one mesh per material so the many small details stay cheap to draw.
 export function mergeStatic(scene) {
   const groups = new Map();
+  const out = [];
   for (const o of [...scene.children]) {
     if (!o.isMesh || o.userData.keep || o.material.transparent || Array.isArray(o.material)) continue;
     o.updateMatrixWorld(true);
@@ -23,5 +24,7 @@ export function mergeStatic(scene) {
     const m = new THREE.Mesh(merged, mat);
     m.matrixAutoUpdate = false;
     scene.add(m);
+    out.push(m);
   }
+  return out;
 }

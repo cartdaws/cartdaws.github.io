@@ -9,13 +9,13 @@ export class NavGrid {
     this.dist = new Int16Array(this.w * this.h).fill(-1);
     this.queue = new Int32Array(this.w * this.h);
     this.lastKey = -2;
+    const near = world.boxes.filter((bx) => bx.tag !== 'door' && bx.tag !== 'barrel' && bx.minY <= 1 && bx.maxY > 0.35 && bx.maxX > bounds.minX - 2 && bx.minX < bounds.maxX + 2 && bx.maxZ > bounds.minZ - 2 && bx.minZ < bounds.maxZ + 2);
     for (let j = 0; j < this.h; j++) {
       for (let i = 0; i < this.w; i++) {
         const x = bounds.minX + (i + 0.5) * cell, z = bounds.minZ + (j + 0.5) * cell;
         let blk = x < bounds.minX + radius || x > bounds.maxX - radius || z < bounds.minZ + radius || z > bounds.maxZ - radius;
         if (!blk) {
-          for (const bx of world.boxes) {
-            if (bx.tag === 'door' || bx.tag === 'barrel' || bx.minY > 1 || bx.maxY <= 0.35) continue;
+          for (const bx of near) {
             const cx = Math.max(bx.minX, Math.min(x, bx.maxX)), cz = Math.max(bx.minZ, Math.min(z, bx.maxZ));
             if ((x - cx) ** 2 + (z - cz) ** 2 < radius * radius) { blk = true; break; }
           }

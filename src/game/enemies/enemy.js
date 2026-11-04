@@ -17,6 +17,14 @@ export class Enemy {
     this.hitSpheres = [];
     this.vx = 0;
     this.vz = 0;
+    this.baseScale = 1;
+  }
+
+  setScale(s) {
+    this.baseScale = s;
+    this.group.scale.setScalar(s);
+    this.radius *= s;
+    for (const h of this.hitSpheres) h.r *= s;
   }
 
   trackFlash(mat) { this.flashMats.push({ mat, base: mat.emissive.clone(), baseI: mat.emissiveIntensity }); return mat; }

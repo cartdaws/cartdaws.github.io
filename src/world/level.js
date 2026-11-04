@@ -10,6 +10,7 @@ export const ARENA = { minX: -15, maxX: 15, minZ: -36.5, maxZ: -8.5 };
 export const PLAYER_START = { x: 0.45, z: 5.0 };
 export const REPLAY_START = { x: 0, z: -4 };
 export const PISTOL_POS = new THREE.Vector3(0.85, 0.05, 3.9);
+export const HALL_ANCHOR = { x: 0, z: -46.5 }; // south wall of the transit lobby: the procedural facility continues from here
 export const CELL = { x: 0, z: 9.2 }; // containment cell centre
 
 export function makePistol(scale = 1) {
@@ -285,6 +286,8 @@ export function buildLevel(scene, world, kit) {
     L.flicker.push({ l: lt, base: 135, broken: x === 8 && z === -30, ph: Math.random() * 9 });
   }
   L.alarmLights = [light(-12, 5, -22.5, 0xff1a10, 0, 22), light(12, 5, -22.5, 0xff1a10, 0, 22)];
+  L.baseAlarm = L.alarmLights.slice();
+  L.baseFlicker = L.flicker;
 
   // cover and equipment (Blender kit; colliders come from the kit's own collision boxes)
   kit.solid(scene, world, 'robot_test_cell', 0, -22.5);
@@ -322,11 +325,15 @@ export function buildLevel(scene, world, kit) {
   // ---- Hangar transit room: x[-4,4] z[-46,-37] h3.5 ----
   blk(-4.5, -4, 0, 3.5, -46.5, -37, M.wall);
   blk(4, 4.5, 0, 3.5, -46.5, -37, M.wall);
-  blk(-4.5, 4.5, 0, 3.5, -46.5, -46, M.wall);
+  blk(-4.5, -1.5, 0, 3.5, -46.5, -46, M.wall);
+  blk(1.5, 4.5, 0, 3.5, -46.5, -46, M.wall);
+  blk(-1.5, 1.5, 3, 3.5, -46.5, -46, M.wall);
+  kit.place(scene, 'door_frame', { x: 0, z: -46.25 });
   blk(-4.5, 4.5, 3.5, 3.9, -46.5, -37, M.wall);
   panel(0, -41.5, 3.5, 2.0, 0.8);
   light(0, 3.1, -41.5, 0xcfe6dc, 55, 12);
-  addSign(scene, ['HANGAR TRANSIT', 'LIFT 2 · DECK 9'], 3.0, 0, 2.3, -45.9, 0, { accent: '#35c06a' });
+  addSign(scene, ['HANGAR TRANSIT', 'SERVICE ROUTE · DECK 9'], 3.0, -3.93, 2.3, -41.5, PI / 2, { accent: '#35c06a' });
+  addSign(scene, ['TO LIFT 2', 'HANGAR'], 1.5, 3.93, 2.3, -43.2, -PI / 2, { accent: '#35c06a', arrow: '▼', w: 768, h: 256 });
   kit.solid(scene, world, 'storage_cabinet', -3.5, -45.6, 0);
   kit.solid(scene, world, 'storage_cabinet', 3.5, -45.6, 0);
 

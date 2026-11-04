@@ -4,7 +4,8 @@ import { Audio } from '../core/audio.js';
 import { clamp, damp } from '../core/util.js';
 import { CollisionWorld } from '../world/collision.js';
 import { NavGrid } from '../world/nav.js';
-import { buildLevel, ARENA, PLAYER_START, REPLAY_START } from '../world/level.js';
+import { buildLevel, ARENA } from '../world/level.js';
+import { generateRun, disposeRun, workshopRoom } from '../world/procgen.js';
 import { Effects } from './effects.js';
 import { Player } from './player.js';
 import { Shardcaster } from './shardcaster.js';
@@ -20,6 +21,7 @@ import { TouchControls, isTouchDevice, enterImmersive } from '../core/touch.js';
 import { PostFX } from '../presentation/post.js';
 import { AlienBody } from './body.js';
 import { Absorber } from './absorb.js';
+import { Pickups } from './pickups.js';
 
 const STEP = 1 / 60;
 const BASE_FOV = 78;
@@ -46,8 +48,9 @@ export class Game {
 
     this.world = new CollisionWorld();
     this.level = buildLevel(this.scene, this.world, this.kit);
-    this.nav = new NavGrid(this.world, ARENA);
-    this.waypoints = this.buildWaypoints();
+    this.nav = null;
+    this.waypoints = [];
+    this.run = null;
     this.effects = new Effects(this.scene);
     this.audio = new Audio();
     this.ui = new UI();
@@ -68,6 +71,7 @@ export class Game {
     this.absorber = new Absorber(this);
     this.projectiles = new Projectiles(this);
     this.encounter = new Encounter(this);
+    this.pickups = new Pickups(this);
     this.opening = new Opening(this);
     this.opening.resetProps();
 
@@ -101,7 +105,7 @@ export class Game {
     try { this.gfx = JSON.parse(localStorage.getItem('intruder-settings') || '{}').gfx || this.gfx; } catch (e) { /* default */ }
     this.post.setMode(this.gfx, this.scene);
     this.refreshGfxButtons();
-    this.spawnEncounter();
+    this.newRun();
     this.bind();
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -121,12 +125,18 @@ export class Game {
   }
 
   // ---------- setup ----------
-  buildWaypoints() {
+  makeNav(bounds) { return new NavGrid(this.world, bounds); }
+
+  // Hover points for the drones, laid out over a room and filtered against anything tall.
+  buildWaypoints(bounds) {
     const pts = [];
-    for (let x = -12; x <= 12; x += 4) for (let z = -13; z >= -34; z -= 3.5) {
+    const nx = Math.max(2, Math.floor((bounds.maxX - bounds.minX - 4) / 4)), nz = Math.max(2, Math.floor((bounds.maxZ - bounds.minZ - 4) / 3.5));
+    const sx = (bounds.maxX - bounds.minX - 4) / nx, sz = (bounds.maxZ - bounds.minZ - 4) / nz;
+    const near = this.world.boxes.filter((b) => b.tag !== 'door' && b.minY <= 4 && b.maxY >= 1.6 && b.maxX > bounds.minX - 2 && b.minX < bounds.maxX + 2 && b.maxZ > bounds.minZ - 2 && b.minZ < bounds.maxZ + 2);
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) {
+      const x = bounds.minX + 2 + i * sx, z = bounds.minZ + 2 + j * sz;
       let ok = true;
-      for (const b of this.world.boxes) {
-        if (b.tag === 'door' || b.minY > 4 || b.maxY < 1.6) continue;
+      for (const b of near) {
         if (x > b.minX - 0.9 && x < b.maxX + 0.9 && z > b.minZ - 0.9 && z < b.maxZ + 0.9) { ok = false; break; }
       }
       if (ok) pts.push({ x, z });
@@ -134,15 +144,52 @@ export class Game {
     return pts;
   }
 
-  spawnEncounter() {
-    for (const e of this.enemies) e.dispose();
+  // ---------- run / rooms ----------
+  // Build a brand-new facility and point the encounter at it.
+  newRun() {
+    if (this.run) disposeRun(this, this.run);
+    this.clearEnemies();
     for (const b of this.barrels) b.dispose();
-    this.enemies = [];
     this.barrels = [];
-    for (const s of this.level.enemySpawns) {
-      this.enemies.push(s.type === 'bug' ? new RobotBug(this, s.x, s.z) : new SentryDrone(this, s.x, s.z));
-    }
-    for (const s of this.level.barrelSpawns) this.barrels.push(new Barrel(this, s.x, s.z));
+    this.pickups.clear();
+    this.run = generateRun(this);
+    const rooms = [workshopRoom(this.level), ...this.run.rooms];
+    this.run.all = rooms;
+    this.level.alarmLights = this.level.baseAlarm.concat(this.run.alarmLights);
+    this.level.flicker = this.level.baseFlicker.concat(this.run.flicker);
+    this.lightList = null;
+    for (const r of rooms) for (const p of r.pickups) this.pickups.add(p.type, p.x, p.z, r, p.reveal);
+    this.arena = ARENA;
+    this.nav = this.makeNav(ARENA);
+    this.waypoints = this.buildWaypoints(ARENA);
+    this.level.doors.entrance.open(true);
+    this.level.doors.exit.close(true);
+    this.encounter.start(rooms);
+  }
+
+  makeEnemy(s) {
+    return s.type === 'bug' ? new RobotBug(this, s.x, s.z, s.variant) : new SentryDrone(this, s.x, s.z, s.variant);
+  }
+
+  clearEnemies() {
+    for (const e of this.enemies) e.dispose();
+    this.enemies = [];
+  }
+
+  // Put a room's first wave and its drums in place, dormant until the lockdown starts.
+  spawnRoom(room) {
+    this.clearEnemies();
+    this.barrels = this.barrels.filter((b) => { if (b.room === room) { b.dispose(); return false; } return true; });
+    room.waveIdx = 0;
+    if (room.kind === 'quiet' || room.kind === 'lift') return;
+    for (const s of room.waves[0] || []) this.enemies.push(this.makeEnemy(s));
+    for (const s of room.barrels) { const b = new Barrel(this, s.x, s.z); b.room = room; this.barrels.push(b); }
+  }
+
+  spawnWave(room, idx) {
+    const list = [];
+    for (const s of room.waves[idx] || []) { const e = this.makeEnemy(s); this.enemies.push(e); list.push(e); }
+    return list;
   }
 
   bind() {
@@ -151,7 +198,7 @@ export class Game {
     $('btn-resume').onclick = () => this.resume();
     $('btn-restart').onclick = () => this.restart();
     $('btn-retry').onclick = () => this.restart();
-    $('btn-replay').onclick = () => this.restart();
+    $('btn-replay').onclick = () => this.restart(true);
     $('btn-intro').onclick = () => this.replayFromStart();
     for (const id of ['btn-gfx', 'btn-gfx2']) $(id).onclick = () => this.toggleGfx();
     $('set-volume').oninput = (e) => { this.audio.setVolume(+e.target.value); this.saveSettings(); };
@@ -249,9 +296,10 @@ export class Game {
     this.input.fireGuardUntil = performance.now() + 250;
   }
 
-  restart() {
+  restart(freshRun = false) {
     this.audio.init();
     if (this.state === 'opening') this.opening.finish(true);
+    if (freshRun) this.newRun();
     this.resetEncounter();
     this.paused = false;
     this.ui.hideMenus();
@@ -262,6 +310,7 @@ export class Game {
   // Full replay: encounter, doors and props back to the beginning, then the opening plays again.
   replayFromStart() {
     this.audio.init();
+    this.newRun();
     this.resetEncounter();
     this.ui.hideMenus();
     this.paused = false;
@@ -275,14 +324,12 @@ export class Game {
   resetEncounter() {
     this.projectiles.clear();
     this.effects.clear();
-    this.spawnEncounter();
-    this.player.reset(REPLAY_START.x, REPLAY_START.z, 0);
+    this.encounter.restartRoom(); // resets the room being fought and places the player at its checkpoint
     this.weapon.reset();
     this.absorber.reset();
     this.viewmodel.recoil = this.viewmodel.recoilVel = this.viewmodel.pulse = 0;
     this.weaponAcquired = true;
     this.body.reset();
-    this.encounter.reset();
     this.nav.forceRefresh();
     this.trauma = 0;
     this.hitFlash = this.flinch = this.hbPulse = this.hbTimer = 0;
@@ -436,7 +483,7 @@ export class Game {
         this.input.unlock();
       }
     }
-    if (this.state === 'playing' && this.encounter.state === EncounterState.CLEARED && player.pos.z < -40.5) this.complete();
+    if (this.state === 'playing' && this.encounter.won) this.complete();
 
     this.level.update(this.time);
     this.effects.update(dt);
@@ -490,9 +537,10 @@ export class Game {
     this.projectiles.update(dt);
     for (const e of this.enemies) { if (e.absorbing) { e.updateFlash?.(dt); continue; } e.update(dt); }
     if (playing && !player.dead) this.absorber.update(dt);
+    if (playing) this.pickups.update(dt);
     for (const b of this.barrels) b.update(dt);
     if (playing) {
-      this.nav.setTarget(player.pos.x, player.pos.z);
+      if (this.nav) this.nav.setTarget(player.pos.x, player.pos.z);
       this.encounter.update(dt);
     }
   }

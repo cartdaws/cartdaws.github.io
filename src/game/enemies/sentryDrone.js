@@ -4,14 +4,23 @@ import { clamp, damp, yawTo, angleDiff, rand } from '../../core/util.js';
 
 const SHOT_SPEED = 15;
 
+// std: the workshop sentry. armored: bigger, slower, longer bursts, takes a lot of punishment.
+export const DRONE_VARIANTS = {
+  std: { hp: 60, scale: 1, speed: 4.6, burst: 3, heal: 24, dmg: 10, body: 0x343c44, trim: 0xd9a21b },
+  armored: { hp: 130, scale: 1.3, speed: 3.6, burst: 5, heal: 40, dmg: 10, body: 0x20262b, trim: 0xa8281c },
+};
+
 // Hovering turret: relocates between waypoints, lights its lens, then fires a short dodgeable burst.
 export class SentryDrone extends Enemy {
-  constructor(game, x, z) {
+  constructor(game, x, z, variant = 'std') {
     super(game, x, 2.3, z);
     this.kind = 'drone';
+    this.variant = variant;
+    this.v = DRONE_VARIANTS[variant] || DRONE_VARIANTS.std;
+    this.heal = this.v.heal;
     this.big = true;
     this.radius = 0.55;
-    this.hp = this.maxHp = 60;
+    this.hp = this.maxHp = this.v.hp;
     this.baseY = 2.3;
     this.state = 'dormant';
     this.timer = 0;
@@ -21,13 +30,14 @@ export class SentryDrone extends Enemy {
     this.charge = 0;
     this.hitSpheres = [{ c: new THREE.Vector3(), r: 0.6 }];
     this.build();
+    this.setScale(this.v.scale);
     this.pos.y = this.baseY - 0.5; // sagging while powered down
   }
 
   build() {
     const g = this.group;
-    const body = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0x343c44, roughness: 0.35, metalness: 0.8, emissive: 0x000000 }));
-    const trim = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0xd9a21b, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
+    const body = this.trackFlash(new THREE.MeshStandardMaterial({ color: this.v.body, roughness: 0.35, metalness: 0.8, emissive: 0x000000 }));
+    const trim = this.trackFlash(new THREE.MeshStandardMaterial({ color: this.v.trim, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
     this.lensMat = new THREE.MeshStandardMaterial({ color: 0x120404, emissive: 0xff2a10, emissiveIntensity: 0.1 });
     const glow = new THREE.MeshStandardMaterial({ color: 0, emissive: 0xffa030, emissiveIntensity: 2 });
     const core = new THREE.Mesh(new THREE.SphereGeometry(0.34, 20, 14), body);
@@ -130,8 +140,8 @@ export class SentryDrone extends Enemy {
           if (this.timer <= 0) this.startAim();
         } else {
           const wx = this.wp.x - this.pos.x, wz = this.wp.z - this.pos.z, l = Math.hypot(wx, wz);
-          this.vx = damp(this.vx, (wx / l) * 4.6, 3.5, dt);
-          this.vz = damp(this.vz, (wz / l) * 4.6, 3.5, dt);
+          this.vx = damp(this.vx, (wx / l) * this.v.speed, 3.5, dt);
+          this.vz = damp(this.vz, (wz / l) * this.v.speed, 3.5, dt);
           if (this.timer <= -1.2 && this.canSee()) this.startAim();
           else if (this.timer <= -4) { this.pickWaypoint(); this.timer = 0; }
         }
@@ -151,7 +161,7 @@ export class SentryDrone extends Enemy {
         this.vx = damp(this.vx, 0, 6, dt);
         this.vz = damp(this.vz, 0, 6, dt);
         if (this.timer <= 0) {
-          if (this.shots < 3) {
+          if (this.shots < this.v.burst) {
             this.fire();
             this.shots++;
             this.timer = 0.17;
@@ -204,7 +214,7 @@ export class SentryDrone extends Enemy {
     const lensPos = new THREE.Vector3(0, 0, -0.5).applyMatrix4(this.group.matrixWorld);
     const target = new THREE.Vector3(p.x, p.y + 1.0, p.z);
     const dir = target.sub(lensPos).normalize();
-    g.projectiles.spawnEnemy(lensPos, dir, SHOT_SPEED, 10);
+    g.projectiles.spawnEnemy(lensPos, dir, SHOT_SPEED, this.v.dmg);
     g.sfxAt('droneShot', this.pos, 1.2);
     g.effects.flashLight(lensPos, 0xff4020, 12, 0.08);
   }
