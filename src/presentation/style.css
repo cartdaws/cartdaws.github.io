@@ -52,7 +52,7 @@ canvas#game { position: fixed; inset: 0; width: 100%; height: 100%; display: blo
 #banner.goal { white-space: pre-line; font-size: 30px; letter-spacing: 0.22em; line-height: 1.5; padding-left: 0.22em; }
 #banner.red { color: #ff3a28; text-shadow: 0 0 6px #000, 0 0 22px #000, 0 2px 0 #300; }
 #banner.green { color: #4dff8a; }
-#hint { white-space: pre; position: absolute; left: 0; right: 0; bottom: 21%; text-align: center; font-size: 15px; letter-spacing: 0.2em; color: #d9f8ff; opacity: 0; text-shadow: 0 1px 6px #000; transition: opacity 0.4s; }
+#hint { white-space: pre; position: absolute; left: 0; right: 0; bottom: 33%; text-align: center; font-size: 15px; letter-spacing: 0.2em; color: #d9f8ff; opacity: 0; text-shadow: 0 1px 6px #000; transition: opacity 0.4s; }
 #hint.show { opacity: 0.92; }
 
 #fade { position: fixed; inset: 0; background: #000; opacity: 1; pointer-events: none; transition: none; }
@@ -128,7 +128,7 @@ body.touch #skip::after { content: ' ›'; }
 body.touch #hud #health { left: calc(18px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom)); width: 170px; }
 body.touch #hud #weapon { display: none; }
 body.touch #hud #objective { top: calc(18px + env(safe-area-inset-top)); right: auto; left: calc(18px + env(safe-area-inset-left)); }
-body.touch #hint { bottom: 30%; font-size: 13px; }
+body.touch #hint { bottom: 38%; font-size: 13px; }
 body.touch #subtitle { bottom: 4%; font-size: 17px; max-width: 70vw; }
 .menu h1 { font-size: min(78px, 11vw); }
 .menu button { max-width: 86vw; }

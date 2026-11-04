@@ -309,6 +309,7 @@ export class Game {
   complete() {
     this.state = 'complete';
     this.input.clear();
+    this.ui.clearTransient();
     this.ui.showMenu('complete');
     this.input.unlock();
   }
