@@ -22,6 +22,7 @@ import { PostFX } from '../presentation/post.js';
 import { AlienBody } from './body.js';
 import { Absorber } from './absorb.js';
 import { Pickups } from './pickups.js';
+import { progress } from './progress.js';
 
 const STEP = 1 / 60;
 const BASE_FOV = 78;
@@ -196,18 +197,33 @@ export class Game {
   bind() {
     const ui = this.ui, input = this.input;
     $('btn-play').onclick = () => this.play();
+    // start menu: CONTINUE skips the introduction once it has been seen; NEW GAME plays it again
+    const bnew = $('btn-new');
+    if (progress.introDone) { bnew.classList.remove('hidden'); $('btn-play').querySelector('span').textContent = 'CONTINUE'; }
+    $('st-hp').textContent = `VITALITY ${this.player.maxHealth}` + (progress.maxHpBonus ? `  (+${progress.maxHpBonus} ABSORBED)` : '');
+    $('st-cp').textContent = progress.introDone ? 'CHECKPOINT: SHARDCASTER ACQUIRED' : 'NEW SPECIMEN';
+    bnew.onclick = () => { progress.setIntroDone(false); this.play(); };
+    const panels = { 'btn-opts': $('panel-opts'), 'btn-help': $('panel-help') };
+    for (const [btn, panel] of Object.entries(panels)) {
+      $(btn).onclick = () => {
+        const open = panel.classList.contains('hidden');
+        for (const p of Object.values(panels)) p.classList.add('hidden');
+        panel.classList.toggle('hidden', !open);
+      };
+    }
+    for (const el of document.querySelectorAll('#menu-start .close')) el.onclick = () => { for (const p of Object.values(panels)) p.classList.add('hidden'); };
     $('btn-resume').onclick = () => this.resume();
     $('btn-restart').onclick = () => this.restart();
     $('btn-retry').onclick = () => this.restart();
     $('btn-replay').onclick = () => this.restart(true);
     $('btn-intro').onclick = () => this.replayFromStart();
     for (const id of ['btn-gfx', 'btn-gfx2']) $(id).onclick = () => this.toggleGfx();
-    $('set-volume').oninput = (e) => { this.audio.setVolume(+e.target.value); this.saveSettings(); };
-    $('set-sens').oninput = (e) => { this.sens = +e.target.value; this.saveSettings(); };
+    for (const id of ['set-volume', 'set-volume-2']) $(id).oninput = (e) => { this.audio.setVolume(+e.target.value); $('set-volume').value = $('set-volume-2').value = e.target.value; this.saveSettings(); };
+    for (const id of ['set-sens', 'set-sens-2']) $(id).oninput = (e) => { this.sens = +e.target.value; $('set-sens').value = $('set-sens-2').value = e.target.value; this.saveSettings(); };
     try {
       const s = JSON.parse(localStorage.getItem('intruder-settings') || '{}');
-      if (s.volume != null) { this.audio.volume = s.volume; $('set-volume').value = s.volume; }
-      if (s.sens != null) { this.sens = s.sens; $('set-sens').value = s.sens; }
+      if (s.volume != null) { this.audio.volume = s.volume; $('set-volume').value = $('set-volume-2').value = s.volume; }
+      if (s.sens != null) { this.sens = s.sens; $('set-sens').value = $('set-sens-2').value = s.sens; }
     } catch (e) { /* settings are optional */ }
 
     input.onLockChange = (locked) => {
@@ -246,6 +262,7 @@ export class Game {
 
   // ---------- flow ----------
   play() {
+    if (progress.introDone) { this.continueGame(); return; }
     this.audio.init();
     if (this.touchMode) enterImmersive();
     this.ui.hideMenus();
@@ -254,6 +271,17 @@ export class Game {
     this.cinePose = this.opening.pose;
     this.opening.start();
     this.input.lock();
+  }
+
+  // Seen the introduction already: straight into the facility with the weapon.
+  continueGame() {
+    this.audio.init();
+    if (this.touchMode) enterImmersive();
+    this.ui.hideMenus();
+    this.state = 'opening';
+    this.cinePose = this.opening.pose;
+    this.opening.start();
+    this.restart();
   }
 
   beginPlay() {

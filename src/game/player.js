@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clamp, damp } from '../core/util.js';
+import { progress } from './progress.js';
 
 const RADIUS = 0.4;
 const HEIGHT = 1.8;
@@ -17,7 +18,7 @@ export class Player {
     this.pos = new THREE.Vector3();
     this.vx = 0; this.vz = 0; this.vy = 0;
     this.yaw = 0; this.pitch = 0;
-    this.maxHealth = 100;
+    this.maxHealth = 100 + progress.maxHpBonus;
     this.reset(0, 0, 0);
   }
 
