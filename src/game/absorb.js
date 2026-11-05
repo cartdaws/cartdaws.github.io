@@ -1,22 +1,24 @@
 import * as THREE from 'three';
 import { clamp, lerp, smooth, rand } from '../core/util.js';
 import { progress } from './progress.js';
+import { Tongue, makeTongueMaterial } from '../presentation/tongues.js';
 
 const RANGE = 4.4;          // metres from the eye
 const CONE = 0.9;           // cosine of the aiming cone
 const HEAL = { bug: 14, drone: 24 };
 
 // Timeline of one absorption, in seconds from the tap.
-const LOCK = 0.3;           // the arm reaches out, scan rings close in, the machine shudders and brightens
-const MELT0 = 0.3, MELT1 = 1.05;   // the body liquefies into a glowing puddle
-const DRAW0 = 0.5, DRAW1 = 1.75;   // energy is drawn from it in a spiralling stream into the hand
-const GULP = 1.8;           // final swallow: a ripple up the arm, flash and ring
-const TOTAL = 2.05;
+const EXT_T = 0.55;                // butterfly tongues uncoil out of both arms and reach the machine
+const STICK = 0.62;                // the tips latch on
+const MELT0 = 0.7, MELT1 = 1.5;    // the machine dissolves into a glowing puddle
+const FEED0 = 0.8, FEED1 = 1.85;   // pulses of dissolved matter run back down the tongues into the arms
+const RETRACT0 = 1.7, RETRACT1 = 2.35; // the tongues curl back up
+const GULP = 2.4;                  // final swallow: flash, ring and a ripple up the arm
+const TOTAL = 2.7;
 
-const UP = new THREE.Vector3(0, 1, 0);
-const BLUE = [0.15, 0.6, 1];
 const ICE = [0.55, 0.9, 1];
-const _d = new THREE.Vector3(), _t = new THREE.Vector3(), _m = new THREE.Vector3(), _p = new THREE.Vector3(), _n = new THREE.Vector3();
+const BLUE = [0.15, 0.6, 1];
+const _d = new THREE.Vector3(), _t = new THREE.Vector3(), _m = new THREE.Vector3(), _p = new THREE.Vector3(), _n = new THREE.Vector3(), _q = new THREE.Vector3();
 
 // Absorb shut-down enemies: tap right click (or E, or the ABSORB button) while looking at a powered-down one.
 // The machine is scanned, melts into a puddle of light and is drawn into the weapon arm; the player recovers health
@@ -46,13 +48,19 @@ export class Absorber {
     this.core.visible = false;
     this.core.material.userData.noSnap = true;
     game.scene.add(this.core);
+    // six butterfly tongues, three from each arm, living in the first-person scene so they draw over the world
+    const mat = makeTongueMaterial();
+    this.tongues = Array.from({ length: 6 }, () => new Tongue(game.viewmodel.scene, mat));
   }
+
+  hideTongues() { for (const tg of this.tongues) { tg.setVisible(false); tg.pulses.length = 0; } }
 
   reset() {
     const g = this.game;
     if (this.drawing) { const e = this.drawing.e; e.absorbing = false; e.group.scale.setScalar(e.baseScale); }
     this.target = null; this.progress = 0; this.drawing = null; this.env = 0;
     this.puddle.visible = false; this.core.visible = false;
+    this.hideTongues();
     g.absorbFov = 0;
     g.viewmodel.reachW = 0;
     g.viewmodel.bulge = 0;
@@ -112,6 +120,16 @@ export class Absorber {
       rings: 0, gel: false, gulp: false, drawSfx: false, emitAcc: 0, fovK: 0,
     };
     this.env = 0;
+    {
+      const D = this.drawing;
+      D.tips = this.tongues.map((tg, i) => {
+        const dir = _q.set(rand(-1, 1), rand(-0.2, 1), rand(-1, 1)).normalize();
+        tg.bow.set(rand(-1, 1), rand(0.2, 1), rand(-1, 1)).normalize();
+        tg.turns = 2.2 + Math.random() * 1.6; tg.spin = Math.random() < 0.5 ? -1 : 1;
+        tg.ext = 0; tg.uncoil = 0; tg.stuck = 0; tg.pulses.length = 0; tg.setVisible(true);
+        return { off: dir.multiplyScalar(D.r * 0.55).clone(), delay: 0.05 * i, nextPulse: FEED0 + 0.05 * i + Math.random() * 0.1 };
+      });
+    }
     this.puddle.position.set(e.pos.x, 0.025, e.pos.z);
     this.puddle.scale.setScalar(0.01);
     this.puddle.material.opacity = 0;
@@ -120,93 +138,98 @@ export class Absorber {
     this.core.scale.setScalar(0.01);
     this.core.visible = true;
     g.audio.play('absorb', { vol: 0.7 });
+    g.audio.play('servo', { vol: 0.3 });
     g.ui.setPrompt('');
     g.ui.setHold(null);
   }
 
   run(dt) {
-    const g = this.game, vm = g.viewmodel, fx = g.effects, D = this.drawing, e = D.e;
+    const g = this.game, vm = g.viewmodel, fx = g.effects, D = this.drawing, e = D.e, cam = g.camera;
     D.t += dt;
     const t = D.t;
-    // the mouth of the weapon arm, in world space
-    const mouth = vm.right.muzzle.getWorldPosition(_m);
-    g.camera.updateMatrixWorld();
+    cam.updateMatrixWorld();
 
-    // ---- reach: the arm stretches out to the machine and stays on it
-    vm.reachTarget.copy(g.camera.worldToLocal(_p.copy(D.center)));
-    vm.reachW = 0.3 * smooth(t / LOCK) * (1 - smooth((t - GULP) / 0.25));
+    // ---- the hands lean toward the machine while the tongues work
+    vm.reachTarget.copy(cam.worldToLocal(_p.copy(D.center)));
+    vm.reachW = 0.22 * smooth(t / 0.4) * (1 - smooth((t - RETRACT1) / 0.3));
 
-    // ---- lock: three scan rings close around the machine, which shudders and brightens
-    while (D.rings < 3 && t >= D.rings * 0.1) {
-      D.rings++;
-      _n.set(0, 1, 0);
-      _p.set(e.pos.x, 0.03, e.pos.z);
-      fx.ring(_p, _n, 0x4aa8ff, D.r * (1.5 + D.rings * 0.45), 0.5);
-    }
-    const lock = smooth(t / LOCK);
-    const shake = (1 - smooth((t - MELT0) / 0.5)) * 0.03 * lock;
-    // ---- melt: flatten and sink into a puddle of light
+    // ---- melt: the machine shudders, then flattens and sinks into a puddle of light
     const m = smooth((t - MELT0) / (MELT1 - MELT0));
-    const out = smooth((t - DRAW0 - 0.2) / (DRAW1 - DRAW0 - 0.2)); // how much of the body has gone into the stream
+    const out = smooth((t - FEED0 - 0.35) / (FEED1 - FEED0 - 0.35));   // how much of the body is gone
+    const shudder = smooth((t - STICK) / 0.15) * (1 - smooth((t - MELT0) / 0.5)) * 0.035;
     const base = e.baseScale;
     const sx = base * (1 + 0.38 * m) * (1 - out), sy = base * Math.max(0.02, 1 - 0.88 * m) * (1 - 0.6 * out);
     e.group.scale.set(Math.max(0.001, sx), Math.max(0.001, sy), Math.max(0.001, sx));
-    e.pos.set(D.from.x + rand(-1, 1) * shake, lerp(D.from.y, e.kind === 'drone' ? 0.1 : D.from.y - 0.05, m), D.from.z + rand(-1, 1) * shake);
-    e.group.rotation.y += dt * (3 + 10 * m);
-    // glow climbs from blue to white-hot
-    const heat = clamp(lock * 0.6 + m * 0.6, 0, 1.2);
+    e.pos.set(D.from.x + rand(-1, 1) * shudder, lerp(D.from.y, e.kind === 'drone' ? 0.1 : D.from.y - 0.05, m), D.from.z + rand(-1, 1) * shudder);
+    e.group.rotation.y += dt * (2 + 9 * m);
+    const heat = clamp(smooth((t - STICK) / 0.5) * 0.6 + m * 0.6, 0, 1.2);
     for (const { mat } of e.flashMats) {
-      mat.emissive.setRGB(lerp(0.04, 0.7, heat), lerp(0.38, 0.92, heat), 1);
-      mat.emissiveIntensity = 0.9 + 2.6 * heat * (0.8 + 0.2 * Math.sin(t * 40));
+      mat.emissive.setRGB(lerp(0.04, 0.55, heat), lerp(0.38, 0.95, heat), lerp(1, 0.9, heat));
+      mat.emissiveIntensity = 0.9 + 2.4 * heat * (0.8 + 0.2 * Math.sin(t * 40));
     }
-    if (!D.gel && t >= MELT0) { D.gel = true; g.audio.play('gel', { vol: 0.5 }); fx.hitSparks(D.center, ICE, 14); }
-
+    if (!D.gel && t >= STICK) {
+      D.gel = true;
+      g.audio.play('gel', { vol: 0.6 });
+      fx.hitSparks(D.center, ICE, 16);
+      for (let i = 0; i < 2; i++) { _n.set(0, 1, 0); _p.set(e.pos.x, 0.03, e.pos.z); fx.ring(_p, _n, 0x4aa8ff, D.r * (1.6 + i * 0.5), 0.5); }
+    }
     // drips and the puddle
-    if (t >= MELT0 && t < DRAW1) {
+    if (t >= MELT0 && t < FEED1) {
       const n = Math.round(rand(1, 3));
       for (let i = 0; i < n; i++) fx.glowP.emit(D.center.x + rand(-1, 1) * D.r * 0.7, D.center.y * (1 - 0.5 * m), D.center.z + rand(-1, 1) * D.r * 0.7, rand(-0.4, 0.4), rand(0.2, 1.2), rand(-0.4, 0.4), rand(0.35, 0.6), rand(0.04, 0.08), BLUE[0], BLUE[1], BLUE[2], 10, 0.4);
     }
-    const pr = D.r * (0.2 + 1.5 * m) * (1 - 0.7 * smooth((t - DRAW1 + 0.2) / 0.5));
+    const pr = D.r * (0.2 + 1.5 * m) * (1 - 0.7 * smooth((t - FEED1 + 0.2) / 0.5));
     this.puddle.scale.setScalar(Math.max(0.01, pr * (1 + 0.05 * Math.sin(t * 9))));
-    this.puddle.material.opacity = 0.55 * m * (1 - smooth((t - DRAW1) / 0.3));
+    this.puddle.material.opacity = 0.55 * m * (1 - smooth((t - FEED1) / 0.35));
     this.core.scale.setScalar(Math.max(0.01, pr * 0.55));
-    this.core.material.opacity = 0.7 * m * (1 - smooth((t - DRAW1 + 0.1) / 0.3));
+    this.core.material.opacity = 0.7 * m * (1 - smooth((t - FEED1 + 0.1) / 0.35));
     this.puddle.position.set(e.pos.x, 0.025, e.pos.z);
     this.core.position.set(e.pos.x, 0.03, e.pos.z);
 
-    // ---- draw: a spiralling stream of energy from the machine into the hand
-    if (t >= DRAW0 && t < DRAW1) {
-      if (!D.drawSfx) { D.drawSfx = true; g.audio.play('swallow', { vol: 0.9 }); }
-      D.emitAcc += dt * (140 + 260 * smooth((t - DRAW0) / 0.5));
-      while (D.emitAcc >= 1) {
-        D.emitAcc -= 1;
-        const a = rand(0, Math.PI * 2), rr = rand(0.1, 1) * D.r * (1 - 0.5 * m);
-        fx.streamP.emit(
-          D.center.x + Math.cos(a) * rr, D.center.y * (1 - 0.6 * m) + rand(-0.1, 0.2), D.center.z + Math.sin(a) * rr,
-          rand(-1.0, 1.0), rand(0.6, 1.8), rand(-1.0, 1.0),
-          rand(1.3, 1.8), rand(0.05, 0.1), ICE[0], ICE[1], ICE[2], 0, 0.5,
-        );
+    // ---- the tongues: uncoil from the arms, latch on, carry the dissolved machine back, curl up again
+    const retract = smooth((t - RETRACT0) / (RETRACT1 - RETRACT0));
+    let arrived = 0;
+    this.tongues.forEach((tg, i) => {
+      const tip = D.tips[i], te = t - tip.delay, side = i < 3 ? 1 : -1, k = i % 3;
+      tg.ext = smooth(te / EXT_T) * (1 - retract);
+      tg.uncoil = smooth(te / (EXT_T + 0.1)) * (1 - smooth((t - RETRACT0) / (RETRACT1 - RETRACT0) * 1.15));
+      tg.stuck = smooth((t - STICK - tip.delay) / 0.2) * (1 - smooth((t - RETRACT0) / 0.2));
+      // base: on the arm, in front of the eye
+      tg.o.copy(cam.localToWorld(_p.set(side * (0.26 + 0.04 * k), -0.3 + 0.05 * k, -0.6 - 0.03 * k)));
+      // tip: a point on the machine, sinking with it
+      tg.t.set(D.center.x + tip.off.x, D.center.y * (1 - 0.55 * m) + tip.off.y * (1 - 0.6 * m), D.center.z + tip.off.z);
+      // matter flows back toward the arm
+      if (t >= tip.nextPulse && t < FEED1 && tg.ext > 0.95) { tg.pulses.push(1); tip.nextPulse = t + rand(0.12, 0.2); }
+      for (let j = tg.pulses.length - 1; j >= 0; j--) {
+        tg.pulses[j] -= dt * 1.7;
+        if (tg.pulses[j] < 0.03) { tg.pulses.splice(j, 1); arrived++; }
       }
-    }
-    const arrived = fx.streamP.attract(mouth.x, mouth.y, mouth.z, 6.5, 2.5, dt, 0.3);
-    this.env = Math.min(1, this.env + arrived * 0.05);
-    this.env *= Math.exp(-4.5 * dt);
-    // the swallowing travels up the forearm; the hand pulses with every arrival
+      tg.update(g.time);
+      // acid fizz where a tip is latched on
+      if (tg.stuck > 0.5 && t < FEED1 + 0.1 && Math.random() < 0.7) {
+        tg.point(1, _p);
+        fx.glowP.emit(_p.x, _p.y, _p.z, rand(-0.8, 0.8), rand(0.2, 1.4), rand(-0.8, 0.8), rand(0.2, 0.45), rand(0.03, 0.06), ICE[0], ICE[1], ICE[2], 6, 0.5);
+      }
+    });
+    this.env = Math.min(1, this.env + arrived * 0.12);
+    this.env *= Math.exp(-4 * dt);
+    // the swallowing travels up the forearms; the hands pulse with every arrival
     vm.bulge = this.env * 0.95;
-    vm.pulseGlow(0.2 + this.env * 0.55);
-    if (arrived) g.addShake(0.004 * arrived);
-    // the view is drawn in a little as the energy flows
-    const flow = smooth((t - DRAW0) / 0.5) * (1 - smooth((t - GULP) / 0.25));
-    g.absorbFov = -4.5 * flow;
+    vm.pulseGlow(0.2 + this.env * 0.5);
+    if (arrived) { g.addShake(0.004 * arrived); if (!D.drawSfx || Math.random() < 0.3) { D.drawSfx = true; g.audio.play('swallow', { vol: 0.5 }); } }
+    // the view tightens a little while it feeds
+    const flow = smooth((t - FEED0) / 0.4) * (1 - smooth((t - GULP) / 0.25));
+    g.absorbFov = -4 * flow;
 
-    // ---- gulp: one big swallow, flash and ring from the hand
+    // ---- gulp: one big swallow, flash and ring from the hands
     if (!D.gulp && t >= GULP) {
       D.gulp = true;
       vm.pulseGlow(1);
       vm.recoilVel += 6;
       this.env = 1;
-      fx.flashLight(mouth, 0x4aa8ff, 70, 0.35);
-      fx.hitSparks(mouth, ICE, 14);
+      vm.right.muzzle.getWorldPosition(_m);
+      fx.flashLight(_m, 0x4aa8ff, 70, 0.35);
+      fx.hitSparks(_m, ICE, 16);
       g.addShake(0.12);
       g.audio.play('crystal', { vol: 0.6 });
     }
@@ -217,6 +240,7 @@ export class Absorber {
     const g = this.game, p = g.player;
     this.drawing = null; this.target = null; this.progress = 0;
     this.puddle.visible = false; this.core.visible = false;
+    this.hideTongues();
     g.absorbFov = 0;
     g.viewmodel.reachW = 0;
     e.group.scale.setScalar(e.baseScale);
