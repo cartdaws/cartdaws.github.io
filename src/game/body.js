@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { lerp, damp, clamp, angleDiff } from '../core/util.js';
 import { makeGel } from '../world/materials.js';
+import { buildAlien, alienReady } from './alien.js';
 import { TentacleMesh, makeTentacleGel, updateTentacleGels, bezier, SpringChain } from '../presentation/tentacle.js';
 
 const LEGS = [ // angle from forward (rad), reach (m), gait group
@@ -11,6 +12,12 @@ const LEGS = [ // angle from forward (rad), reach (m), gait group
 const N = 10;
 
 // Leg thickness along its length (0 = hip, 1 = foot): stays thick all the way down, swells into a padded foot, ends rounded.
+// the new creature's legs: thick and muscular at the hip, tapering smoothly to a soft, slightly flattened tip (no padded swelling)
+function legRadius2(t) {
+  let r = lerp(0.135, 0.034, Math.pow(t, 0.85)) * (1 + 0.05 * Math.sin(t * 8));
+  if (t > 0.94) r *= Math.sqrt(Math.max(0.05, 1 - ((t - 0.94) / 0.06) ** 2));
+  return r;
+}
 function legRadius(t) {
   let r = lerp(0.15, 0.068, Math.pow(t, 1.1)) * (1 + 0.08 * Math.sin(t * 10));
   if (t > 0.84) r += 0.022 * Math.sin(Math.min(1, (t - 0.84) / 0.13) * Math.PI);
@@ -21,7 +28,7 @@ const _o = new THREE.Vector3(), _v = new THREE.Vector3();
 
 // The player's own octopus body: a translucent bell with glowing organs, walking on six independent tentacles.
 export class AlienBody {
-  constructor(scene, world, player, geos) {
+  constructor(scene, world, player, geos, opts = {}) {
     this.world = world; this.player = player;
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -68,7 +75,10 @@ export class AlienBody {
       this.sats.push({ m, a: i * 1.6, r: 0.13 + i * 0.03, h: 0.3 + i * 0.13 });
     }
 
-    this.legGel = makeTentacleGel({ color: 0x0d6560, rim: 0x7fe8da, alpha: 0.5, length: 2.4, r0: 0.11, r1: 0.06 });
+    const nb = alienReady();
+    this.legGel = nb
+      ? makeTentacleGel({ color: opts.tint === 'elder' ? 0x16122c : 0x0a1520, rim: opts.tint === 'elder' ? 0x9c7cf0 : 0x2a9488, alpha: 0.97, length: 2.4, r0: 0.13, r1: 0.035, suckers: 1, veins: 0.3 })
+      : makeTentacleGel({ color: 0x0d6560, rim: 0x7fe8da, alpha: 0.5, length: 2.4, r0: 0.11, r1: 0.06 });
     this.legs = LEGS.map((d) => {
       const leg = {
         d,
@@ -77,12 +87,20 @@ export class AlienBody {
         chain: new SpringChain(N, 360, 90, 0.8),
         ideal: Array.from({ length: N }, () => new THREE.Vector3()),
         c1: new THREE.Vector3(), c2: new THREE.Vector3(), root: new THREE.Vector3(),
-        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: legRadius, material: this.legGel }),
+        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: nb ? legRadius2 : legRadius, material: this.legGel }),
       };
       leg.mesh.mesh.renderOrder = 2;
       scene.add(leg.mesh.mesh);
       return leg;
     });
+  }
+
+  // The new body: the Blender creature in place of the old bell and torso (the procedural legs stay)
+  attachAlien(opts) {
+    this.alien = buildAlien(opts);
+    this.alien.root.scale.setScalar(0.6); this.alien.root.position.y = -0.5;
+    this.group.add(this.alien.root);
+    this.torso.visible = false; for (const r of this.ribs) r.visible = false; this.core.visible = false; for (const s of this.sats) s.m.visible = false;
   }
 
   dispose(scene) { scene.remove(this.group); for (const l of this.legs) scene.remove(l.mesh.mesh); }
@@ -125,15 +143,23 @@ export class AlienBody {
     const down = clamp((-p.pitch - 0.3) / 0.55, 0, 1) * (1 - dk);
     this.torsoGel.uniforms.uAlpha.value = 0.22 * down;
     this.ribMat.opacity = 0.2 * down;
-    this.torso.visible = down > 0.01;
-    for (const r of this.ribs) r.visible = down > 0.01;
-    this.core.visible = down > 0.05;
-    for (const s of this.sats) s.m.visible = down > 0.05;
+    if (this.alien) {
+      this.alien.setOpacity(down);
+      this.alien.root.scale.set(0.6 * breathe, 0.6 / breathe, 0.6 * breathe);
+      this.torso.visible = false; this.core.visible = false; for (const r of this.ribs) r.visible = false; for (const s of this.sats) s.m.visible = false;
+    } else {
+      this.torso.visible = down > 0.01;
+      for (const r of this.ribs) r.visible = down > 0.01;
+      this.core.visible = down > 0.05;
+      for (const s of this.sats) s.m.visible = down > 0.05;
+    }
     this.torsoGel.uniforms.uTime.value = t;
     this.bell.scale.set(0.95 * breathe, 1.0 / breathe, 0.95 * breathe);
-    this.core.scale.setScalar(0.13 * (1 + Math.sin(t * 2.4) * 0.12));
-    this.core.rotation.y = t * 0.2;
-    for (const s of this.sats) s.m.position.set(Math.cos(t * 0.7 + s.a) * s.r, s.h + Math.sin(t * 1.3 + s.a) * 0.05, Math.sin(t * 0.7 + s.a) * s.r);
+    if (!this.alien) {
+      this.core.scale.setScalar(0.13 * (1 + Math.sin(t * 2.4) * 0.12));
+      this.core.rotation.y = t * 0.2;
+      for (const s of this.sats) s.m.position.set(Math.cos(t * 0.7 + s.a) * s.r, s.h + Math.sin(t * 1.3 + s.a) * 0.05, Math.sin(t * 0.7 + s.a) * s.r);
+    }
 
     // Gait: two alternating tripods.
     const stepDist = 0.5 + Math.min(0.45, speed * 0.06);
