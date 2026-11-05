@@ -132,7 +132,7 @@ class HandArm {
     this.maw.scale.x = this.maw.scale.y = (1 + vm.pulse * 0.35);
     this.tooth.visible = f > 0.25;
     this.tooth.scale.set(Math.max(0.001, f), Math.max(0.001, f), Math.max(0.001, f) * (1 + vm.pulse * 0.2));
-    this.gland.visible = f > 0.2;
+    this.gland.visible = false;                 // the old forearm gland was sized for the thicker old arm and floated outside the new one
     this.gland.scale.setScalar(Math.max(0.001, f) * (1 + vm.pulse * 0.3 + vm.charge * 0.2 + Math.sin(t * 2.2) * 0.04));
     this.muzzle.position.z = -0.31 * Math.max(0.001, f);
     this.glow.position.copy(this.muzzle.position);

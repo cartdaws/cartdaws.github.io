@@ -34,11 +34,17 @@ UP = Vector((0, 1, 0))
 def tube(pts, radii, ring_seg, samples):
     """ring vertices along a smooth path (fixed-reference frames so every pose shares a vertex order) + the apex; also returns path, radii and frames for placing suckers"""
     path = catmull(pts, samples); rad = [v.x for v in catmull([(r, 0, 0) for r in radii], samples)]; verts = []; frames = []
+    # parallel-transport frames: the cross-section is carried along the curve without ever flipping, however tightly the tentacle curls
+    prev_n = None
     for i, p in enumerate(path):
         tan = (path[min(i + 1, samples - 1)] - path[max(i - 1, 0)]).normalized()
-        n1 = UP - tan * UP.dot(tan)
-        if n1.length < 1e-3: n1 = Vector((1, 0, 0))
-        n1.normalize(); n2 = tan.cross(n1); r = max(0.004, rad[i]); frames.append((n1, n2))
+        if prev_n is None:
+            n1 = UP - tan * UP.dot(tan)
+            if n1.length < 1e-3: n1 = Vector((1, 0, 0))
+        else:
+            n1 = prev_n - tan * prev_n.dot(tan)
+            if n1.length < 1e-4: n1 = Vector((1, 0, 0)) - tan * Vector((1, 0, 0)).dot(tan)
+        n1.normalize(); n2 = tan.cross(n1); prev_n = n1; r = max(0.004, rad[i]); frames.append((n1, n2))
         for j in range(ring_seg):
             a = 2 * math.pi * j / ring_seg; verts.append(p + (n1 * math.cos(a) + n2 * math.sin(a)) * r)
     verts.append(path[-1] + (path[-1] - path[-2]).normalized() * rad[-1] * 0.9)
@@ -74,17 +80,17 @@ def build(pose='basis'):
     """vertex positions for the skin (forearm + four fingers) and for the suckers, in fixed orders"""
     swell = 1.28 if pose == 'swell' else 1.0
     arm_pts = [(0, 0.0, 1.36), (0.025, -0.03, 0.95), (-0.02, -0.045, 0.5), (0.012, -0.03, 0.1), (0, -0.01, -0.03), (0, 0.0, -0.075)]
-    arm_r = [0.088 * swell, 0.066 * swell, 0.05 * swell, 0.039 * swell, 0.058 * (1 + 0.1 * (swell - 1)), 0.044]
+    arm_r = [0.088 * swell, 0.066 * swell, 0.05 * swell, 0.042 * swell, 0.066 * (1 + 0.1 * (swell - 1)), 0.05]
     skin, path, rad, frames = tube(arm_pts, arm_r, ARM_SEG, ARM_N)
     suck = []
     # two rows of suckers down the underside of the arm, getting smaller toward the wrist
     for i in range(6, ARM_N - 6, 3):
         n1, n2 = frames[i]; r = rad[i]
         for side in (-0.55, 0.55):
-            c = path[i] + Vector((0, -1, 0)) * r * 0.9 + Vector((1, 0, 0)) * r * side
-            suck.append(sucker_verts(c, r * 0.3, Vector((0, -1, 0)) + Vector((1, 0, 0)) * side * 0.6))
+            c = path[i] + Vector((0, -1, 0)) * r * 0.78 + Vector((1, 0, 0)) * r * side * 0.9
+            suck.append(sucker_verts(c, r * 0.26, Vector((0, -1, 0)) + Vector((1, 0, 0)) * side * 0.6))
     for k in range(4):
-        x0, y0 = FX[k], FY[k]; wv = 0.035 * (1 if k % 2 else -1); r = [0.064, 0.053, 0.038, 0.016]
+        x0, y0 = FX[k], FY[k]; wv = 0.022 * (1 if x0 > 0 else -1); r = [0.064, 0.053, 0.038, 0.016]
         if pose == 'grip':      # curled tightly into a coil under the wrist
             p = [(x0 * 0.85, y0, -0.05), (x0 * 0.9, y0 - 0.05, -0.2), (x0 * 0.7, y0 - 0.17, -0.28), (x0 * 0.45, y0 - 0.25, -0.18), (x0 * 0.3, y0 - 0.2, -0.07)]
         elif pose == 'weapon':  # the tentacles wind together into one long tapering spear
@@ -94,15 +100,16 @@ def build(pose='basis'):
         else:                   # relaxed: reach forward, then curl UP toward you so the suckers on the inner curve face the camera
             p = [(x0 * 0.9, y0, -0.05), (x0 * 1.4 + wv, y0, -0.2), (x0 * 1.7 - wv, y0 + 0.07, -0.37), (x0 * 1.9 + wv * 0.6, y0 + 0.2, -0.48), (x0 * 1.8, y0 + 0.36, -0.44)]
         p = [(q[0] * 1.3, q[1] * 1.25, q[2] * 1.55) for q in p]; r = [v * 0.78 for v in r]      # bigger: from your own eyes the hand is foreshortened, so it needs real length and bulk to read as tentacles
+        p = [(x0 * 0.12, -0.012, 0.0)] + p; r = [0.056] + r                                    # the finger starts INSIDE the wrist and grows out of it, so there is no gap
         fv, fpath, frad, fframes = tube(p, [v * swell ** 0.4 for v in r], F_SEG, F_N)
         skin += fv
-        for i in range(3, F_N - 2, 2):                                # a row of suckers on the INNER side of each tentacle's curve, so they show
+        for i in range(5, F_N - 2, 2):                                # a row of suckers on the INNER side of each tentacle's curve, so they show
             prev, nxt = fpath[max(i - 1, 0)], fpath[min(i + 1, F_N - 1)]
             inner = ((prev + nxt) / 2 - fpath[i])
             if inner.length < 1e-5: inner = Vector((0, -1, 0))
             inner.normalize(); rr = frad[i]
             if pose == 'basis': inner = (inner * 0.7 + Vector((0, 1, 0)) * 0.5).normalized()   # at rest the curl faces up: keep them facing the viewer
-            suck.append(sucker_verts(fpath[i] + inner * rr * 0.92, rr * 0.5, inner))
+            suck.append(sucker_verts(fpath[i] + inner * rr * 0.78, rr * 0.4, inner))
     return skin, suck
 
 faces = tube_faces(ARM_SEG, ARM_N, 0)
