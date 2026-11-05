@@ -8,18 +8,18 @@ import { alienReady } from '../game/alien.js';
 // violet-tinged skin, brighter ribs and a slow violet inner light. The body walks and breathes exactly as the player's does.
 const SIZE = 1.28;               // slightly larger than the player's body
 
-export function buildElder(scene, geos, hand) {
+export function buildElder(scene, geos, hand, tint = 'elder', size = SIZE) {
   // stand-ins for the player and the world: the elder walks on flat ground and nothing blocks its tentacles
   const stub = { pos: new THREE.Vector3(), vx: 0, vz: 0, yaw: 0, pitch: -1.2, grounded: true };
   const flat = { raycast: () => null, groundHeight: () => 0 };
-  const ab = new AlienBody(scene, flat, stub, geos, { tint: 'elder' });
+  const ab = new AlienBody(scene, flat, stub, geos, { tint });
   ab.reset();
-  const light = new THREE.PointLight(0xb99cff, 1.8, 8, 2); light.position.set(0, 0.5, -0.4); light.userData.keepOn = true; ab.group.add(light);   // a slow violet inner light
+  const light = new THREE.PointLight(tint === 'elder' ? 0xb99cff : 0x7fe8da, tint === 'elder' ? 1.8 : 0.9, 8, 2); light.position.set(0, 0.5, -0.4); light.userData.keepOn = true; ab.group.add(light);   // a slow violet inner light
 
   let arm, armL, armBaseY, tipLocal;
   if (alienReady()) {
     // the new creature, paler and violet-tinged with age, with its own two long arms: the right reaches, the left hangs
-    ab.attachAlien({ tint: 'elder', arms: true });
+    ab.attachAlien({ tint, arms: true });
     const root = ab.alien.root;
     const makePivot = (sx) => {
       const pivot = new THREE.Group(); pivot.position.set(sx * 0.3, 1.1, -0.3); root.add(pivot);   // the shoulder, in the model's own space
@@ -48,7 +48,7 @@ export function buildElder(scene, geos, hand) {
   }
 
   const anchor = new THREE.Group();            // the thing the intro moves and turns
-  const E = { anchor, ab, arm, armL, armBaseY, stub, SIZE, tipLocal, last: new THREE.Vector3(), seen: false };
+  const E = { anchor, ab, arm, armL, armBaseY, stub, SIZE: size, size, flat, tipLocal, last: new THREE.Vector3(), seen: false };
   return E;
 }
 
@@ -64,12 +64,12 @@ export function stepElder(E, dt, state, lift = 0.12) {
   E.last.copy(_p);
   stub.pos.set(_p.x, lift + (state.rise || 0), _p.z);
   // once the elder leaves the ground its feet must leave with it: the legs dangle from the body rather than staying planted and stretching
-  const lifted = (state.rise || 0) > 0.05;
+  const lifted = (state.rise || 0) > 0.05 && !state.planted;      // standing on something raised (a wing) is not dangling
   stub.grounded = !lifted; ab.dangle = lifted;              // a little height gives the elder longer legs than the player
   stub.yaw = state.yaw;
   ab.setVisible(anchor.visible !== false && E.visible !== false && !state.gone);
   ab.update(d);
-  ab.group.scale.multiplyScalar(SIZE);
+  ab.group.scale.multiplyScalar(E.size || SIZE);
   ab.group.rotation.x += -state.fear * 0.18;
   ab.group.updateMatrixWorld(true);
 }

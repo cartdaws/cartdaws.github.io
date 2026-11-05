@@ -100,6 +100,9 @@ function landerFromAsset() {
     if (/^Gear/.test(o.name)) g.userData.gear.push(o);
     if (/Exhaust/.test(o.name)) exhausts.push(o);
   });
+  // the canopy hinges open at its rear edge so the pilot can climb in (the boarding scene drives g.userData.canopyPivot.rotation.x)
+  { const nodes = []; model.traverse((o) => { if (o.isMesh && (o.name === 'Canopy' || o.name === 'CanopySpine')) nodes.push(o); });
+    if (nodes.length) { const pivot = new THREE.Group(); pivot.position.set(0, 0.55, 0.05); model.add(pivot); for (const n of nodes) { pivot.add(n); n.position.set(0, -0.55, -0.05); } g.userData.canopyPivot = pivot; } }
   // the engine glow: a soft additive flare on each exhaust, the same device the placeholder used
   for (const e of exhausts) {
     const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(150,230,255,1)'), color: 0x8fe8ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
