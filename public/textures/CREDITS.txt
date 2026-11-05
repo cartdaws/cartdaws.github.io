@@ -1,0 +1,1 @@
+Terrain and surface textures from Poly Haven (polyhaven.com), CC0. aerial_rocks_02, rocky_terrain_02, snow_02, coast_sand_01, metal_plate, rusty_metal_02, corrugated_iron. Resized to 512 px.

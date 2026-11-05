@@ -10,7 +10,7 @@ import { cloneWarship } from '../game/flight.js';
 // It sits far from the ship (HOME) with its own sky, light and fog, which are swapped in while the memory plays.
 export const HOME = { x: 1400, z: 0 };   // far beyond the view distance from the ship, so the ship is never drawn from here (or this from there)
 export const HOME_START = { x: 0, z: 7, yaw: 0.9 };      // local to HOME: the player wakes here, facing away from the one who waits
-import { HomeLife, addWind } from './homeLife.js';
+import { HomeLife, addWind, bodyRadius } from './homeLife.js';
 export const ELDER_AT = { x: 1.2, z: -9.5 };
 export const WRECK_AT = { x: -10, z: -19 };            // the downed human lander, local to the homeworld
 export const PISTOL_AT = { x: -6.2, z: -15.4 };        // the dead pilot's sidearm
@@ -29,6 +29,11 @@ export async function loadHome() {
       if (src && src.geometry && dst) dst.geometry = src.geometry;
     }
   } catch (e) { /* the original flora stays */ }
+  try {
+    const vl = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/valley_life.glb');
+    const life = {}; vl.scene.traverse((o) => { if (o.isMesh) life[o.name] = o; });
+    gltf.scene.userData.life = life;
+  } catch (e) { /* the valley keeps its older plants */ }
   try {
     const st = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/settlement.glb');
     st.scene.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
@@ -84,6 +89,8 @@ export class HomeWorld {
       for (let i = 0; i < 220; i++) { const x = R() * w, y = R() * h; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + R() * 30 - 15, y + R() * 30 - 15, x + R() * 40 - 20, y + R() * 40 - 20); g.stroke(); }
     }, 22);
     const ground = new THREE.Mesh(new THREE.CircleGeometry(95, 64).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: groundTex, roughness: 0.92, emissive: S.hex(0x0b2a28), emissiveIntensity: 0.6 }));
+    { const load = (n, srgb) => { const t = new THREE.TextureLoader().load(import.meta.env.BASE_URL + 'textures/' + n + '.jpg'); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(16, 16); t.anisotropy = 4; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
+      ground.material.normalMap = load('aerial_rocks_02_n'); ground.material.normalScale = new THREE.Vector2(1.1, 1.1); ground.material.roughness = 0.92; ground.material.needsUpdate = true; }
     this.group.add(ground);
     const poolMat = new THREE.MeshStandardMaterial({ color: S.hex(0x1a8f9a), emissive: S.hex(0x0a4a55), emissiveIntensity: 0.7, roughness: 0.05, metalness: 0.35, transparent: true, opacity: 0.86 });
     for (const [x, z, r] of [[-9, -2, 4.5], [10, -14, 6], [-12, -16, 3.5], [8, 6, 2.8]]) {
@@ -104,22 +111,23 @@ export class HomeWorld {
     const spireMat = new THREE.MeshStandardMaterial({ color: S.hex(0x1f6a64), roughness: 0.5, emissive: S.hex(0x0b3b3a), emissiveIntensity: 0.9 });
     this.tipMat = new THREE.MeshBasicMaterial({ color: S.hex(0xb8ffe6), fog: true });
     this.colliders = []; this.collidersIntact = []; this.collidersRuin = [];   // circles, local to the homeworld: what you bump into when walking here
-    const NS = 60, spires = mk(node('Spire').geometry, spireMat, NS), tips = mk(node('SpireTip').geometry, this.tipMat, NS);
+    const smallV = document.body.classList.contains('touch');
+    const NS = smallV ? 26 : 40, spires = mk(node('Spire').geometry, spireMat, NS), tips = mk(node('SpireTip').geometry, this.tipMat, NS);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
     for (let i = 0, k = 0; k < NS && i < 400; i++) {
       const a = R() * Math.PI * 2, d = 9 + R() * 50, x = Math.cos(a) * d, z = Math.sin(a) * d;
       if (path(x, z) || Math.hypot(x - ELDER_AT.x, z - ELDER_AT.z) < 4 || keepClear(x, z)) continue;
       const s = 0.9 + R() * 1.4;
-      this.colliders.push({ x, z, r: 0.42 * s });
+      this.colliders.push({ x, z, r: bodyRadius(node('Spire').geometry) * s });
       e.set((R() - 0.5) * 0.12, R() * 6.28, (R() - 0.5) * 0.12); q.setFromEuler(e);
       m4.compose(v.set(x, 0, z), q, sc.set(s, s, s)); spires.setMatrixAt(k, m4); tips.setMatrixAt(k, m4); k++;
     }
     const stalkGeo = node('Stalk').geometry, bulbGeo = node('StalkBulb').geometry;
-    const NK = 700, stalks = mk(stalkGeo, spireMat, NK), bulbs = mk(bulbGeo, new THREE.MeshBasicMaterial({ color: S.hex(0xffffff) }), NK);
+    const NK = 700, stalks = mk(stalkGeo, spireMat, NK), bulbs = mk(bulbGeo, new THREE.MeshBasicMaterial({ color: new THREE.Color(0.5, 0.5, 0.5) }), NK);
     const col = new THREE.Color();
     const small = document.body.classList.contains('touch');            // phones get half the undergrowth
     let stalkN = 0;
-    for (let c = 0, k = 0; c < (small ? 45 : 90) && k < NK; c++) {
+    for (let c = 0, k = 0; c < (small ? 26 : 60) && k < NK; c++) {
       const a = R() * Math.PI * 2, d = 4 + R() * 38, cx = Math.cos(a) * d, cz = Math.sin(a) * d;
       for (let j = 0; j < 7 && k < NK; j++) {
         const x = cx + (R() - 0.5) * 2.2, z = cz + (R() - 0.5) * 2.2;
@@ -132,7 +140,7 @@ export class HomeWorld {
     }
     stalks.count = bulbs.count = stalkN;
     addWind(spireMat, 0.0035); addWind(this.tipMat, 0.0035); addWind(bulbs.material, 0.07);
-    this.life = new HomeLife(this.group);
+    this.lifePending = () => { this.life = new HomeLife(this.group, asset.userData.life, (x, z, r) => path(x, z) || Math.hypot(x - ELDER_AT.x, z - ELDER_AT.z) < 4 + r || keepClear(x, z, r) || this.colliders.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + r), this.colliders, [spireMat]); };
     const rockMat = new THREE.MeshStandardMaterial({ color: S.hex(0x27363e), roughness: 0.95, emissive: S.hex(0x06141a), emissiveIntensity: 0.8 });
     const rocks = mk(node('Rock').geometry, rockMat, 20);
     for (let i = 0; i < 20; i++) {
@@ -141,15 +149,16 @@ export class HomeWorld {
       let rx = path(x, z) ? x + 6 : x, rz = z;
       for (let tries = 0; tries < 8 && keepClear(rx, rz, 0.6 * s); tries++) { rx += 5; rz += 3; }      // never in a house, the wreck or the sidearm
       m4.compose(v.set(rx, 0, rz), q, sc.set(s, s * (0.6 + R() * 0.6), s)); rocks.setMatrixAt(i, m4);
-      this.colliders.push({ x: rx, z: rz, r: 0.5 * s });
+      this.colliders.push({ x: rx, z: rz, r: bodyRadius(node('Rock').geometry, 0.2) * s });
     }
     this.flora = [spires, tips, stalks, bulbs, rocks];
+    this.lifePending();
 
     // ---- drifting spores and low mist: the air feels alive
     const NP = 260, pp = new Float32Array(NP * 3);
     for (let i = 0; i < NP; i++) { pp[i * 3] = (R() - 0.5) * 50; pp[i * 3 + 1] = 0.3 + R() * 5; pp[i * 3 + 2] = (R() - 0.5) * 50 - 4; }
     const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(pp, 3));
-    this.spores = new THREE.Points(pg, new THREE.PointsMaterial({ color: S.hex(0xbfffe8), size: 0.09, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
+    this.spores = new THREE.Points(pg, new THREE.PointsMaterial({ color: S.hex(0xbfffe8), size: 0.13, transparent: true, opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending, map: (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const x = c.getContext('2d'), g = x.createRadialGradient(16, 16, 0, 16, 16, 16); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.4, 'rgba(255,255,255,0.45)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c); })() }));
     this.spores.frustumCulled = false; this.group.add(this.spores); this.sporeBase = pp.slice();
     const mistTex = canvasTex(128, 128, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 4, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(150,255,230,0.35)'); gr.addColorStop(1, 'rgba(150,255,230,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });
     const mistMat = new THREE.MeshBasicMaterial({ map: mistTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
@@ -331,7 +340,7 @@ export class HomeWorld {
       const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = face(x, z); g.scale.setScalar(0.9 + ((x * 7 + z * 3) % 5) * 0.04);
       for (const n of ['Dwelling', 'DwellingRibs', 'DwellingBase', 'DwellingGlow']) { const m = part(n); if (m) g.add(m); }
       this.settleIntact.add(g);
-      this.collidersIntact.push({ x, z, r: 2.75 * g.scale.x });
+      this.collidersIntact.push({ x, z, r: bodyRadius(part('Dwelling').geometry) * g.scale.x });
       const r = new THREE.Group(); r.position.set(x, 0, z); r.rotation.y = face(x, z) + 0.5; r.scale.copy(g.scale);
       for (const n of ['DwellingRuin', 'RuinRubble']) { const m = part(n); if (m) r.add(m); }
       this.settleRuin.add(r);

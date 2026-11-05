@@ -14,6 +14,7 @@ const DASH_TIME = 0.17;
 const DASH_COOLDOWN = 1.3;
 
 export class Player {
+  static EYE_H = EYE;
   constructor(game) {
     this.game = game;
     this.pos = new THREE.Vector3();
@@ -122,7 +123,7 @@ export class Player {
       this.jumpBuf = 0;
       this.game.audio.play('jump', { vol: 0.8 });
     }
-    if (!this.grounded || this.vy > 0) this.vy -= GRAVITY * (A ? A.grav : 1) * dt;
+    if (!this.grounded || this.vy > 0) this.vy -= GRAVITY * (A ? A.grav : 1) * (this.gravMul ?? 1) * dt;
 
     // Horizontal motion in small increments so thin walls and doors cannot be tunnelled.
     const dx = this.vx * dt, dz = this.vz * dt;
@@ -165,8 +166,8 @@ export class Player {
       this.stepAcc = (this.stepAcc || 0) + Math.hypot(this.vx, this.vz) * dt;
       if (this.stepAcc > 2.3) { this.stepAcc = 0; this.game.audio.play('step', { vol: 0.14 + 0.1 * clamp(Math.hypot(this.vx, this.vz) / SPEED, 0, 1) }); }
     }
-    if (this.pos.y + HEIGHT > 6.3) { this.pos.y = 6.3 - HEIGHT; this.vy = Math.min(0, this.vy); }
-    if (this.pos.y < -2) { this.pos.set(0, 0, REPLAY_SAFE.z); } // never fall out of the world
+    if (!this.game.world.terrain && this.pos.y + HEIGHT > 6.3) { this.pos.y = 6.3 - HEIGHT; this.vy = Math.min(0, this.vy); }
+    if (!this.game.world.terrain && this.pos.y < -2) { this.pos.set(0, 0, REPLAY_SAFE.z); } // never fall out of the world
   }
 
   speed() { return Math.hypot(this.vx, this.vz); }

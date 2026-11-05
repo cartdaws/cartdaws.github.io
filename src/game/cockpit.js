@@ -3,7 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 
 // The lander's cockpit, seen from the seat during boarding and lift-off: a pilot's seat you actually sit in, a dash of instruments,
 // a yoke, side consoles. Built to the same local coordinates as the hull, so it moves with the ship as one piece.
-export const SEAT_EYE = new THREE.Vector3(0, 0.68, -0.86);
+export const SEAT_EYE = new THREE.Vector3(0, 0.93, -0.86);
 export const YOKE_GRIP = new THREE.Vector3(0.2, 0.34, -1.26);
 
 function canvasTex(w, h, draw) {
@@ -20,10 +20,11 @@ const panel = (x, w, h, title) => {
 
 export function addCockpit(lander) {
   const g = new THREE.Group(); g.name = 'Cockpit';
-  const dark = new THREE.MeshStandardMaterial({ color: 0x1f262c, roughness: 0.75, metalness: 0.35, emissive: 0x05090c });
-  const mid = new THREE.MeshStandardMaterial({ color: 0x38434c, roughness: 0.6, metalness: 0.45, emissive: 0x070b0e });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x14191e, roughness: 0.72, metalness: 0.4, emissive: 0x030507 });
+  const mid = new THREE.MeshStandardMaterial({ color: 0x2a3138, roughness: 0.58, metalness: 0.5, emissive: 0x05070a });
   const cloth = new THREE.MeshStandardMaterial({ color: 0x24201c, roughness: 0.95, metalness: 0, emissive: 0x060504 });
   const trim = new THREE.MeshStandardMaterial({ color: 0xc8921a, roughness: 0.55, metalness: 0.4, emissive: 0x2a1c02 });
+  const lit = new THREE.MeshBasicMaterial({ color: 0x6fd8e8 });
   const box = (w, h, d, mat, x, y, z, rx = 0, ry = 0, rz = 0, rad = 0.025) => {
     const m = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 3, Math.min(rad, w / 2.1, h / 2.1, d / 2.1)), mat);
     m.position.set(x, y, z); m.rotation.set(rx, ry, rz); g.add(m); return m;
@@ -32,11 +33,14 @@ export function addCockpit(lander) {
   // ---- the tub
   box(1.1, 0.06, 2.1, dark, 0, -0.16, -0.75);                                 // floor
   for (const s of [-1, 1]) {
-    box(0.07, 0.7, 2.1, mid, s * 0.56, 0.18, -0.75);                          // side wall
-    box(0.11, 0.05, 2.1, trim, s * 0.55, 0.54, -0.75);                        // sill, the edge you climbed over
+    box(0.07, 1.04, 2.2, mid, s * 0.6, 0.36, -0.75);                         // side wall, up to the shoulder
+    box(0.03, 0.28, 1.5, dark, s * 0.565, 0.72, -0.82);                       // padding on it
+    for (let k = 0; k < 4; k++) box(0.025, 0.03, 0.24, lit, s * 0.56, 0.42, -0.2 - k * 0.42, 0, 0, 0, 0.008);   // low strip lights
+    box(0.12, 0.2, 0.34, dark, s * 0.5, 0.62, -1.5, 0, s * 0.22, 0);        // panel by the windscreen
+    box(0.11, 0.05, 2.2, trim, s * 0.59, 0.885, -0.75);                       // sill, the edge you climbed over
     box(0.22, 0.12, 0.72, dark, s * 0.43, 0.27, -0.92, 0, 0, s * -0.1);       // side console
   }
-  box(1.1, 0.7, 0.07, mid, 0, 0.18, 0.28);                                    // rear bulkhead
+  box(1.2, 1.04, 0.07, mid, 0, 0.36, 0.28);                                   // rear bulkhead
 
   // ---- the seat you sit in
   box(0.56, 0.13, 0.56, cloth, 0, 0.1, -0.72, 0.05, 0, 0, 0.05);              // cushion
@@ -50,8 +54,9 @@ export function addCockpit(lander) {
   }
 
   // ---- the dash
-  box(1.06, 0.42, 0.34, dark, 0, 0.25, -1.68, -0.42);                         // body
-  box(1.06, 0.07, 0.34, mid, 0, 0.53, -1.74, 0.1, 0, 0, 0.03);                // glare shield
+  box(1.16, 0.5, 0.4, dark, 0, 0.42, -1.68, -0.42);                          // body
+  box(1.16, 0.05, 0.46, mid, 0, 0.67, -1.82, 0.08, 0, 0, 0.02);                 // glare shield
+  box(1.16, 0.3, 0.6, dark, 0, 0.5, -2.1);                                  // the nose, closed off from inside
   box(0.24, 0.26, 0.7, dark, 0, -0.03, -1.45);                                // centre pedestal
 
   // ---- instruments: dark when the ship is dead, they wake during the lift-off
@@ -84,9 +89,9 @@ export function addCockpit(lander) {
     const cols = ['#ff5a3a', '#ffd36a', '#6fe8ff', '#8fffb0', '#2b3a44'];
     for (let j = 0; j < 8; j++) for (let i = 0; i < 4; i++) { x.fillStyle = cols[(i * 3 + j * 2 + (i * j) % 3) % cols.length]; x.fillRect(12 + i * 28, 14 + j * 30, 18, 16); }
   });
-  screen(0.32, 0.24, -0.34, 0.31, -1.51, -0.42, 0.14, radar);
-  screen(0.34, 0.24, 0, 0.31, -1.53, -0.42, 0, status);
-  screen(0.32, 0.24, 0.34, 0.31, -1.51, -0.42, -0.14, horizon);
+  screen(0.34, 0.25, -0.36, 0.47, -1.47, -0.42, 0.14, radar);
+  screen(0.36, 0.25, 0, 0.47, -1.48, -0.42, 0, status);
+  screen(0.34, 0.25, 0.36, 0.47, -1.47, -0.42, -0.14, horizon);
   screen(0.16, 0.56, -0.43, 0.34, -0.92, -Math.PI / 2 + 0.1, 0, buttons).rotation.set(-Math.PI / 2, 0, 0);
   screen(0.16, 0.56, 0.43, 0.34, -0.92, -Math.PI / 2 + 0.1, 0, buttons).rotation.set(-Math.PI / 2, 0, 0);
   lander.userData.screens = (lander.userData.screens || []).concat(screens);
@@ -111,11 +116,9 @@ export function addCockpit(lander) {
     };
     pivot.updateMatrixWorld(true);
     for (const s of [-1, 1]) {
-      bar([s * 0.52, 0.56, -1.66], [s * 0.2, 1.16, -0.98], 0.05);        // front pillar
-      bar([s * 0.2, 1.16, -0.98], [s * 0.34, 1.0, -0.12], 0.05);         // over your head
-      bar([s * 0.34, 1.0, -0.12], [s * 0.54, 0.56, 0.02], 0.05);         // rear pillar
+      bar([s * 0.38, 1.05, -0.12], [s * 0.56, 0.6, 0.02], 0.04);         // rear pillar
     }
-    bar([-0.2, 1.16, -0.98], [0.2, 1.16, -0.98], 0.04); bar([-0.34, 1.0, -0.12], [0.34, 1.0, -0.12], 0.04);
+    bar([-0.38, 1.05, -0.12], [0.38, 1.05, -0.12], 0.04);
   }
 
   g.visible = false;

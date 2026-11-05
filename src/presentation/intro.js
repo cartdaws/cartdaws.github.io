@@ -7,6 +7,7 @@ import { addCockpit, SEAT_EYE, YOKE_GRIP } from '../game/cockpit.js';
 import { makeInterceptor } from '../game/flightCombat.js';
 import { makeLander as makeCrashingLander } from '../game/flight.js';
 import { makeHuman } from '../world/humans.js';
+import { Debris } from '../world/debris.js';
 const _sq = new THREE.Quaternion(), _st = new THREE.Quaternion(), _sx = new THREE.Vector3(1, 0, 0), _sv = new THREE.Vector3(), _se = new THREE.Euler();
 import { save } from '../core/save.js';
 import { progress } from '../game/progress.js';
@@ -96,7 +97,7 @@ export class Intro {
 
   samplePose() { /* the menu backdrop is a fixed pose */ }
   canSkip() { return false; }               // the opening is part of the story and cannot be skipped
-  buttons() { return { fire: !!this.g.weaponAcquired && !this.active, jump: this.route, dash: this.route }; }
+  buttons() { return { fire: false, jump: false, dash: false }; }
   press() { this.pressed = true; }
   tr(desktop, touch) { return this.g.touchMode ? touch : desktop; }
 
@@ -181,6 +182,7 @@ export class Intro {
   // ---------------------------------------------------------------------------------------------- flow
   begin(mode) {
     const g = this.g, vm = g.viewmodel, ui = g.ui;
+    if (this.airlock) { this.airlock.visible = false; for (const b of this.airlockBoxes) b.enabled = false; this.airlockSign.material.color.set(0x35ff7a); }
     g.flight.hideMenu();                      // the menu's space backdrop must be put away before anything saves the scene's own sky and fog
     this.f = {}; this.h = 0; this.t = 0; this.pressed = false; this.target = null;
     this.dropT = -1; this.stride = 0; this.lastStep = -1; this.blob = null; this.parts = null; this.pistolView = null;
@@ -239,17 +241,19 @@ export class Intro {
       const H = this.home; H.setRuined(true);
       this.wreck.visible = this.pistolItem.visible = true; this.wreck.position.y = 1.15;
       this.wreck.updateMatrixWorld(true);
-      this.wreckCircles = [];          // along the hull and both wings, in homeworld coordinates
-      for (const [lx, lz, lr] of [[0, -3.2, 0.5], [0, -2, 0.85], [0, -0.7, 1.0], [0, 0.7, 1.0], [0, 2, 1.0], [0, 3.2, 0.8], [1.8, 1.2, 1.1], [-1.8, 1.2, 1.1], [3, 2.1, 0.8], [-3, 2.1, 0.8], [4.1, 2.7, 0.5], [-4.1, 2.7, 0.5]]) { const q = this.wreck.localToWorld(new THREE.Vector3(lx, 0, lz)); this.wreckCircles.push({ x: q.x - HOME.x, z: q.z - HOME.z, r: lr * 1.1 }); }
+      this.wreckCircles = this.solidFootprint(this.wreck, 0.05, 2.1).map((c) => ({ x: c.x - HOME.x, z: c.z - HOME.z, r: c.r }));
+      this.wreckCirclesOld = [];
       H.ship.position.set(-9999, 48, 0); H.shadow.visible = false; H.spot.visible = false; H.cone.visible = false;
       H.eState.rise = 0; H.eState.gone = true; H.elder.visible = false; if (H.elderKit) H.elderKit.ab.setVisible(false);
       H.hemi.intensity = 0.55; H.sun.intensity = 0.25; H.fog.color.set(0x3a1a14);
       this.hideBody = false; this.moveLocked = false;
       H.hemi.intensity = 0.95; H.sun.intensity = 0.3;
-      p.reset(HOME.x + 6, HOME.z + 5, 0.55); p.pitch = 0.0;
+      p.reset(HOME.x - 1.5, HOME.z - 8.5, 2.1); p.pitch = 0.0;
       this.wakeT = 0; this.moveLocked = true; g.viewmodel.limp = 1; g.audio.play('hurt', { vol: 0.5 });
       if (!this.pilot) { this.pilot = makeHuman('officer'); this.home.group.add(this.pilot); this.pilot.position.set(PISTOL_AT.x + 0.6, 0.17, PISTOL_AT.z + 0.1); this.pilot.rotation.order = 'YXZ'; this.pilot.rotation.set(-Math.PI / 2 + 0.05, 2.25, 0); const U = this.pilot.userData; U.armR.rotation.x = 0.5; U.armR.rotation.z = -0.8; U.armL.rotation.x = 0.2; U.armL.rotation.z = 0.5; U.legL.rotation.x = 0.1; U.legR.rotation.x = -0.15; }
       this.pilot.visible = true;
+      if (!this.pilotLight) { this.pilotLight = new THREE.PointLight(0xffb070, 16, 9, 2); this.pilotLight.userData.keepOn = true; this.pilotLight.position.set(PISTOL_AT.x + 1.2, 1.5, PISTOL_AT.z + 0.8); this.home.group.add(this.pilotLight); }
+      this.pilotLight.intensity = 16; this.pilot.traverse((m) => { if (m.isMesh && m.material && m.material.color && !m.userData.lit) { m.userData.lit = 1; m.material = m.material.clone(); m.material.color.multiplyScalar(1.5); } });
       // the ruined settlement: fires and scorched ground, a burning wreck beside the lander
       H.clearFires();
       for (const [fx, fz, fs] of [[-4, -3, 1.3], [8, -6, 1.1], [-12, -11, 1.5], [2, -14, 1.2], [-6, -24, 1.0], [-14, -17, 1.3], [5, -22, 1.1]]) H.addFire(fx, fz, fs);
@@ -273,8 +277,21 @@ export class Intro {
     return this.h >= 1;
   }
 
+  // the air itself during the attack and after: embers rising, ash coming down, dust on the wind
+  airFx(dt, k) {
+    const g = this.g, fx = g.effects, c = g.camera.position, R2 = () => (Math.random() - 0.5) * 2;
+    const n = dt * k * (g.touchMode ? 45 : 90);
+    for (let i = 0; i < n; i++) {
+      const x = c.x + R2() * 15, z = c.z + R2() * 15, kind = Math.random();
+      if (kind < 0.42) fx.glowP.emit(x, Math.random() * 2.5, z, R2() * 0.9 + 0.5, 1.4 + Math.random() * 2.2, R2() * 0.9, 1.6 + Math.random() * 1.6, 0.025 + Math.random() * 0.04, 1, 0.45 + Math.random() * 0.3, 0.12, -0.4, 0.2);
+      else if (kind < 0.84) fx.glowP.emit(x, 2 + Math.random() * 9, z, R2() * 0.6 + 0.5, -0.5 - Math.random() * 0.7, R2() * 0.6, 2.4 + Math.random() * 2, 0.022 + Math.random() * 0.028, 0.34, 0.33, 0.35, 0, 0.1);
+      else if (fx.smokeP) fx.smokeP.emit(x, 0.3 + Math.random(), z, 1.4 + R2(), 0.1, R2() * 0.5, 1.8, 0.8 + Math.random() * 1.3, 0.1, 0.09, 0.1, -0.05, 0.3, 1.2);
+    }
+  }
+
   update(dt) {
     const g = this.g;
+    if (this.debris && this.home.shown) this.debris.update(dt, g.effects);
     if (this.route) this.updateRoute(dt);
     if (this.bolts && this.phase !== 'wreck') this.updateBolts(dt);
     if (this.wakeT !== undefined) this.updateWake(dt);
@@ -294,6 +311,7 @@ export class Intro {
       case 'gas': this.updateGas(dt); break;
       default:
     }
+    g.storyAct = this.actLabel || null;       // the absorber's own per-frame button update shows this label too
     if (g.touchUI) { g.touchUI.setAbsorb(!!this.actLabel, this.actLabel || 'ABSORB'); g.input.absorbTap = false; }   // a held story button must not fire an absorb afterwards
     this.actLabel = null;
   }
@@ -339,8 +357,18 @@ export class Intro {
     switch (this.step) {
       case 0:                        // fade in: a still moment in the valley; you can look about, nothing is asked of you
         this.moveLocked = true; ui.fade(1 - ease(t, 0.2, 2.4));
+        {
+          const k = ease(t, 0.1, 6.5), pose = this.cranePose || (this.cranePose = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
+          const sx = HOME.x - 30, sy = 25, sz = HOME.z + 38, mx = HOME.x - 9, my = 7, mz = HOME.z + 23, ex2 = p.pos.x, ey = p.eye, ez2 = p.pos.z, u = 1 - k;
+          pose.x = u * u * sx + 2 * u * k * mx + k * k * ex2; pose.y = u * u * sy + 2 * u * k * my + k * k * ey; pose.z = u * u * sz + 2 * u * k * mz + k * k * ez2;
+          // watching the one who waits, then settling into where you are looking
+          const ax = HOME.x + H.elder.position.x, az = HOME.z + H.elder.position.z, ay = Math.atan2(-(ax - pose.x), -(az - pose.z)), ap = Math.atan2(1.2 - pose.y, Math.hypot(ax - pose.x, az - pose.z));
+          const w = ease(t, 4.3, 6.5); pose.yaw = ay + Math.atan2(Math.sin(p.yaw - ay), Math.cos(p.yaw - ay)) * w; pose.pitch = lerp(ap, p.pitch, w);
+          g.cinePose = pose; vm.limp = 1 - ease(t, 5.0, 6.7);
+          if (t > 6.7) { g.cinePose = null; vm.limp = 0; }
+        }
         if (t > 1.6) this.once('h1', () => this.say('The valley. The old hollow. It has been quiet for a long time now.', '', 3.8, true));
-        if (t > 5.6) { this.step = 1; this.stepT = 0; }
+        if (t > 6.8) { this.step = 1; this.stepT = 0; }
         break;
       case 1: {                      // the head dips by itself: your own body, for a moment
         const k = ease(this.stepT, 0, 1.0) * (1 - ease(this.stepT, 2.0, 3.2));
@@ -363,14 +391,13 @@ export class Intro {
       case 4: {                      // the elder offers a hand; hold to reach out
         this.moveLocked = true; p.speedMul = 1;
         E.reach = damp(E.reach, dist < 5 ? 1 : 0, 2.5, dt);
-        const near = dist < 4.2 && E.reach > 0.85 && this.stepT > 1.4;
-        if (near) { this.actLabel = 'REACH'; this.prompt(this.tr('HOLD RIGHT CLICK TO REACH OUT', 'HOLD THE BUTTON TO REACH OUT')); }
-        else this.prompt(dist > 4.2 ? '' : '');
-        const done = this.hold(dt, near, 0.9);
+        const near = dist < 4.2 && E.reach > 0.85 && this.stepT > 1.2;
+        this.h = clamp(this.h + (near ? dt / 1.1 : 0), 0, 1);
+        const done = this.h >= 1;
         // the hand lifts toward the offered palm as you hold
         this.reachAt(_w, 0.45 * this.h);
         if (done) {
-          this.step = 5; this.stepT = 0; this.prompt(''); ui.setHold(null);
+          this.step = 5; this.stepT = 0;
           g.audio.play('gel', { vol: 0.7 }); g.audio.play('crystal', { vol: 0.3 }); vm.pulseGlow(0.5); E.pulse = 1;
           this.say('Home.', '', 2.4, true);
         }
@@ -395,6 +422,9 @@ export class Intro {
     this.moveLocked = ct > 3.2;
     if (ct < 0.1) g.audio.scene('attack');
     H.life.panic = Math.min(1, ct / 2.5);
+    g.shakeAmp = 2.4; g.trauma = Math.max(g.trauma, 0.2 + 0.32 * ease(ct, 1, 7));      // the ground never stops shaking now
+    this.debris = this.debris || new Debris(g.scene);
+    this.airFx(dt, ease(ct, 0.8, 5));
     this.updateAttackLife(dt, ct, null, p);
     let ex = HOME.x + H.elder.position.x, ez = HOME.z + H.elder.position.z;
     p.speedMul = 1;
@@ -484,6 +514,7 @@ export class Intro {
       const k = clamp((ct - 8.0) / 2.2, 0, 1), e = k * k, m = f.crash.m, a = f.crash.a;
       m.position.set(lerp(a.x, wx, e), lerp(a.y, 1.15, e), lerp(a.z, wz, e));
       m.rotation.set(0.55 - 0.45 * k, 0.55 + Math.sin(ct * 2.4) * 0.3, Math.sin(ct * 3.1) * 0.5 * (1 - k * 0.7));
+      if (Math.random() < dt * 14) this.debris.burst(m.position.x, m.position.y, m.position.z, 1, 4, 'metal', 0.3, true, 0.3);
       for (let i = 0; i < 4; i++) {
         if (fx.smokeP) fx.smokeP.emit(m.position.x + Math.random() - 0.5, m.position.y + Math.random() - 0.5, m.position.z + Math.random() - 0.5, 0, 1.2, 0, 2.2, 1.6 + Math.random() * 1.8, 0.09, 0.08, 0.08, 0, 0.4, 1.4);
         fx.glowP.emit(m.position.x, m.position.y, m.position.z, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7, 0.45, 0.28, 1, 0.5, 0.14, 0, 0.6);
@@ -493,6 +524,7 @@ export class Intro {
         if (fx.explosion) fx.explosion(m.position.clone().setY(1), 9);
         if (fx.flashLight) fx.flashLight(m.position.clone().setY(3), 0xffa050, 400, 0.9);
         H.addFire(WRECK_AT.x + 2, WRECK_AT.z + 2, 1.9);
+        this.debris.burst(m.position.x, 1, m.position.z, 34, 16, 'rock', 0.34, true); this.debris.burst(m.position.x, 1, m.position.z, 24, 15, 'metal', 0.4, true);
       }
     }
     // your view goes to it as it falls
@@ -508,6 +540,7 @@ export class Intro {
     beam.position.copy(from).add(to).multiplyScalar(0.5); beam.quaternion.setFromUnitVectors(_c3.set(0, 1, 0), _c4.copy(to).sub(from).normalize());
     g.scene.add(beam); this.bolts = this.bolts || []; this.bolts.push({ beam, t: 0 });
     if (g.effects.explosion) g.effects.explosion(to.clone(), 1.6);
+    this.debris.burst(x, 0.2, z, 6, 6, 'rock', 0.12, true);
     g.audio.play('explosion', { vol: 0.35 }); g.addShake(0.06);
   }
 
@@ -523,6 +556,7 @@ export class Intro {
     if (g.effects.explosion) g.effects.explosion(to.clone(), 3 + Math.random() * 2);
     if (g.effects.flashLight) g.effects.flashLight(to.clone().setY(2), 0xff7a3a, 60, 0.35);
     H.addFire(x - HOME.x, z - HOME.z, 0.9 + Math.random() * 0.8);
+    this.debris.burst(x, 0.3, z, 11, 9, 'rock', 0.2, true); this.debris.burst(x, 0.3, z, 3, 8, 'metal', 0.16, true);
     const d = Math.hypot(x - p.pos.x, z - p.pos.z);
     g.addShake(clamp(1.2 / (1 + d * 0.25), 0.05, 0.5));
     if (d < 14) { g.viewmodel.fling = Math.max(g.viewmodel.fling || 0, 0.42 * (1 - d / 14) + 0.12); g.flinch = Math.max(g.flinch || 0, 0.25 * (1 - d / 14)); g.flinchRoll = Math.random() < 0.5 ? -1 : 1; }      // you flinch from every close hit
@@ -535,6 +569,24 @@ export class Intro {
       const b = this.bolts[i]; b.t += dt; b.beam.material.opacity = Math.max(0, 1 - b.t * 6);
       if (b.t > 0.25) { b.beam.removeFromParent(); b.beam.geometry.dispose(); b.beam.material.dispose(); this.bolts.splice(i, 1); }
     }
+  }
+
+  // What a model occupies at the height of a walking body, as overlapping circles, measured from its mesh in world space.
+  solidFootprint(root, y0, y1, cell = 0.62) {
+    root.updateMatrixWorld(true);
+    const seen = new Map(), P = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3();
+    root.traverse((o) => {
+      if (!o.isMesh || !o.geometry || !o.geometry.attributes.position) return;
+      for (let q = o; q && q !== root; q = q.parent) if (q.name === 'Cockpit' || q === root.userData.canopyPivot) return;
+      if (o.material.blending === THREE.AdditiveBlending || o.isSprite) return;
+      const pos = o.geometry.attributes.position, I = o.geometry.index, n = I ? I.count : pos.count;
+      for (let i = 0; i < n; i += 3) {
+        A.fromBufferAttribute(pos, I ? I.getX(i) : i).applyMatrix4(o.matrixWorld); B.fromBufferAttribute(pos, I ? I.getX(i + 1) : i + 1).applyMatrix4(o.matrixWorld); C.fromBufferAttribute(pos, I ? I.getX(i + 2) : i + 2).applyMatrix4(o.matrixWorld);
+        const S = Math.min(14, Math.ceil(Math.max(A.distanceTo(B), B.distanceTo(C), C.distanceTo(A)) / (cell * 0.6)));
+        for (let u = 0; u <= S; u++) for (let v = 0; v <= S - u; v++) { const a = S ? u / S : 0, b = S ? v / S : 0, c = 1 - a - b; P.set(A.x * a + B.x * b + C.x * c, A.y * a + B.y * b + C.y * c, A.z * a + B.z * b + C.z * c); if (P.y < y0 || P.y > y1) continue; const k = Math.round(P.x / cell) + ',' + Math.round(P.z / cell); if (!seen.has(k)) seen.set(k, { x: Math.round(P.x / cell) * cell, z: Math.round(P.z / cell) * cell, r: cell * 0.72 }); }
+      }
+    });
+    return [...seen.values()];
   }
 
   // ---------------------------------------------------------------------------------------------- the wreck
@@ -557,6 +609,8 @@ export class Intro {
   updateWreck(dt, pressed) {
     const g = this.g, p = g.player, H = this.home, ui = g.ui, vm = g.viewmodel, f = this.f, t = this.t;
     this.updateBolts(dt);
+    g.shakeAmp = this.step === 3 ? 1.6 : 0.6;
+    this.airFx(dt, 0.55);
     // the settlement stays smouldering: smoke rises from every fire
     f.smoke = (f.smoke || 0) - dt;
     if (f.smoke <= 0) { f.smoke = 0.12; for (const fi of H.fires) if (fi.on && g.effects.smokeP) g.effects.smokeP.emit(HOME.x + fi.x + (Math.random() - 0.5), 1 + Math.random(), HOME.z + fi.z + (Math.random() - 0.5), (Math.random() - 0.5) * 0.4 + 0.3, 1.3 + Math.random() * 0.8, (Math.random() - 0.5) * 0.4, 3.5, 0.9 * fi.s, 0.12, 0.1, 0.1, 0, 0.6, 1.4); }
@@ -575,15 +629,18 @@ export class Intro {
         { const wantYaw = Math.atan2(-(wx - p.pos.x), -(wz - p.pos.z)); if (t < 5) { p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * Math.min(1, dt * 0.9); p.pitch += (0.02 - p.pitch) * Math.min(1, dt * 1.5); } }
         if (!f.w1 && t > 1.0) { f.w1 = true; this.say('They took the elder. They took everyone.', '', 3.4, true); }
         if (!f.w1b && t > 4.6) { f.w1b = true; this.say('One of their ships fell. So they can fall.', '', 3.2, true); }
-        if (t > 6.4) { this.step = 1; this.stepT = 0; this.setObjective('SEARCH THE WRECK'); }
+        if (t > 7.2) { this.step = 1; this.stepT = 0; }
         break;
-      case 1: {                    // the sidearm
-        const near = this.pistolItem.visible && dpst < 2.6;
-        this.pistolMarker.visible = true; this.pistolMarker.material.opacity = 0.5 + 0.3 * Math.sin(g.time * 4);
-        if (dw < 14 && !f.w2) { f.w2 = true; this.say('Still burning. The pilot is still in it.', '', 3.0, true); }
-        if (near) { this.actLabel = 'ABSORB'; this.prompt(this.tr('HOLD RIGHT CLICK TO ABSORB THE SIDEARM', 'HOLD THE BUTTON TO ABSORB THE SIDEARM')); } else this.prompt('');
-        if (this.hold(dt, near, 1.0)) {
-          this.step = 5; this.stepT = 0; this.h = 0; this.prompt(''); ui.setHold(null); this.moveLocked = true; this.pistolMarker.visible = false;
+      case 1: {                    // it walks to the dead pilot and takes the sidearm
+        this.moveLocked = false; p.speedMul = 0.36;
+        const wy = Math.atan2(-(px - p.pos.x), -(pz - p.pos.z));
+        p.yaw += Math.atan2(Math.sin(wy - p.yaw), Math.cos(wy - p.yaw)) * Math.min(1, dt * 1.7);
+        p.pitch += (-0.42 * ease(this.stepT, 0.5, 3) - p.pitch) * Math.min(1, dt * 1.4);
+        g.input.keys.clear(); g.input.keys.add('KeyW');
+        if (this.stepT > 0.5 && !f.w2) { f.w2 = true; this.say('Still burning. The pilot was thrown clear.', '', 3.0, true); }
+        if (dpst < 2.0 || this.stepT > 7) {
+          g.input.keys.clear(); p.speedMul = 1;
+          this.step = 5; this.stepT = 0; this.h = 0; this.moveLocked = true; this.pistolMarker.visible = false;
           this.f.parts = this.pistolItem.userData.parts.map((m) => { const p0 = m.getWorldPosition(new THREE.Vector3()); g.scene.attach(m); return { m, p0, s0: m.scale.clone() }; });
           g.audio.play('absorb', { vol: 0.8 }); g.audio.play('gel', { vol: 0.6 });
           this.say('Cold metal. Their kind of weapon.', '', 2.6, true);
@@ -591,35 +648,39 @@ export class Intro {
         break;
       }
       case 5: {                    // the sidearm comes apart and is drawn into the arm
+        { const q = this.pistolItem.position, wy = Math.atan2(-(q.x - p.pos.x), -(q.z - p.pos.z)), wp = Math.atan2(q.y - p.eye, Math.hypot(q.x - p.pos.x, q.z - p.pos.z)), kk = Math.min(1, dt * 3); p.yaw += Math.atan2(Math.sin(wy - p.yaw), Math.cos(wy - p.yaw)) * kk; p.pitch += (wp - p.pitch) * kk; }
         const tip = vm.right.tip.getWorldPosition(_w);
-        this.reachAt(this.pistolItem.position, 0.55 * ease(this.stepT, 0, 0.5) * (1 - ease(this.stepT, 1.9, 2.5)));
+        this.reachAt(this.pistolItem.position, 0.45 * ease(this.stepT, 0, 0.5) * (1 - ease(this.stepT, 2.2, 2.9)));
         this.f.parts.forEach((d, i) => {
-          const k = clamp((this.stepT - 0.45 - i * 0.16) / 1.0, 0, 1), e = ease(k, 0, 1);
+          const k = clamp((this.stepT - 0.7 - i * 0.16) / 1.0, 0, 1), e = ease(k, 0, 1);
           d.m.position.lerpVectors(d.p0, tip, e); d.m.position.y += Math.sin(e * Math.PI) * 0.55;
           d.m.rotation.x += dt * (4 + i); d.m.rotation.y += dt * (5 - i * 0.5);
           d.m.scale.copy(d.s0).multiplyScalar(1 - 0.75 * e);
           if (k > 0 && k < 1) g.effects.glowP.emit(d.m.position.x, d.m.position.y, d.m.position.z, (Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5), 0.3, 0.07, 0.4, 1, 0.9, 0, 0.6);
           if (k >= 1 && !d.done) { d.done = true; g.audio.play('crystal', { vol: 0.35 }); vm.pulseGlow(0.8); vm.bulge = Math.max(vm.bulge, 0.7); g.effects.hitSparks(tip, [0.4, 1, 0.9], 6); }
         });
-        if (this.stepT > 2.7) {
+        if (this.stepT > 3.1) {
           for (const d of this.f.parts) d.m.removeFromParent();
           this.pistolItem.visible = false; vm.reachW = 0;
           g.effects.flashLight(tip, 0x6ffff0, 40, 0.5); g.audio.play('gel', { vol: 0.7 });
           this.setReadyArm(); g.weaponAcquired = true; g.weapon.reset(); vm.pulseGlow(1);
           this.say('What I touch, I keep. Their weapon is mine now.', '', 3.2, true);
-          this.setObjective('TAKE THE LANDER AND FOLLOW THEM');
           save.setIntroDone(true); progress.setIntroDone(true);
           this.step = 2; this.stepT = 0; this.moveLocked = false;
         }
         break;
       }
-      case 2: {                    // board the lander
-        if (this.stepT > 3.4) this.once('w3', () => this.say('It remembers the hand that held it. Human. That is their word. Now I know who.', '', 4.2, true));
-        const hx = wx + 3.6, hz = wz + 1.4, dh = Math.hypot(p.pos.x - hx, p.pos.z - hz);
-        const near = dh < 3.6;
-        if (near) { this.actLabel = 'BOARD'; this.prompt(this.tr('HOLD RIGHT CLICK TO CLIMB ABOARD', 'HOLD THE BUTTON TO CLIMB ABOARD')); } else this.prompt('');
-        this.pistolMarker.visible = true; this.pistolMarker.position.set(hx, 0.05, hz); this.pistolMarker.material.opacity = 0.5 + 0.3 * Math.sin(g.time * 4);
-        if (this.hold(dt, near, 1.0)) {
+      case 2: {                    // to the lander: the lines say why, the legs take you
+        if (this.stepT > 0.4) this.once('w3', () => this.say('It remembers the hand that held it. Human. That is their word. Now I know who.', '', 3.6, true));
+        if (this.stepT > 4.1) this.once('w4', () => this.say('Scorched, split open, but the drive core is still warm. Their machines are built to survive.', '', 3.6, true));
+        this.moveLocked = false; p.speedMul = 0.36; p.extraSolid = (q) => H.pushOut(q, 0.4, this.wreckCircles);
+        const hx = wx + 4.2, hz = wz + 2.3, dh = Math.hypot(p.pos.x - hx, p.pos.z - hz);
+        const wy = Math.atan2(-(hx - p.pos.x), -(hz - p.pos.z)), near = dh < 1.1 || this.stepT > 8.4;
+        if (this.stepT > 3.7) {
+          if (!near) { p.yaw += Math.atan2(Math.sin(wy - p.yaw), Math.cos(wy - p.yaw)) * Math.min(1, dt * 1.7); p.pitch += (0.02 - p.pitch) * Math.min(1, dt); g.input.keys.clear(); g.input.keys.add('KeyW'); }
+        } else { g.input.keys.clear(); p.pitch += (0.02 - p.pitch) * Math.min(1, dt * 1.2); const hy = Math.atan2(-(wx - p.pos.x), -(wz - p.pos.z)); p.yaw += Math.atan2(Math.sin(hy - p.yaw), Math.cos(hy - p.yaw)) * Math.min(1, dt * 1.3); }
+        if (near && this.stepT > 7.5) {
+          g.input.keys.clear(); p.speedMul = 1;
           this.step = 6; this.stepT = 0; this.prompt(''); ui.setHold(null); this.pistolMarker.visible = false;
           this.setObjective('');
           this.startBoarding();
@@ -631,30 +692,36 @@ export class Intro {
         this.moveLocked = true;
         const T = this.stepT, w = this.wreck, sc = w.userData.screens || [];
         this.once('b1', () => g.audio.play('servo', { vol: 0.5 }));
-        if (T > 2.4) this.once('b2', () => { g.audio.play('surge', { vol: 0.7 }); g.audio.play('unlock', { vol: 0.5 }); this.say('Their controls. I touch them, and I know them.', '', 3.4, true); });
-        // systems wake: the screens come up, the engines kindle
-        const wake = ease(T, 2.6, 4.0);
+        if (T > 2.6) this.once('b2', () => { g.audio.play('gel', { vol: 0.5 }); vm.pulseGlow(0.7); this.say('Their controls. I touch them, and I know them.', '', 3.0, true); });
+        // systems wake because you touched them: the screens come up, the engines kindle
+        const wake = ease(T, 3.0, 4.2);
+        if (T > 3.0) this.once('b2b', () => { g.audio.play('surge', { vol: 0.7 }); g.audio.play('unlock', { vol: 0.5 }); });
         sc.forEach((m, i) => { m.material.opacity = 0.25 + 0.65 * wake * (0.85 + 0.15 * Math.sin(g.time * 5 + i)); });
-        w.userData.engines.forEach((e) => { e.visible = T > 3.2; e.scale.setScalar(0.8 + 2.2 * ease(T, 3.2, 5.6) + Math.sin(g.time * 40) * 0.1); });
-        this.wreckLight.intensity = 22 + 50 * ease(T, 3.2, 5.6);
-        // lift-off: the wreck levels out and rises
-        if (T > 3.6) {
-          const L = ease(T, 3.6, 8.0);
-          const lvl = ease(T, 3.4, 5.2);
-          w.rotation.x = lerp(0.1, -0.22, lvl);
+        w.userData.engines.forEach((e) => { e.visible = T > 4.0; e.scale.setScalar(0.8 + 2.2 * ease(T, 4.0, 6.4) + Math.sin(g.time * 40) * 0.1); });
+        this.wreckLight.intensity = 22 + 50 * ease(T, 4.0, 6.4);
+        if (T > 5.6) this.once('b2c', () => { this.say('Seat occupied. Hull breach aft. Drive core holding. Lifting off.', 'LANDER', 3.0); });
+        // lift-off: it tears free of the ground, nose coming up
+        if (T > 4.5) this.once('tear', () => { g.audio.play('explosion', { vol: 0.5 }); g.addShake(0.45); this.debris = this.debris || new Debris(g.scene); const q = w.position; this.debris.burst(q.x, 0.4, q.z, 26, 9, 'rock', 0.22); this.debris.burst(q.x, 1, q.z, 12, 6, 'metal', 0.24, true); });
+        if (T > 4.6) {
+          const L = ease(T, 4.6, 9.0), lvl = ease(T, 4.5, 6.6);
+          w.rotation.x = lerp(0.1, 0.34, lvl);
           w.rotation.z = lerp(-0.16, 0, lvl);
           w.position.y = 1.15 + 80 * L * L;
-          g.addShake(0.03 + 0.05 * L);
+          g.trauma = Math.max(g.trauma, 0.3 + 0.3 * (1 - L));
+          const fx = g.effects;
+          if (L < 0.55) for (let i = 0; i < 3; i++) { const an = Math.random() * 6.283, sp = 3 + Math.random() * 6; if (fx.smokeP) fx.smokeP.emit(w.position.x + Math.cos(an) * 2, 0.3, w.position.z + Math.sin(an) * 2, Math.cos(an) * sp, 0.5, Math.sin(an) * sp, 1.5, 1.2 + Math.random() * 1.4, 0.2, 0.19, 0.2, 0, 0.5, 1.6); }
+          if (Math.random() < dt * 5) this.debris.burst(w.position.x, w.position.y - 0.6, w.position.z, 1, 3, 'metal', 0.18, true, 0.2);
         }
-        if (T > 6.3) ui.fade(ease(T, 6.3, 7.8));
-        if (T > 4.9) this.once('b3', () => this.say('Find them. Make them pay. Whatever it costs.', '', 3.2, true));
+        if (T > 7.4) ui.fade(ease(T, 7.4, 8.9));
+        if (T > 6.0 && T < 7.9) this.once('b3', () => this.say('Find them. Make them pay. Whatever it costs.', '', 2.6, true));
         // the camera is placed after the ship has moved this frame. Reading the seat first left it a frame behind, further and further the faster the
         // ship climbed, which sank the view through the floor.
         this.seatPose(w); g.poseCamera();
-        this.reachAt(_w.copy(YOKE_GRIP).applyMatrix4(w.matrixWorld), 0.45);      // a hand on the yoke
+        // first to the dash, then a hand on the yoke
+        { const toDash = 1 - ease(T, 3.3, 3.9); _w.copy(YOKE_GRIP); _w.x = lerp(_w.x, 0.02, toDash); _w.y = lerp(_w.y, 0.36, toDash); _w.z = lerp(_w.z, -1.52, toDash); this.reachAt(_w.applyMatrix4(w.matrixWorld), 0.45); }
         vm.limp = 0.22;
         this.hideBody = true;
-        if (T > 8.0) this.launch();
+        if (T > 9.0) this.launch();
         break;
       }
       default:
@@ -674,8 +741,8 @@ export class Intro {
       //   the wing's edge at your feet, hauled up onto it, along it to the hull, over the sill, down into the seat
       keys: [0, 1.2, 2.5, 4.0, 5.2, 6.0, 6.8],
       pts: [start, foot, L(3.55, 1.34, 1.3), L(1.95, 1.42, 1.05), L(0.75, 1.9, 0.15), L(0.05, 1.72, -0.75), SEAT_EYE.clone().applyMatrix4(w.matrixWorld)],
-      looks: [L(3.2, 0.2, 0.9), L(2.4, 0.35, 0.8), L(0.5, 1.0, 0.2), L(0, 1.0, -0.6), L(0, 0.35, -1.25)],
-      wing: L(3.1, 0.14, 1.0), hull: L(0.95, 0.72, 0.15), seat: SEAT_EYE.clone().applyMatrix4(w.matrixWorld),
+      looks: [L(3.2, 0.2, 0.9), L(2.4, 0.35, 0.8), L(0.62, 0.74, -0.5), L(0, 0.9, -0.7), L(0, 0.35, -1.25)],
+      wing: L(3.1, 0.14, 1.0), hull: L(0.62, 0.74, -0.5), seat: SEAT_EYE.clone().applyMatrix4(w.matrixWorld),
     };
     this.moveLocked = true; this.hideBody = true; p.extraSolid = null;
     g.audio.play('servo', { vol: 0.5 });
@@ -707,11 +774,11 @@ export class Intro {
     pose.x = B.pos.x; pose.y = B.pos.y; pose.z = B.pos.z;
     if (w.userData.cockpit) w.userData.cockpit.visible = true;
     // your own arm does the work: it reaches for the wing, then for the hull
-    const grab = ease(T, 0.8, 1.3) * (1 - ease(T, 2.2, 2.7)), grab2 = ease(T, 3.4, 3.9) * (1 - ease(T, 4.9, 5.4));
+    const grab = ease(T, 0.8, 1.3) * (1 - ease(T, 2.2, 2.7)), grab2 = ease(T, 3.2, 3.9) * (1 - ease(T, 4.7, 5.3));
     if (grab > 0.01) this.reachAt(B.wing, 0.45 * grab); else if (grab2 > 0.01) this.reachAt(B.hull, 0.45 * grab2);
-    // the canopy lifts as you come and closes once you are in
-    if (w.userData.canopyPivot) w.userData.canopyPivot.rotation.x = 1.15 * ease(T, 0.3, 1.8) * (1 - ease(T, 6.5, 7.6));
-    if (T > 0.4) this.once('bd1', () => { this.say('Scorched, split open, but the drive core is still warm. Their machines are built to survive.', '', 4.4, true); g.audio.play('unlock', { vol: 0.4 }); });
+    // your arm finds the latch: that is what opens it. It closes once you are in.
+    if (T > 3.95) this.once('latch', () => { g.audio.play('unlock', { vol: 0.7 }); g.audio.play('hiss', { vol: 0.55 }); vm.pulseGlow(0.5); g.addShake(0.08); });
+    if (w.userData.canopyPivot) w.userData.canopyPivot.rotation.x = 1.15 * ease(T, 4.0, 5.0) * (1 - ease(T, 6.5, 7.6));
     if (T > 1.1) this.once('bds1', () => g.audio.play('gel', { vol: 0.5 }));
     if (T > 2.4) this.once('bds2', () => { g.audio.play('land', { vol: 0.5 }); g.addShake(0.08); vm.landK = 0.6; });
     if (T > 3.5) this.once('bds3', () => g.audio.play('gel', { vol: 0.4 }));
@@ -740,6 +807,7 @@ export class Intro {
   // Leave the homeworld: hand over to the free-flight scene.
   launch() {
     const g = this.g;
+    g.shakeAmp = 0; g.viewmodel.limp = 0; g.storyAct = null; if (this.debris) this.debris.setVisible(false);
     this.active = false; this.phase = 'launched'; this.moveLocked = false; g.player.speedMul = 1;
     this.home.show(false); this.home.clearFires();
     if (this.wreck) this.wreck.visible = this.pistolItem.visible = false;
@@ -750,8 +818,25 @@ export class Intro {
   }
 
   // The lander is drawn into the research vessel's bay: the survivor steps out into the containment bay and the escape begins.
+  buildAirlock() {
+    if (this.airlock) return;
+    const g = this.g, gp = this.airlock = new THREE.Group(), Z = 6.75;
+    const wall = new THREE.MeshStandardMaterial({ color: 0x59646d, roughness: 0.62, metalness: 0.45 }), dark = new THREE.MeshStandardMaterial({ color: 0x20262b, roughness: 0.7, metalness: 0.5 }), hz = new THREE.MeshStandardMaterial({ color: 0xb88a18, roughness: 0.6, metalness: 0.3 });
+    const box = (w, h, d, mat, x, y, z, par = gp) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); par.add(m); return m; };
+    this.airlockBoxes = [];
+    for (const s of [-1, 1]) { box(4.5, 4.6, 0.32, wall, s * 4.05, 2.3, Z); box(0.24, 3.5, 0.5, hz, s * 1.8, 1.75, Z); for (let i = 0; i < 3; i++) box(3.6, 0.07, 0.04, dark, s * 4.05, 1 + i * 1.1, Z - 0.18); this.airlockBoxes.push(g.world.add(s * 1.8, 0, Z - 0.16, s * 6.3, 4.6, Z + 0.16, { tag: 'airlock' })); this.airlockBoxes[this.airlockBoxes.length - 1].minX = Math.min(s * 1.8, s * 6.3); this.airlockBoxes[this.airlockBoxes.length - 1].maxX = Math.max(s * 1.8, s * 6.3); }
+    box(3.6, 1.1, 0.5, wall, 0, 4.05, Z);
+    this.leafL = box(1.82, 3.5, 0.2, dark, -0.91, 1.75, Z); this.leafR = box(1.82, 3.5, 0.2, dark, 0.91, 1.75, Z);
+    for (const l of [this.leafL, this.leafR]) { box(1.5, 0.12, 0.03, hz, 0, -1.0, -0.11, l); box(1.5, 0.12, 0.03, hz, 0, 1.0, -0.11, l); box(0.5, 0.5, 0.03, wall, 0, 0, -0.11, l); }
+    this.airlockDoor = g.world.add(-1.8, 0, Z - 0.16, 1.8, 3.6, Z + 0.16, { tag: 'airlock' }); this.airlockBoxes.push(this.airlockDoor);
+    this.airlockSign = box(1.4, 0.3, 0.04, new THREE.MeshBasicMaterial({ color: 0x35ff7a }), 0, 3.7, Z - 0.28);
+    g.scene.add(gp);
+  }
+  setLeaves(k) { this.leafL.position.x = -0.91 - 1.75 * k; this.leafR.position.x = 0.91 + 1.75 * k; }
+
   arrive() {
     const g = this.g, p = g.player;
+    g.shakeAmp = 0;
     g.audio.scene('ship');
     g.viewmodel.limp = 0;
     p.extraSolid = null;
@@ -761,23 +846,27 @@ export class Intro {
     g.ui.clearSubtitle(); g.ui.clearHints(); g.ui.setPrompt(''); g.ui.setObjective('');
     g.viewmodel.root.visible = true; g.weaponAcquired = true;
     g.level.emergencyOn = false; g.level.cut.setDoorOpen(1.75); g.level.doors.containment.open(true);
-    p.reset(PLAYER_START.x, PLAYER_START.z + 2.5, 0); p.pitch = 0; p.speedMul = 0.26;
+    this.buildAirlock(); this.airlock.visible = true; for (const b of this.airlockBoxes) b.enabled = true; this.airlockDoor.enabled = false; this.leafOpen = 0;
+    p.reset(PLAYER_START.x, 7.28, 0); p.pitch = 0; p.speedMul = 0.2;
     this.active = true; this.phase = 'gas'; this.t = 0; this.stepT = 0; this.f = {}; this.moveLocked = true; this.hideBody = true;
     g.cinePose = null; g.ui.fade(1); this.gasK = 0;
   }
 
   // The reception bay: quiet, lit, and empty. You walk in, the vents open and green gas pours out; your body fails and you go down.
   updateGas(dt) {
-    const g = this.g, p = g.player, ui = g.ui, f = this.f, T = this.t, fx = g.effects;
-    ui.fade(1 - ease(T, 0.2, 1.8) - (ease(T, 10.6, 12.2)) * -1 + 0);                  // in from white-blue; to black at the end
-    if (T < 12.2) ui.fade(T < 10.4 ? 1 - ease(T, 0.2, 1.8) : ease(T, 10.4, 12.0));
+    const g = this.g, p = g.player, ui = g.ui, f = this.f, fx = g.effects, T = this.t - 1.5;
+    // the door ahead opens, you go through, it shuts behind you
+    const opened = ease(T, -0.7, 0.3), shut = ease(T, 3.1, 3.45);
+    this.setLeaves(opened * (1 - shut));
+    if (T > -0.7) this.once('lk0', () => { g.audio.play('door', { vol: 0.8 }); g.audio.play('hiss', { vol: 0.3 }); });
+    if (T > 3.2) this.once('lk1', () => { this.airlockDoor.enabled = true; g.audio.play('door', { vol: 1 }); g.audio.play('clatter', { vol: 0.8 }); g.addShake(0.4); this.airlockSign.material.color.set(0xff3a20); });
+    ui.fade(T < 10.4 ? 1 - ease(T, -1.4, -0.3) : ease(T, 10.4, 12.0));
     // act 1: a still, empty bay. The pilot walks forward on its own.
-    if (T > 0.6) this.once('g1', () => this.say('Docked. No guards, no alarms. Where is everyone?', '', 3.6, true));
+    if (T > -1) this.once('g1', () => this.say('The hatch is open, and a door ahead of it. No guards. No alarms.', '', 3.2, true));
     // you walk in from the airlock and stop in the open middle of the bay. The bulkhead ahead seals while you are out, so you must never get past it.
-    if (T > 1.6 && T < 7.8 && p.pos.z > 3.0) { this.moveLocked = false; g.input.keys.clear(); g.input.keys.add('KeyW'); p.speedMul = 0.26; } else if (T > 1.6) { g.input.keys.clear(); this.moveLocked = true; }
-    if (T > 1.6) this.setObjective(T < 4.6 ? 'FIND YOUR PEOPLE' : 'SOMETHING IS WRONG');
+    if (T > 0.1 && T < 7.8 && p.pos.z > 3.0) { this.moveLocked = false; g.input.keys.clear(); g.input.keys.add('KeyW'); p.speedMul = 0.2; } else if (T > 0.1) { g.input.keys.clear(); this.moveLocked = true; }
     // act 2: the vents: an alarm tone, a hiss, then gas pouring from the ceiling around you
-    if (T > 3.4) this.once('g2', () => { g.audio.play('alert', { vol: 0.45 }); g.audio.play('hiss', { vol: 0.6 }); this.say('Bay Three sealed. Releasing anesthetic.', 'HALCYON', 2.0); });
+    if (T > 3.4) this.once('g2', () => { g.audio.play('alert', { vol: 0.45 }); g.audio.play('hiss', { vol: 0.6 }); this.say('Bay Three sealed. Releasing anesthetic.', 'HALCYON', 2.0); this.setObjective(''); });
     if (T > 5.5) this.once('g3', () => { this.say('The air... it burns.', '', 1.6, true); g.audio.play('hiss', { vol: 0.9 }); });
     this.gasK = smooth(clamp((T - 3.6) / 5.2, 0, 1));
     f.puff = (f.puff || 0) - dt;
@@ -785,8 +874,8 @@ export class Intro {
       f.puff = 0.035;
       for (let i = 0; i < 3; i++) {
         const sx = (Math.random() < 0.5 ? -1 : 1) * (0.8 + Math.random() * 2.6), sz = p.pos.z - 1.5 - Math.random() * 4;
-        if (fx.smokeP) fx.smokeP.emit(p.pos.x + sx, 3.2, sz, -sx * 0.2 + (Math.random() - 0.5) * 0.4, -1.4 - Math.random() * 0.8, (Math.random() - 0.5) * 0.4, 2.8, 0.9 + Math.random() * 0.8, 0.4, 0.85, 0.3, 0, 0.5, 1.6);
-        if (fx.smokeP) fx.smokeP.emit(p.pos.x + (Math.random() - 0.5) * 6, 0.2 + Math.random() * 1.4, p.pos.z - 2.6 - Math.random() * 3.5, 0, 0.1, 0, 3.0, 1.2 + Math.random(), 0.35, 0.8, 0.28, 0, 0.6, 1.4);
+        if (fx.smokeP) fx.smokeP.emit(p.pos.x + sx, 3.2, sz, -sx * 0.2 + (Math.random() - 0.5) * 0.4, -1.4 - Math.random() * 0.8, (Math.random() - 0.5) * 0.4, 3.4, 1.6 + Math.random() * 1.4, 0.3, 0.46, 0.2, 0, 0.3, 2.4);
+        if (fx.smokeP) fx.smokeP.emit(p.pos.x + (Math.random() - 0.5) * 6, 0.2 + Math.random() * 1.4, p.pos.z - 2.6 - Math.random() * 3.5, 0, 0.1, 0, 3.4, 1.8 + Math.random() * 1.4, 0.27, 0.42, 0.18, 0, 0.3, 2.2);
       }
     }
     this.gasEl.style.opacity = (this.gasK * 0.85).toFixed(3);
@@ -1229,6 +1318,7 @@ export class Intro {
   // The state shared by "finished the pistol" and "skipped": cell broken, pistol assimilated, bulkhead jammed shut.
   enterRoute(skipped) {
     const g = this.g, L = g.level, c = L.cut;
+    g.shakeAmp = 0;
     g.player.extraSolid = null;
     this.active = false; this.route = true; this.phase = 'route';
     this.moveLocked = false; this.hideBody = false;
@@ -1262,6 +1352,7 @@ export class Intro {
     save.setIntroDone(true); progress.setIntroDone(true);                           // the checkpoint: the Shardcaster exists
     const obj0 = skipped ? 'SHOOT THE JAMMED LOCK' : '';
     g.ui.setObjective(obj0); this.f = { _obj: obj0, markDone: !!skipped };
+    if (this.airlock && !skipped) { this.setLeaves(0); this.airlockDoor.enabled = true; }
     this.mark.visible = !skipped; this.markLight.intensity = skipped ? 0 : 1.4;
     g.ui.showHud(true);
     document.body.classList.remove('intro-cross');
@@ -1312,13 +1403,15 @@ export class Intro {
       if (f.wt > 3.0) this.once('w1', () => this.say('Cold floor. The gas is gone. Nothing came for me. Not yet.', '', 3.4, true));
       if (f.wt > 6.6) this.once('w2', () => this.say('Nine. It called me nine.', '', 2.4, true));
       if (f.wt > 9.2) this.once('w3', () => this.say('Then eight went before me.', '', 2.6, true));
-      if (f.wt > 12.0) this.once('w4', () => { this.say('That mark on the door. I know that hand.', '', 3.2, true); this.setObjective('TOUCH THE MARK ON THE DOOR'); });
-      const near = f.wt > 12 && Math.hypot(p.pos.x - MARK.x, p.pos.z - MARK.z) < 3.8;
+      if (f.wt > 12.0) this.once('w4', () => this.say('That mark on the door. I know that hand.', '', 3.2, true));
+      this.moveLocked = true;
+      if (f.wt > 11.4) { const wy = Math.atan2(-(MARK_PALM.x - p.pos.x), -(MARK_PALM.z - p.pos.z)); p.yaw += Math.atan2(Math.sin(wy - p.yaw), Math.cos(wy - p.yaw)) * Math.min(1, dt * 1.6); p.pitch += (-0.02 - p.pitch) * Math.min(1, dt * 1.6); }
+      if (f.wt > 12.6 && Math.hypot(p.pos.x - MARK_PALM.x, p.pos.z - MARK_PALM.z) > 2.2) { p.pos.x += (MARK_PALM.x - p.pos.x) * dt * 0.5; p.pos.z += (MARK_PALM.z - p.pos.z) * dt * 0.5; }
+      const near = f.wt > 14.2;
       if (near) this.reachAt(MARK_PALM, 0.45 * this.h);
-      g.storyAct = near ? 'TOUCH' : null;
-      this.prompt(near ? this.tr('HOLD RIGHT CLICK TO TOUCH THE MARK', 'HOLD THE BUTTON TO TOUCH THE MARK') : '');
-      if (this.hold(dt, near, 0.9)) {
-        f.markDone = true; f.mt = 0; this.h = 0; g.storyAct = null; this.prompt(''); g.ui.setHold(null); g.ui.clearSubtitle();
+      this.h = clamp(this.h + (near ? dt / 1.2 : 0), 0, 1);
+      if (this.h >= 1) {
+        f.markDone = true; f.mt = 0; this.h = 0; g.ui.clearSubtitle();
         this.setObjective('');
         g.audio.play('gel', { vol: 0.7 }); g.audio.play('crystal', { vol: 0.4 }); g.audio.play('heartbeat', { vol: 0.5 });
         g.viewmodel.pulseGlow(1); g.addShake(0.12);
@@ -1333,6 +1426,8 @@ export class Intro {
     if (f.mt > 3.5) this.once('e2', () => elder('They took every valley. Thousands of us, held apart in their ships so we cannot touch.', 4.2));
     if (f.mt > 7.7) this.once('e3', () => elder('They are taking me to their hangar. Deck nine. A great ship is waiting.', 4.0));
     if (f.mt > 11.9) this.once('e4', () => { elder('Touch everything. Keep everything. Find us.', 3.2); if (this.target && this.target.alive) this.setObjective('SHOOT THE JAMMED LOCK'); });
+    if (f.mt > 15.3) this.moveLocked = false;
+    else this.moveLocked = true;
     if (f.mt > 15.3) this.once('e6', () => this.say('I will. And then they will pay for every valley.', '', 3.0, true));
     if (f.mt > 18.5) this.once('e5', () => this.say('Specimen Nine is awake. Security to Bay Three.', 'HALCYON', 3.0));
   }

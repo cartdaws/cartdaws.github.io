@@ -13,7 +13,7 @@ export function makeTentacleGel({ color = 0x0a4a46, rim = 0x7ff0e0, alpha = 0.5,
     uniforms: {
       uColor: { value: new THREE.Color(color) }, uRim: { value: new THREE.Color(rim) },
       uAlpha: { value: alpha }, uTime: { value: 0 }, uGlow: { value: 0 },
-      uLen: { value: length }, uR0: { value: r0 }, uR1: { value: r1 }, uSucker: { value: suckers }, uVein: { value: veins },
+      uLen: { value: length }, uR0: { value: r0 }, uR1: { value: r1 }, uSucker: { value: suckers }, uVein: { value: veins }, uSpec: { value: 0.9 }, uSpots: { value: 1 },
     },
     vertexShader: `
       varying vec2 vUv; varying vec3 vN; varying vec3 vV;
@@ -23,7 +23,7 @@ export function makeTentacleGel({ color = 0x0a4a46, rim = 0x7ff0e0, alpha = 0.5,
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
-      uniform vec3 uColor; uniform vec3 uRim; uniform float uAlpha, uTime, uGlow, uLen, uR0, uR1, uSucker, uVein;
+      uniform vec3 uColor; uniform vec3 uRim; uniform float uAlpha, uTime, uGlow, uLen, uR0, uR1, uSucker, uVein, uSpec, uSpots;
       varying vec2 vUv; varying vec3 vN; varying vec3 vV;
       float hash(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
       float cup(vec2 uv, float cnt, float vOff, float stag, float r){
@@ -54,7 +54,7 @@ export function makeTentacleGel({ color = 0x0a4a46, rim = 0x7ff0e0, alpha = 0.5,
         vec3 l = normalize(vec3(0.4, 0.8, 0.5));
         float spec = pow(max(dot(reflect(-v, n), l), 0.0), 32.0);
         float vn = uVein > 0.5 ? vein(vUv) * (0.35 + 0.65 * (0.5 + 0.5 * sin(uTime * 2.2 - vUv.x * 7.0))) : 0.0;
-        vec3 c = mix(uColor, uRim, f) + vec3(spec * 0.9) + uRim * (spots * 0.55 + uGlow * 0.5 + vn * 0.7);
+        vec3 c = mix(uColor, uRim, f * (0.25 + uSpec * 0.83)) + uColor * (0.7 + 1.2 * max(dot(n, l), 0.0)) * (1.0 - min(uSpec, 1.0)) + vec3(spec * uSpec) + uRim * (spots * 0.55 * uSpots + uGlow * 0.5 + vn * 0.7);
         c = mix(c, c * 0.45, clamp(-s, 0.0, 1.0));
         c += uRim * clamp(s, 0.0, 1.0) * 0.35;
         float a = clamp(uAlpha + f * 0.45 + spec * 0.5 + s * 0.18 + spots * 0.25 + vn * 0.25 + uGlow * 0.2, 0.0, 0.95);

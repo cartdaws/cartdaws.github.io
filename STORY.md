@@ -52,6 +52,18 @@ It is also why the humans want your species alive: soldiers who can learn any we
 8. **The deck.** You shoot the jammed lock and fight through the Robotics Deck to the hangar. The machines stand dormant until the alarm wakes them. The Halcyon talks to you as you go, always politely, and you answer in as few words as you can. Every machine you absorb gives up a memory, and those tell you what happened here and how big the harvest was. In a sample store you find a piece of someone you knew and take it with you (the Lash).
 9. **Too late.** The hangar lift reads out: the Meridian has undocked with all eight, joining a fleet with forty-one thousand of you, bound for Earth. The Halcyon tells you nothing is left aboard for you. *Nothing but a hangar full of ships.* From outside: the warship pulls away from the Halcyon, and a stolen ship drops out of the bay and goes after it. *They burned our world. I will take theirs. Whatever it costs.*
 
+## The road to the Halcyon
+
+Every world on the way can be landed on: fly into its atmosphere. None of them are required, and all of them stay open after the chapter when you take a ship from the hangar.
+
+- **Vael**, a human mining moon. Low gravity. A post full of security machines. Its terminal confirms the route: the fleet refuels here, then goes on to Earth.
+- **Ochre**, desert world. The **Kessith**, tall robed traders. The humans took their water eleven years ago and left them a tax. Their Speaker gives you hull plating: "If you burn their world, tell them who sold it to you."
+- **Skarn**, ice world. The **Grolm**, squat shell-backed miners. Machines nest in their shafts; clear them and the Foreman feeds you, and promises to dig under Earth.
+- **Thule**, the gas giant. The **Ummari**, floating lantern people on a cloud reef. They heard your people singing in the holds as the fleet passed under them.
+- **Home**, what is left. No one. A wall of hand-marks, still warm. "When this is over, I will come back and put their hands on this wall."
+
+These are the allies for Chapter Four: everyone on this road has lost something to Earth.
+
 ## Machine memories, in order
 
 One plays each time you absorb a machine. They persist across deaths and reset on New Game.

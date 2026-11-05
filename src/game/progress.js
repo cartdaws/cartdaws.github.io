@@ -14,8 +14,11 @@ function loadIntro() {
 
 let bonus = loadBonus();
 let intro = loadIntro();
+let chapter = (() => { try { return localStorage.getItem('intruder-chapter') === '1'; } catch (e) { return false; } })();
 
 export const progress = {
+  get chapterDone() { return chapter; },
+  setChapterDone() { chapter = true; try { localStorage.setItem('intruder-chapter', '1'); } catch (e) { /* storage is optional */ } },
   get introDone() { return intro; },
   setIntroDone(v) { intro = !!v; try { localStorage.setItem(INTRO_KEY, v ? '1' : '0'); } catch (e) { /* storage is optional */ } },
   get maxHpBonus() { return bonus; },

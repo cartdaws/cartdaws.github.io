@@ -209,6 +209,7 @@ export class FlightCombat {
   }
 
   hit(e, dmg, at) {
+    // (also called when you ram one)
     e.hp -= dmg; this.burst(at, 0xffd9a0, 6, 0.4, 3.2, 0.3, 1.4); this.burst(at, 0xffe8c0, 1, 0, 9, 0.12, 1.2); this.f.hitMark = 0.18; this.f.g.audio.play('hit', { vol: 0.3 });
     if (e.hp <= 0) { this.explode(e); const i = this.enemies.indexOf(e); if (i >= 0) this.enemies.splice(i, 1); this.kills++; this.onKill(); }
   }

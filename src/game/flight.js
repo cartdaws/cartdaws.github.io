@@ -1,3 +1,4 @@
+import { WORLDS } from '../world/surface.js';
 import * as THREE from 'three';
 import { clamp, damp, lerp, smooth, seg } from '../core/util.js';
 import { FlightCombat } from './flightCombat.js';
@@ -203,6 +204,30 @@ function makeVessel() {
   return g;
 }
 
+// A rocky or icy world seen from orbit, painted to match what you find on the ground.
+function worldTexture(base, patches, polar) {
+  const c = document.createElement('canvas'); c.width = 768; c.height = 384; const x = c.getContext('2d'); x.fillStyle = base; x.fillRect(0, 0, 768, 384);
+  for (let i = 0; i < 300; i++) { const px = Math.random() * 768, py = Math.random() * 384, r = 4 + Math.random() * 52, col = patches[i % patches.length], g2 = x.createRadialGradient(px, py, 0, px, py, r); g2.addColorStop(0, col); g2.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g2; x.fillRect(px - r, py - r, r * 2, r * 2); }
+  if (polar) { const g2 = x.createLinearGradient(0, 0, 0, 384); g2.addColorStop(0, polar); g2.addColorStop(0.16, 'rgba(0,0,0,0)'); g2.addColorStop(0.84, 'rgba(0,0,0,0)'); g2.addColorStop(1, polar); x.fillStyle = g2; x.fillRect(0, 0, 768, 384); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; return t;
+}
+// Where something solid is, as points on a grid: the surface of its triangles, sampled. Works on any model, so nothing is hand-guessed.
+export function solidCells(root, cell, skip = null) {
+  root.updateMatrixWorld(true);
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert(), out = new Map(), a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), p = new THREE.Vector3(), m = new THREE.Matrix4();
+  root.traverse((o) => {
+    if (!o.isMesh || !o.geometry || !o.geometry.attributes.position || o.material.blending === THREE.AdditiveBlending || o.material.transparent) return;
+    for (let q = o; q && q !== root; q = q.parent) if (skip && skip(q)) return;
+    m.multiplyMatrices(inv, o.matrixWorld); const P = o.geometry.attributes.position, I = o.geometry.index, n = I ? I.count : P.count;
+    for (let i = 0; i < n; i += 3) {
+      a.fromBufferAttribute(P, I ? I.getX(i) : i).applyMatrix4(m); b.fromBufferAttribute(P, I ? I.getX(i + 1) : i + 1).applyMatrix4(m); c.fromBufferAttribute(P, I ? I.getX(i + 2) : i + 2).applyMatrix4(m);
+      const long = Math.max(a.distanceTo(b), b.distanceTo(c), c.distanceTo(a)), S = Math.min(30, Math.ceil(long / (cell * 0.7)));
+      for (let u = 0; u <= S; u++) for (let v = 0; v <= S - u; v++) { const w = S ? u / S : 0, y = S ? v / S : 0, z = 1 - w - y; p.set(a.x * w + b.x * y + c.x * z, a.y * w + b.y * y + c.y * z, a.z * w + b.z * y + c.z * z); const k = Math.round(p.x / cell) + ',' + Math.round(p.y / cell) + ',' + Math.round(p.z / cell); if (!out.has(k)) out.set(k, [Math.round(p.x / cell) * cell, Math.round(p.y / cell) * cell, Math.round(p.z / cell) * cell]); }
+    }
+  });
+  return [...out.values()];
+}
+
 export class Flight {
   constructor(game) {
     this.g = game;
@@ -252,6 +277,7 @@ export class Flight {
     const rockGeo = new THREE.IcosahedronGeometry(1, 1), rpos = rockGeo.attributes.position;
     for (let i = 0; i < rpos.count; i++) { const k = 0.72 + Math.random() * 0.5; rpos.setXYZ(i, rpos.getX(i) * k, rpos.getY(i) * k, rpos.getZ(i) * k); }
     rockGeo.computeVertexNormals();
+    this.beltRocks = [];
     this.belt = new THREE.InstancedMesh(rockGeo, new THREE.MeshStandardMaterial({ color: 0x5a5f66, roughness: 0.95, metalness: 0.1, flatShading: true }), 340);
     { const m4 = new THREE.Matrix4(), qq = new THREE.Quaternion(), ee = new THREE.Euler();
       for (let i = 0; i < 340; i++) {
@@ -260,6 +286,7 @@ export class Flight {
         const pos = new THREE.Vector3(Math.cos(an) * rad, (Math.random() - 0.5) * 140, Math.sin(an) * rad * 0.55).add(center);
         ee.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); qq.setFromEuler(ee);
         m4.compose(pos, qq, new THREE.Vector3(sc, sc * (0.6 + Math.random() * 0.6), sc)); this.belt.setMatrixAt(i, m4);
+        this.beltRocks.push({ x: pos.x, y: pos.y, z: pos.z, r: sc * 0.92 });
       } }
     this.group.add(this.belt);
 
@@ -281,8 +308,35 @@ export class Flight {
     const sunGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,244,220,1)'), color: 0xfff0d0, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
     sunGlow.position.set(2000, 1200, 800).multiplyScalar(2.2); sunGlow.scale.setScalar(1400); this.group.add(sunGlow);
 
+    // the worlds you can land on: fly into any atmosphere
+    const planet2 = (id, pos, r, tex2, atmCol) => {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(r, 48, 32), new THREE.MeshStandardMaterial({ map: tex2, roughness: 0.92, metalness: 0 })); m.position.copy(pos); m.rotation.y = Math.random() * 6; this.group.add(m);
+      const a2 = new THREE.Mesh(new THREE.SphereGeometry(r * 1.05, 36, 24), new THREE.MeshBasicMaterial({ color: atmCol, transparent: true, opacity: 0.17, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending })); a2.position.copy(pos); this.group.add(a2);
+      return m;
+    };
+    const ochre = new THREE.Vector3(-1900, -350, -4700), skarn = new THREE.Vector3(2600, 450, -3500);
+    planet2('ochre', ochre, 300, worldTexture('#b87840', ['rgba(226,170,106,.5)', 'rgba(120,70,40,.5)', 'rgba(90,50,30,.4)']), 0xffb070);
+    planet2('skarn', skarn, 240, worldTexture('#b8d4e4', ['rgba(255,255,255,.55)', 'rgba(90,140,170,.45)', 'rgba(60,100,130,.3)'], 'rgba(255,255,255,.95)'), 0x9fe8ff);
+    this.worlds = [
+      { id: 'vael', pos: moon.position.clone(), r: 110, land: 140 },
+      { id: 'ochre', pos: ochre, r: 300, land: 345 },
+      { id: 'skarn', pos: skarn, r: 240, land: 280 },
+      { id: 'thule', pos: gas.position.clone(), r: 520, land: 570 },
+      { id: 'ash', pos: PLANET.clone(), r: 1200, land: 1262 },
+    ];
+
     // the research vessel
     this.vessel = makeVessel(); this.vessel.position.copy(VESSEL); this.group.add(this.vessel);
+    // what you can hit of it, measured from its model. The ring turns, so it is handled as a ring.
+    { const ring = this.vessel.userData.ring, skip = (q) => q === ring;
+      this.hullCells = solidCells(this.vessel, 22, skip).map((c) => new THREE.Vector3(c[0], c[1], c[2]).add(VESSEL));
+      this.ringInfo = null;
+      if (ring) { ring.updateMatrixWorld(true); const bb = new THREE.Box3().setFromObject(ring), s = bb.getSize(new THREE.Vector3()), c2 = bb.getCenter(new THREE.Vector3()).sub(OFFSET); this.ringInfo = { c: c2, R: Math.max(s.x, s.y) * 0.46, t: Math.max(10, Math.min(s.z, 26)) }; }
+      // the way in stays open: a clear channel under the keel, along the line the approach and the bay share
+      this.hullCells = this.hullCells.filter((c) => !(Math.abs(c.x - DOCK.x) < 46 && c.y < DOCK.y + 34));
+      this.hullFar = 0; for (const c of this.hullCells) this.hullFar = Math.max(this.hullFar, c.distanceTo(VESSEL));
+      if (this.ringInfo) this.hullFar = Math.max(this.hullFar, this.ringInfo.c.distanceTo(VESSEL) + this.ringInfo.R + this.ringInfo.t);
+      this.hullFar += 60; }
 
     // the human warship that attacked the planet, leaving orbit with the survivors
     this.warship = new THREE.Group();
@@ -413,12 +467,12 @@ export class Flight {
     this.warship.position.set(-500, -150, -200); this.warship.visible = true; this.warshipT = 0;
     for (const d of this.debris) d.userData.hit = false;
     g.viewmodel.root.visible = false; g.body.setVisible(false);
-    g.ui.showHud(true); g.ui.setObjective('FLY TO THE HALCYON'); g.ui.setPrompt('');
+    g.ui.showHud(true); g.ui.setObjective(this.free ? 'EXPLORE  ·  THE FLEET WENT TO EARTH' : 'FLY TO THE HALCYON'); g.ui.setPrompt(''); this.armor = (() => { try { return localStorage.getItem('intruder-armor') === '1' ? 0.5 : 1; } catch (e) { return 1; } })();
     document.body.classList.add('intro', 'in-flight'); // hides the on-foot crosshair, health and weapon readouts; softens the shared UI
     this.hud.classList.remove('hidden');
     g.audio.stopSiren?.(); g.audio.scene('space');
     g.ui.fade(0);
-    g.ui.subtitle('That great ship. It has the elder, and how many more?', '', 3.4, true);
+    if (!this.free) g.ui.subtitle('That great ship. It has the elder, and how many more?', '', 3.4, true); else this.t = 16;
     this.f = {};
     this.dying = null; this.combat.reset();
   }
@@ -459,12 +513,13 @@ export class Flight {
   // Damage to the ship from enemy fire and collisions. At zero the hull fails and the ship is rebuilt at the start of the run.
   damage(n) {
     if (this.dying || this.docking) return;
-    this.hull = Math.max(0, this.hull - n); this.shake = Math.max(this.shake, 0.55); this.flash = 0.6; this.g.audio.play('hurt', { vol: 0.6 });
+    this.hull = Math.max(0, this.hull - n * (this.armor ?? 1)); this.shake = Math.max(this.shake, 0.55); this.flash = 0.6; this.g.audio.play('hurt', { vol: 0.6 });
     if (this.hull <= 0) { this.dying = { t: 0 }; this.g.ui.subtitle('Hull breach. Emergency power. Rerouting.', 'LANDER', 3); this.g.audio.play('explosion', { vol: 0.8 }); }
   }
 
   stop() {
     if (!this.active) return;
+    this.entry = null; this.knock = null;
     const g = this.g, s = g.scene, c = g.camera;
     s.background = this.saved.bg; s.fog = this.saved.fog; c.far = this.saved.far; c.updateProjectionMatrix(); g.post.applyFog(s);
     this.group.visible = this.sun.visible = this.fill.visible = false;
@@ -536,8 +591,114 @@ export class Flight {
     if (T > 14.4) { const fin = C.done; this.cut = null; this.dust.visible = true; this.stop(); fin(); }
   }
 
+  // Everything solid you can fly into. Hits push you out, kill most of your speed, turn your nose away and cost hull according to how fast you were going.
+  bump(nx, ny, nz, pen, hard = 1) {
+    if (this.docking || this.dying || this.entry) return;
+    const g = this.g, n = _v.set(nx, ny, nz).normalize();
+    this.pos.addScaledVector(n, pen + 0.6);
+    this.knock = this.knock || new THREE.Vector3(); const fast = this.speed;
+    this.knock.addScaledVector(n, Math.min(60, 12 + fast * 0.28));
+    this.speed *= 0.42;
+    _f.set(0, 0, -1).applyQuaternion(this.quat);
+    const into = _f.dot(n);
+    if (into < 0) { _r.copy(_f).addScaledVector(n, -into * 1.35).normalize(); q.setFromUnitVectors(_f, _r); this.quat.premultiply(q); }
+    if ((this.hitCool || 0) <= 0) {
+      this.hitCool = 0.45; this.damage(Math.min(26, (3 + fast * 0.085) * hard));
+      this.shake = Math.max(this.shake, 0.85); g.audio.play('clatter', { vol: 0.9 }); g.audio.play('impact', { vol: 0.6 });
+      this.combat.burst(this.pos.clone().addScaledVector(n, -2), 0xffc070, 12, 40, 2.4, 0.4, 2);
+    }
+  }
+
+  solidHits(dt) {
+    const SHIP = 3.6, P = this.pos, g = this.g;
+    this.hitCool = (this.hitCool || 0) - dt;
+    if (this.knock) { P.addScaledVector(this.knock, dt); this.knock.multiplyScalar(Math.exp(-3 * dt)); }
+    if (this.docking || this.entry) return;
+    // the vessel's hull
+    if (P.distanceTo(VESSEL) < this.hullFar) {
+      const rr = 22 * 0.62 + SHIP; let best = null, bd = rr;
+      for (const c of this.hullCells) { const dx = P.x - c.x; if (dx > rr || dx < -rr) continue; const dz = P.z - c.z; if (dz > rr || dz < -rr) continue; const d = P.distanceTo(c); if (d < bd) { bd = d; best = c; } }
+      if (best) this.bump(P.x - best.x, P.y - best.y, P.z - best.z, rr - bd);
+      const Rg = this.ringInfo;
+      if (Rg) { const dx = P.x - Rg.c.x, dy = P.y - Rg.c.y, dz = P.z - Rg.c.z, rad = Math.hypot(dx, dy), off = rad - Rg.R, d = Math.hypot(off, dz), lim = Rg.t + SHIP; if (d < lim && rad > 1) { const ox = (dx / rad) * off, oy = (dy / rad) * off; this.bump(ox, oy, dz, lim - d); } }
+    }
+    // the warship while it is still here
+    if (this.warship.visible && this.phase === 'launch') {
+      const W = this.warship.position;
+      for (let i = -2; i <= 2; i++) { const cx = W.x + i * 72, d = Math.hypot(P.x - cx, P.y - W.y, P.z - W.z), lim = 58 + SHIP; if (d < lim) { this.bump(P.x - cx, P.y - W.y, P.z - W.z, lim - d, 1.4); break; } }
+    }
+    // the asteroid belt turns slowly about the origin
+    if (this.beltRocks) {
+      const a = this.belt.rotation.y, ca = Math.cos(a), sa = Math.sin(a);
+      for (const b of this.beltRocks) { const bx = b.x * ca + b.z * sa, bz = -b.x * sa + b.z * ca, dx = P.x - bx; if (dx > b.r + SHIP || dx < -b.r - SHIP) continue; const dz = P.z - bz, dy = P.y - b.y, d = Math.hypot(dx, dy, dz), lim = b.r + SHIP; if (d < lim) { this.bump(dx, dy, dz, lim - d); break; } }
+    }
+    // the fighters
+    for (const e of this.combat.enemies) { const d = e.mesh.position.distanceTo(P); if (d < 7.5 && e.hp > 0) { this.bump(P.x - e.mesh.position.x, P.y - e.mesh.position.y, P.z - e.mesh.position.z, 7.5 - d, 0.8); this.combat.hit(e, 30, e.mesh.position); } }
+    // the warship's hangar deck, and the gas giant's rings: flying through a ring is fine; everything else in space that can be hit is a world, and you land on those
+  }
+
+  // ---- other worlds: names you can read from a long way off, and flying into an atmosphere lands you
+  updateWorldLabels() {
+    const g = this.g, c = g.camera;
+    if (!this.worldEls) { this.worldEls = {}; for (const w of this.worlds) { const el = document.createElement('div'); el.className = 'fh-world'; this.hud.appendChild(el); this.worldEls[w.id] = el; } }
+    for (const w of this.worlds) {
+      const el = this.worldEls[w.id], d = this.pos.distanceTo(w.pos) - w.r;
+      _v.copy(w.pos).add(OFFSET).project(c);
+      const on = _v.z < 1 && Math.abs(_v.x) < 0.95 && Math.abs(_v.y) < 0.92;
+      el.style.display = on ? 'block' : 'none';
+      if (on) { el.style.left = ((_v.x * 0.5 + 0.5) * 100).toFixed(1) + '%'; el.style.top = ((-_v.y * 0.5 + 0.5) * 100).toFixed(1) + '%'; const W = WORLDS[w.id], done = g.surface.done[w.id]; el.textContent = W.name + (done ? ' ✓' : '') + '  ' + (d > 1000 ? (d / 1000).toFixed(1) + ' km' : Math.max(0, Math.round(d)) + ' m'); }
+    }
+  }
+  checkWorlds() {
+    const g = this.g; let near = null;
+    for (const w of this.worlds) {
+      const d = this.pos.distanceTo(w.pos);
+      if (d < w.land) { this.beginEntry(w); return; }
+      if (d < w.land + 420) near = w;
+    }
+    if (near && near !== this.nearWorld && !this.docking) { const W = WORLDS[near.id]; g.ui.hint(W.name + ' · ' + W.sub + '  ·  FLY DOWN TO LAND', 4); }
+    this.nearWorld = near;
+  }
+  beginEntry(w) {
+    if (this.dying || this.docking || this.entry) return;
+    const g = this.g; this.entry = { t: 0, w }; this.knock = null;
+    for (const e of this.combat.enemies) e.mesh.removeFromParent(); this.combat.enemies.length = 0;
+    g.ui.subtitle('Atmosphere. Hold on.', 'LANDER', 2.2); g.audio.play('surge', { vol: 0.7 }); g.audio.play('flyby', { vol: 0.8 });
+  }
+  updateEntry(dt) {
+    const g = this.g, E = this.entry; E.t += dt; const k = E.t / 2.4;
+    _v.copy(E.w.pos).sub(this.pos).normalize();
+    _f.set(0, 0, -1).applyQuaternion(this.quat); q.setFromUnitVectors(_f, _r.copy(_f).lerp(_v, Math.min(1, dt * 2)).normalize()); this.quat.premultiply(q);
+    this.speed = 160; this.shake = Math.max(this.shake, 0.4 + k * 0.5);
+    // the air catches fire around the ship
+    if (Math.random() < 0.8) this.combat.burst(this.pos.clone().addScaledVector(_v, 2 + Math.random() * 6).add(_u.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(5)), 0xffa050, 2, 14, 3 + k * 4, 0.5, 2);
+    g.ui.fade(Math.min(1, k * k * 1.1));
+    if (E.t >= 2.4) {
+      const w = E.w; this.entry = null; this.lastEntry = this.pos.clone(); this.stop();
+      this.saved = null; g.ui.setPrompt('');
+      if (!g.surface.start(w.id)) { g.state = 'flight'; this.start(); }
+    }
+  }
+  // Coming back from a world: above it, climbing away, with everything else as it was.
+  resumeFrom(id) {
+    const g = this.g, s = g.scene, c = g.camera, w = this.worlds.find((o) => o.id === id);
+    this.saved = { bg: s.background, fog: s.fog, far: c.far, exp: g.renderer.toneMappingExposure };
+    s.background = new THREE.Color(0x02040a); s.fog = null; c.far = 16000; c.updateProjectionMatrix(); g.post.applyFog(s);
+    this.group.visible = this.sun.visible = this.fill.visible = true;
+    const up = _v.copy(this.lastEntry || this.pos).sub(w.pos).normalize();
+    this.pos.copy(w.pos).addScaledVector(up, w.land + 150); this.speed = 110; this.throttle = 0.6; this.roll = 0; this.knock = null; this.nearWorld = w;
+    this.quat.setFromUnitVectors(_f.set(0, 0, -1), up);
+    this.camPos.copy(this.pos).addScaledVector(up, -18); this.camQuat.copy(this.quat);
+    this.active = true; g.state = 'flight'; g.cinePose = null; g.viewmodel.root.visible = false; g.body.setVisible(false); g.trauma = 0;
+    g.ui.showHud(true); g.ui.setObjective(this.free ? 'EXPLORE  ·  THE FLEET WENT TO EARTH' : 'FLY TO THE HALCYON'); g.ui.setPrompt('');
+    document.body.classList.add('intro', 'in-flight'); this.hud.classList.remove('hidden');
+    g.audio.scene('space'); this.resumeFade = 1;
+    if (this.saveArmor === undefined) this.saveArmor = 1;
+  }
+
   update(dt, input, lx, ly) {
     if (!this.active) return;
+    if (this.resumeFade > 0) { this.resumeFade = Math.max(0, this.resumeFade - dt / 1.2); this.g.ui.fade(this.resumeFade); }
     if (this.cut) { this.updateCut(dt); return; }
     const g = this.g;
     this.t += dt;
@@ -588,7 +749,11 @@ export class Flight {
         _v.copy(this.pos).sub(d.position).normalize(); this.pos.addScaledVector(_v, (d.userData.r + 3.5 - dist) + 0.5); this.speed *= 0.55;
       } else if (dist > d.userData.r + 40) d.userData.hit = false;
     }
+    this.solidHits(dt);
     this.hull = Math.min(100, this.hull + dt * 0.4);
+    this.updateWorldLabels(dt);
+    if (this.entry) { this.updateEntry(dt); return; }
+    this.checkWorlds(dt);
 
     // ---- the launch: the warship leaves orbit with a flash of its drive
     if (this.phase === 'launch') {
@@ -606,15 +771,16 @@ export class Flight {
     if (this.t > 4.4 && !this.f.a) { this.f.a = true; g.ui.subtitle('Pilot not responding. Returning to research vessel Halcyon.', 'LANDER', 3.8); g.audio.play('pa', { vol: 0.4 }); }
     if (this.t > 8.6 && !this.f.a2) { this.f.a2 = true; g.ui.subtitle('Then take me there.', '', 2.6, true); }
     this.combat.standDown = dist < 900;             // it wants you alive
-    if (dist < 3000 && !this.f.c) { this.f.c = true; g.ui.subtitle('Lander Four, your pilot has no vital signs. Who is flying that ship?', 'HALCYON', 4.2); g.audio.play('alert', { vol: 0.4 }); }
-    if (dist < 900 && !this.f.d) { this.f.d = true; g.ui.setObjective('ENTER THE DOCKING BAY'); g.ui.hint('FLY TOWARD THE LIT BAY', 5); g.ui.subtitle('All fighters stand down. Something is alive in that cockpit. Let it dock.', 'HALCYON', 4.6); g.audio.play('pa', { vol: 0.5 }); }
+    if (!this.free && dist < 3000 && !this.f.c) { this.f.c = true; g.ui.subtitle('Lander Four, your pilot has no vital signs. Who is flying that ship?', 'HALCYON', 4.2); g.audio.play('alert', { vol: 0.4 }); }
+    if (this.t > 15 && !this.f.w) { this.f.w = true; g.ui.subtitle('Other worlds on scanner. Fly into any atmosphere to set down.', 'LANDER', 4); g.audio.play('pa', { vol: 0.3 }); }
+    if (!this.free && dist < 900 && !this.f.d) { this.f.d = true; g.ui.setObjective('ENTER THE DOCKING BAY'); g.ui.hint('FLY TOWARD THE LIT BAY', 5); g.ui.subtitle('All fighters stand down. Something is alive in that cockpit. Let it dock.', 'HALCYON', 4.6); g.audio.play('pa', { vol: 0.5 }); }
 
     // ---- docking: steer into the glowing mouth of the bay at a safe speed and the ship is pulled in
     // docking assist: near the bay the ship's computer takes over the throttle and draws the lander in; no precise flying needed
-    if (!this.docking && dist < 260 && this.speed > 120) this.speed = damp(this.speed, 110, 1.6, dt);
-    if (!this.docking && dist < 130) {
+    if (!this.free && !this.docking && dist < 260 && this.speed > 120) this.speed = damp(this.speed, 110, 1.6, dt);
+    if (!this.free && !this.docking && dist < 130) {
       this.docking = { t: 0 }; g.ui.setPrompt(''); g.audio.play('door', { vol: 0.8 }); g.ui.subtitle('Docking clamps engaged. Welcome aboard.', 'HALCYON', 3.2);
-    } else if (!this.docking && dist < 330) g.ui.setPrompt('DOCKING ASSIST');
+    } else if (!this.free && !this.docking && dist < 330) g.ui.setPrompt('DOCKING ASSIST');
     else if (!this.docking) g.ui.setPrompt('');
     if (this.docking) {
       this.docking.t += dt;

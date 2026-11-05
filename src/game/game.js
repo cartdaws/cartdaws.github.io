@@ -1,5 +1,6 @@
 import { resetMemories } from './memories.js';
 import { ShipLife } from '../world/shipLife.js';
+import { Surface } from '../world/surface.js';
 import * as THREE from 'three';
 import { Input } from '../core/input.js';
 import { Audio } from '../core/audio.js';
@@ -142,6 +143,7 @@ export class Game {
     this.viewmodel.cineW = 1;
     this.viewmodel.restrain = 1;
 
+    this.surface = new Surface(this);
     if (debug) { window.__g = this; window.__THREE = THREE; }
     this.last = performance.now();
     this.loop = this.loop.bind(this);
@@ -247,6 +249,8 @@ export class Game {
     $('btn-retry').onclick = () => this.restart();
     $('btn-replay').onclick = () => this.restart(true);
     $('btn-intro').onclick = () => this.replayFromStart();
+    $('btn-flyon').onclick = () => this.takeTheShip();
+    { const fo = $('btn-space'); if (fo) { if (progress.chapterDone) fo.classList.remove('hidden'); fo.onclick = () => this.takeTheShip(); } }
     for (const id of ['btn-gfx', 'btn-gfx2']) $(id).onclick = () => this.toggleGfx();
     for (const id of ['set-volume', 'set-volume-2']) $(id).oninput = (e) => { this.audio.setVolume(+e.target.value); $('set-volume').value = $('set-volume-2').value = e.target.value; this.saveSettings(); };
     for (const id of ['set-sens', 'set-sens-2']) $(id).oninput = (e) => { this.sens = +e.target.value; $('set-sens').value = $('set-sens-2').value = e.target.value; this.saveSettings(); };
@@ -366,6 +370,7 @@ export class Game {
 
   restart(freshRun = false) {
     this.audio.init();
+    if (this.surface.active) { this.surface.respawn(); return; }
     // restarting during the opening replays the opening (or the flight); it never jumps ahead of the story
     if (this.state === 'flight') { this.flight.stop(); this.paused = false; this.ui.hideMenus(); this.state = 'flight'; this.flight.start(); this.input.lock(); return; }
     if (this.opening.active) { this.replayFromStart(); return; }
@@ -388,6 +393,7 @@ export class Game {
 
   // Full replay: encounter, doors and props back to the beginning, then the opening plays again.
   replayFromStart() {
+    this.surface.leave(false); this.flight.free = false; this.flight.stop();
     this.audio.init();
     this.newRun();
     this.resetEncounter();
@@ -497,7 +503,15 @@ export class Game {
     if (E.t > 10.2) this.ui.fade(smooth(clamp((E.t - 10.2) / 1.6, 0, 1)));
     if (E.t > 11.9) { this.ending = null; this.flight.playEnding(() => { this.opening.moveLocked = false; this.finishChapter(); }); }
   }
+  // After the chapter: space is yours. Every world on the road to Earth is open.
+  takeTheShip() {
+    this.audio.init(); if (this.touchMode) enterImmersive();
+    this.ui.hideMenus(); this.opening.endRoute(); this.opening.active = false; this.weaponAcquired = true; this.encounter.won = false; this.ending = null; this.cinePose = null; this.paused = false;
+    this.flight.free = true; this.state = 'flight'; this.flight.start(); this.lockRetries = 0; this.input.lock();
+  }
+
   finishChapter() {
+    progress.setChapterDone();
     this.state = 'complete';
     this.input.clear();
     this.ui.clearTransient();
@@ -661,7 +675,8 @@ export class Game {
     if (this.state === 'playing' && this.encounter.won && !this.ending) this.complete();
 
     this.level.update(this.time);
-    if (this.state === 'playing' && !(this.opening.active && this.opening.phase !== 'gas')) { this.shipLife.group.visible = true; this.shipLife.update(dt); } else if (this.shipLife) this.shipLife.group.visible = false;
+    if (this.surface.active) this.surface.update(dt);
+    if (this.state === 'playing' && !this.surface.active && !(this.opening.active && this.opening.phase !== 'gas')) { this.shipLife.group.visible = true; this.shipLife.update(dt); } else if (this.shipLife) this.shipLife.group.visible = false;
     this.effects.update(dt);
     this.body.setVisible(!this.cinePose && !this.opening.hideBody && this.state !== 'dead');     // the camera ends up on the floor: your own body would fill the view
     this.body.update(dt);
@@ -721,7 +736,7 @@ export class Game {
     for (const b of this.barrels) b.update(dt);
     if (playing) {
       if (this.nav) this.nav.setTarget(player.pos.x, player.pos.z);
-      this.encounter.update(dt);
+      if (!this.surface.active) this.encounter.update(dt);
     }
   }
 
@@ -800,9 +815,11 @@ export class Game {
       const s = this.trauma * this.trauma;
       if (s > 0.0005) {
         this.shakeT += dt * 38;
-        c.rotation.x += Math.sin(this.shakeT * 1.3) * 0.014 * s;
-        c.rotation.y += Math.sin(this.shakeT * 1.7 + 2) * 0.014 * s;
-        c.rotation.z += Math.sin(this.shakeT * 1.1 + 4) * 0.01 * s;
+        const amp = 1 + (this.shakeAmp || 0);       // cutscenes can hit a lot harder than a fight
+        c.rotation.x += Math.sin(this.shakeT * 1.3) * 0.014 * s * amp;
+        c.rotation.y += Math.sin(this.shakeT * 1.7 + 2) * 0.014 * s * amp;
+        c.rotation.z += Math.sin(this.shakeT * 1.1 + 4) * 0.01 * s * amp;
+        if (amp > 1) { c.position.x += Math.sin(this.shakeT * 2.1) * 0.035 * s * amp; c.position.y += Math.sin(this.shakeT * 2.7 + 1) * 0.035 * s * amp; }
       }
       if (this.flinch > 0 && !this.cinePose) { c.rotation.x -= this.flinch * 0.14; c.rotation.z += this.flinchRoll * this.flinch * 0.2; }
       this.kick = damp(this.kick || 0, 0, 16, dt);

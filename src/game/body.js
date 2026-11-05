@@ -4,19 +4,27 @@ import { makeGel } from '../world/materials.js';
 import { buildAlien, alienReady } from './alien.js';
 import { TentacleMesh, makeTentacleGel, updateTentacleGels, bezier, SpringChain } from '../presentation/tentacle.js';
 
-const LEGS = [ // angle from forward (rad), reach (m), gait group
-  { a: -0.66, reach: 2.5, g: 0 }, { a: 0.66, reach: 2.5, g: 1 },
-  { a: -1.57, reach: 1.9, g: 1 }, { a: 1.57, reach: 1.9, g: 0 },
-  { a: -2.55, reach: 2.0, g: 0 }, { a: 2.55, reach: 2.0, g: 1 },
+const LEGS = [ // an octopus: eight arms evenly round the body. Angle from forward (rad), reach (m), which of the two groups it moves with.
+  { a: -0.39, reach: 2.05, g: 0, c: -1 }, { a: 0.39, reach: 2.05, g: 1, c: 1 },
+  { a: -1.18, reach: 1.9, g: 1, c: -1 }, { a: 1.18, reach: 1.9, g: 0, c: 1 },
+  { a: -1.96, reach: 1.8, g: 0, c: 1 }, { a: 1.96, reach: 1.8, g: 1, c: -1 },
+  { a: -2.75, reach: 1.7, g: 1, c: 1 }, { a: 2.75, reach: 1.7, g: 0, c: -1 },
 ];
-const N = 10;
+const N = 14;
 
 // Leg thickness along its length (0 = hip, 1 = foot): stays thick all the way down, swells into a padded foot, ends rounded.
 // the new creature's legs: thick and muscular at the hip, tapering smoothly to a soft, slightly flattened tip (no padded swelling)
 function legRadius2(t) {
-  let r = lerp(0.135, 0.034, Math.pow(t, 0.85)) * (1 + 0.05 * Math.sin(t * 8));
+  let r = lerp(0.19, 0.052, Math.pow(t, 0.82)) * (1 + 0.035 * Math.sin(t * 11));
   if (t < 0.05) r *= Math.sqrt(Math.max(0.02, t / 0.05));          // a rounded root, never a flat cut end
-  if (t > 0.94) r *= Math.sqrt(Math.max(0.05, 1 - ((t - 0.94) / 0.06) ** 2));
+  if (t > 0.86) r *= Math.sqrt(Math.max(0.04, 1 - ((t - 0.86) / 0.14) ** 2));
+  return r;
+}
+// seen from inside: never a spike. Thick all the way, with a round end.
+function legRadiusFP(t) {
+  let r = lerp(0.17, 0.085, Math.pow(t, 0.8)) * (1 + 0.035 * Math.sin(t * 11));
+  if (t < 0.05) r *= Math.sqrt(Math.max(0.02, t / 0.05));
+  if (t > 0.8) r *= Math.sqrt(Math.max(0.1, 1 - ((t - 0.8) / 0.2) ** 2));
   return r;
 }
 function legRadius(t) {
@@ -78,7 +86,7 @@ export class AlienBody {
 
     const nb = alienReady();
     this.legGel = nb
-      ? makeTentacleGel({ color: opts.tint === 'elder' ? 0x16122c : 0x0a1520, rim: opts.tint === 'elder' ? 0x9c7cf0 : 0x2a9488, alpha: 0.97, length: 2.4, r0: 0.13, r1: 0.035, suckers: 1, veins: 0.3 })
+      ? makeTentacleGel({ color: opts.tint === 'elder' ? 0x16122c : 0x0a1520, rim: opts.tint === 'elder' ? 0x9c7cf0 : 0x2a9488, alpha: 0.97, length: 2.4, r0: 0.19, r1: 0.05, suckers: 1, veins: 0.3 })
       : makeTentacleGel({ color: 0x0d6560, rim: 0x7fe8da, alpha: 0.5, length: 2.4, r0: 0.11, r1: 0.06 });
     this.legs = LEGS.map((d) => {
       const leg = {
@@ -88,7 +96,7 @@ export class AlienBody {
         chain: new SpringChain(N, 360, 90, 0.8),
         ideal: Array.from({ length: N }, () => new THREE.Vector3()),
         c1: new THREE.Vector3(), c2: new THREE.Vector3(), root: new THREE.Vector3(),
-        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: nb ? legRadius2 : legRadius, material: this.legGel }),
+        mesh: new TentacleMesh({ rings: 40, radial: 14, radius: nb ? legRadius2 : legRadius, material: this.legGel }),
       };
       leg.mesh.mesh.renderOrder = 2;
       scene.add(leg.mesh.mesh);
@@ -100,8 +108,12 @@ export class AlienBody {
   attachAlien(opts) {
     this.alien = buildAlien(opts);
     if (opts.firstPerson) {                          // a soft dark hub where the legs join: all you see of your own body when you look straight down
-      this.hub = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 12), new THREE.MeshStandardMaterial({ color: 0x070f18, roughness: 0.9, metalness: 0 }));
-      this.hub.scale.set(1, 0.42, 1.1); this.hub.position.y = -0.22; this.group.add(this.hub);
+      // the same skin as the legs, so they grow out of it without a join
+      this.legGel.transparent = false; this.legGel.depthWrite = true; this.legGel.uniforms.uSpec.value = 0.12; this.legGel.uniforms.uRim.value.setRGB(0.1, 0.42, 0.4); this.legGel.uniforms.uColor.value.setRGB(0.03, 0.045, 0.06); this.legGel.uniforms.uSpots.value = 0.15; this.legGel.uniforms.uSucker.value = 1; this.legGel.needsUpdate = true;
+      for (const leg of this.legs) { leg.mesh.radius = legRadiusFP; }
+      const hg = makeTentacleGel({ color: 0x162230, rim: 0x2a7a70, alpha: 1, length: 2.4, r0: 0.19, r1: 0.05, suckers: 0, veins: 0 }); hg.transparent = false; hg.depthWrite = true; hg.uniforms.uSpec.value = 0.1; hg.uniforms.uSpots.value = 0; hg.uniforms.uRim.value.setRGB(0.08, 0.3, 0.3); hg.uniforms.uColor.value.setRGB(0.03, 0.045, 0.06);
+      this.hub = new THREE.Mesh(new THREE.SphereGeometry(0.31, 24, 14), hg);
+      this.hub.scale.set(1, 0.5, 1.12); this.hub.position.y = -0.26; this.group.add(this.hub);
     }
     this.firstPerson = !!opts.firstPerson;           // the player's own body is never drawn from inside it (only legs are seen when looking down)
     this.alien.root.scale.setScalar(0.6); this.alien.root.position.y = -0.5;
@@ -112,12 +124,14 @@ export class AlienBody {
   dispose(scene) { scene.remove(this.group); for (const l of this.legs) scene.remove(l.mesh.mesh); }
 
   home(leg, out, lead) {
-    const { a } = leg.d;
-    const reach = leg.d.reach * (this.firstPerson ? 0.72 : 1) * (1 + 0.55 * (this.deathK || 0));      // your feet stay under you, out of the bottom of the view
+    // moving, an octopus sweeps its arms back and to the sides: in first person they never point straight ahead of you
+    const swp = this.firstPerson ? Math.min(1, Math.hypot(this.player.vx, this.player.vz) / 5) : 0;
+    const a = leg.d.a + Math.sign(leg.d.a) * swp * 0.75;
+    const reach = leg.d.reach * (this.firstPerson ? 0.6 : 1) * (1 + 0.55 * (this.deathK || 0));      // your feet stay under you, out of the bottom of the view
     const lx = Math.sin(a) * reach, lz = -Math.cos(a) * reach;
     const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
     out.set(this.player.pos.x + lx * cy + lz * sy, 0, this.player.pos.z - lx * sy + lz * cy);
-    out.x += this.player.vx * lead; out.z += this.player.vz * lead;
+    { const ld = this.firstPerson ? -lead * 0.2 : lead; out.x += this.player.vx * ld; out.z += this.player.vz * ld; }
     // keep feet out of walls and props
     const p = this.player.pos;
     _o.set(p.x, p.y + 0.6, p.z);
@@ -191,7 +205,7 @@ export class AlienBody {
         leg.stepT += dt / leg.dur;
         const k = Math.min(1, leg.stepT), e = k * k * (3 - 2 * k);
         leg.foot.lerpVectors(leg.from, leg.to, e);
-        leg.foot.y += Math.sin(k * Math.PI) * (0.28 + speed * 0.025);
+        leg.foot.y += Math.sin(k * Math.PI) * (this.firstPerson ? 0.05 : 0.1 + speed * 0.012);
         if (leg.stepT >= 1) { leg.stepT = -1; leg.planted.copy(leg.to); leg.foot.copy(leg.to); }
       } else {
         leg.foot.copy(leg.planted);
@@ -206,24 +220,28 @@ export class AlienBody {
 
       // Spine of the tentacle: out and up from the bell, arching down to the foot.
       const { a } = leg.d;
-      const hipR = this.firstPerson ? 0.1 : 0.3;      // seen from above, the legs must meet at one point rather than start from separate cut ends
+      const hipR = this.firstPerson ? 0.1 : 0.24;      // seen from above, the legs must meet at one point rather than start from separate cut ends
       const rx = Math.sin(a) * hipR, rz = -Math.cos(a) * hipR;
       const cyb = Math.cos(this.yaw), syb = Math.sin(this.yaw);
-      leg.root.set(p.pos.x + rx * cyb + rz * syb, p.pos.y + (this.firstPerson ? 0.34 : 0.62), p.pos.z - rx * syb + rz * cyb);
+      leg.root.set(p.pos.x + rx * cyb + rz * syb, p.pos.y + (this.firstPerson ? 0.34 : 0.5), p.pos.z - rx * syb + rz * cyb);
       const dx = leg.foot.x - leg.root.x, dz = leg.foot.z - leg.root.z, hd = Math.hypot(dx, dz) || 1;
       const ox = dx / hd, oz = dz / hd;
       const lift = Math.max(0, leg.foot.y - (this.world.groundHeight(leg.foot.x, leg.foot.z, p.pos.y + 0.4, 0.2)));
-      const arch = this.firstPerson ? 0.05 : 0.5 + hd * 0.18;
-      leg.c1.set(leg.root.x + ox * hd * 0.35, leg.root.y + arch, leg.root.z + oz * hd * 0.35);
-      leg.c2.set(leg.foot.x - ox * hd * 0.2, leg.foot.y + (this.firstPerson ? 0.22 : 0.55 + hd * 0.12) + lift * 0.5, leg.foot.z - oz * hd * 0.2);
+      leg.c1.set(leg.root.x + ox * hd * 0.34, lerp(leg.root.y, leg.foot.y, 0.42), leg.root.z + oz * hd * 0.34);
+      leg.c2.set(leg.foot.x - ox * hd * 0.38, leg.foot.y + 0.05 + lift * 0.6, leg.foot.z - oz * hd * 0.38);
       for (let i = 0; i < N; i++) bezier(leg.root, leg.c1, leg.c2, leg.foot, i / (N - 1), leg.ideal[i]);
-      for (let i = 1; i < N - 1; i++) {
-        const w = i / (N - 1), amp = 0.02 * Math.sin(w * Math.PI) * (1 + Math.min(1, speed));
-        leg.ideal[i].x += Math.sin(t * 2.0 + leg.d.a * 4 - w * 5) * amp;
-        leg.ideal[i].y += Math.sin(t * 1.7 + leg.d.a * 3 - w * 4) * amp;
+      // alive along its length, and the last part always curls over on itself, slowly opening and closing
+      const px = -oz, pz = ox, curl = leg.d.c * (0.7 + 0.3 * Math.sin(t * 0.7 + leg.d.a * 5)), span = Math.min(1, hd / 1.2);
+      for (let i = 1; i < N; i++) {
+        const w = i / (N - 1), amp = (0.03 + 0.05 * w) * Math.sin(Math.min(1, w * 1.4) * Math.PI * 0.5) * (1 + Math.min(1, speed * 0.3));
+        const side = Math.sin(t * 1.6 + leg.d.a * 4 - w * 6) * amp, q = Math.max(0, (w - 0.56) / 0.44);
+        const cu = q * q * 0.42 * curl * span;
+        leg.ideal[i].x += px * (side + cu) - ox * q * q * q * 0.2 * span;
+        leg.ideal[i].z += pz * (side + cu) - oz * q * q * q * 0.2 * span;
+        leg.ideal[i].y += Math.abs(Math.sin(t * 1.3 + leg.d.a * 3 - w * 4)) * amp * 0.5 + q * q * 0.1 * span;
       }
       leg.chain.step(leg.ideal, dt);
-      leg.chain.p[N - 1].copy(leg.foot); // tip stays planted exactly
+      leg.chain.p[N - 1].copy(leg.ideal[N - 1]);
       leg.mesh.update(leg.chain.p);
     }
     updateTentacleGels(t, 0);

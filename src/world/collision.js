@@ -86,7 +86,7 @@ export class CollisionWorld {
   }
 
   groundHeight(x, z, feetY, radius, stepUp = 0.3) {
-    let h = 0;
+    let h = this.terrain ? this.terrain(x, z) : 0;
     for (const b of this.boxes) {
       if (!b.enabled || b.noStand || b.maxY > feetY + stepUp || b.maxY <= h) continue;
       // you stay on a surface until almost all of you is past its edge, so you step off cleanly instead of being shoved sideways
@@ -133,7 +133,10 @@ export class CollisionWorld {
         best = { t: bt, box: b, nx: hitOut.nx, ny: hitOut.ny, nz: hitOut.nz };
       }
     }
-    if (dy < -EPS && oy > 0) {
+    if (this.terrain) {
+      const end = Math.min(bt, maxT), step = Math.max(0.6, end / 40);
+      for (let t = step; t <= end; t += step) if (oy + dy * t < this.terrain(ox + dx * t, oz + dz * t)) { bt = t; best = { t, box: null, nx: 0, ny: 1, nz: 0 }; break; }
+    } else if (dy < -EPS && oy > 0) {
       const t = -oy / dy;
       if (t < bt) { bt = t; best = { t, box: null, nx: 0, ny: 1, nz: 0 }; }
     }

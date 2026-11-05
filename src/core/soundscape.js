@@ -11,6 +11,9 @@ const SCENES = {
   attack: { noise: [['lowpass', 130, 0.8, 0.24, 0.3, 40]], drone: [[46, 'sawtooth', 0.03, 240], [46.7, 'sawtooth', 0.03, 240], [92.5, 'sine', 0.03], [659, 'sine', 0.005], [698.5, 'sine', 0.005]], every: [2, 4] },
   ruin: { noise: [['lowpass', 360, 0.7, 0.07, 0.07, 170], ['bandpass', 1900, 1.4, 0.006, 0.5, 700]], drone: [[55, 'sine', 0.03], [82.4, 'sine', 0.014]], every: [0.5, 1.6], theme: [12, 18, 0.5, 1.5] },
   space: { noise: [['lowpass', 200, 0.5, 0.025, 0.05, 80]], drone: [[38, 'sine', 0.04], [55, 'sine', 0.012], [82.4, 'sine', 0.009], [164.8, 'triangle', 0.003]], every: [6, 13], theme: [18, 26, 0.5, 1.3] },
+  desert: { noise: [['bandpass', 720, 0.5, 0.075, 0.13, 330], ['highpass', 3400, 0.3, 0.006, 0.3, 700]], drone: [[61.7, 'sine', 0.02], [92.5, 'sine', 0.012]], every: [2.5, 6], theme: [16, 24, 0.75, 1.1] },
+  ice: { noise: [['bandpass', 1300, 0.7, 0.05, 0.2, 800], ['lowpass', 240, 0.6, 0.06, 0.08, 90]], drone: [[73.4, 'sine', 0.014], [220, 'sine', 0.003], [329.6, 'sine', 0.002]], every: [3, 8], theme: [18, 26, 1.5, 1.2] },
+  reef: { noise: [['lowpass', 520, 0.5, 0.05, 0.05, 200]], drone: [[82.4, 'sine', 0.016], [123.5, 'sine', 0.012], [164.8, 'triangle', 0.005], [493.9, 'sine', 0.0025]], every: [1.6, 4], theme: [9, 14, 2, 1.0] },
   ship: { noise: [['bandpass', 420, 0.6, 0.04, 0.11, 150], ['highpass', 3800, 0.4, 0.002, 0.2, 500]], drone: [[60, 'sine', 0.022], [120, 'sine', 0.008], [180, 'triangle', 0.002]], every: [2.5, 7] },
   ending: { noise: [['lowpass', 300, 0.6, 0.03, 0.06, 90]], drone: [[55, 'sine', 0.03], [82.4, 'sine', 0.018], [110, 'sine', 0.012]], every: [99, 99], theme: [0.5, 6, 0.5, 1.25] },
 };
@@ -115,6 +118,10 @@ export class Soundscape {
     } else if (name === 'ruin') {
       if (Math.random() < 0.82) A.noise(this.send(0.03, pan, 0.2), { dur: 0.03, vol: 1, type: 'highpass', f0: r(1800, 4500) });
       else A.noise(this.send(0.1, pan, 1), { dur: 1.6, vol: 1, type: 'lowpass', f0: 150, f1: 40 });       // another valley, far off
+    } else if (name === 'desert' || name === 'reef') {
+      const f = r(name === 'reef' ? 500 : 180, name === 'reef' ? 1100 : 340); A.tone(this.send(0.012, pan, 1), { type: 'sine', f0: f, f1: f * r(0.7, 1.5), dur: r(0.5, 1.1), vol: 1, attack: 0.15 });
+    } else if (name === 'ice') {
+      A.noise(this.send(0.03, pan, 1), { dur: 0.05, vol: 1, type: 'bandpass', f0: r(1800, 3600), q: 3 }); A.tone(this.send(0.008, pan, 1), { type: 'triangle', f0: r(120, 240), dur: 0.2, vol: 1 });
     } else if (name === 'space') {
       A.tone(this.send(0.006, pan, 1), { type: 'sine', f0: 880, f1: 660, dur: 0.14, vol: 1, attack: 0.01 });
     } else if (name === 'ship') {
