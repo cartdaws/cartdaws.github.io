@@ -20,7 +20,7 @@ def mat(name, color, rough, coat=0.8):
     for k, v in (('Coat Weight', coat), ('Specular IOR Level', 0.9)):
         if k in n.inputs: n.inputs[k].default_value = v
     return m
-SKIN, SUCK = mat('Skin', '#0c1826', 0.3), mat('Sucker', '#2a3a4c', 0.3)
+SKIN, SUCK = mat('Skin', '#0c1826', 0.3), mat('Sucker', '#3b5368', 0.28)
 
 def catmull(pts, n):
     P = [pts[0]] + list(pts) + [pts[-1]]; segs = len(pts) - 1; out = []
@@ -67,14 +67,14 @@ def sucker_verts(c, r, flat_axis):
         out.append(c + x * q.x + y * q.y + z * q.z)
     return out
 
-FX = [-0.085, -0.028, 0.028, 0.085]; FY = [-0.015, 0.018, 0.018, -0.015]
-ARM_SEG, ARM_N, F_SEG, F_N = 22, 40, 10, 22
+FX = [-0.06, -0.02, 0.02, 0.06]; FY = [-0.012, 0.012, 0.012, -0.012]
+ARM_SEG, ARM_N, F_SEG, F_N = 22, 40, 12, 24
 
 def build(pose='basis'):
     """vertex positions for the skin (forearm + four fingers) and for the suckers, in fixed orders"""
     swell = 1.28 if pose == 'swell' else 1.0
-    arm_pts = [(0, 0.0, 1.36), (0, -0.03, 0.95), (0, -0.045, 0.5), (0, -0.03, 0.1), (0, -0.01, -0.03), (0, 0.0, -0.075)]
-    arm_r = [0.2 * swell, 0.145 * swell, 0.1 * swell, 0.07 * swell, 0.095 * (1 + 0.1 * (swell - 1)), 0.07]
+    arm_pts = [(0, 0.0, 1.36), (0.025, -0.03, 0.95), (-0.02, -0.045, 0.5), (0.012, -0.03, 0.1), (0, -0.01, -0.03), (0, 0.0, -0.075)]
+    arm_r = [0.088 * swell, 0.066 * swell, 0.05 * swell, 0.039 * swell, 0.058 * (1 + 0.1 * (swell - 1)), 0.044]
     skin, path, rad, frames = tube(arm_pts, arm_r, ARM_SEG, ARM_N)
     suck = []
     # two rows of suckers down the underside of the arm, getting smaller toward the wrist
@@ -84,20 +84,25 @@ def build(pose='basis'):
             c = path[i] + Vector((0, -1, 0)) * r * 0.9 + Vector((1, 0, 0)) * r * side
             suck.append(sucker_verts(c, r * 0.3, Vector((0, -1, 0)) + Vector((1, 0, 0)) * side * 0.6))
     for k in range(4):
-        x0, y0 = FX[k], FY[k]; wv = 0.03 * (1 if k % 2 else -1); r = [0.04, 0.032, 0.022, 0.009]
-        if pose == 'grip':
-            p = [(x0 * 0.85, y0, -0.04), (x0 * 0.9, y0 - 0.05, -0.15), (x0 * 0.7, y0 - 0.15, -0.21), (x0 * 0.45, y0 - 0.2, -0.13), (x0 * 0.3, y0 - 0.15, -0.05)]
-        elif pose == 'weapon':
-            p = [(x0 * 0.5, y0 * 0.5, -0.04), (x0 * 0.3, y0 * 0.4, -0.16), (x0 * 0.18, y0 * 0.3, -0.27), (x0 * 0.1, y0 * 0.2, -0.38)]; r = [0.046, 0.04, 0.03, 0.018]
-        elif pose == 'spread':
-            p = [(x0 * 0.85, y0, -0.04), (x0 * 1.9, y0, -0.13), (x0 * 3.0, y0 - 0.03, -0.22), (x0 * 3.9, y0 - 0.1, -0.3)]
-        else:   # relaxed: long, sinuous, each finger its own gentle S-curve
-            p = [(x0 * 0.85, y0, -0.04), (x0 * 1.3 + wv, y0 - 0.01, -0.16), (x0 * 1.5 - wv, y0 - 0.04, -0.29), (x0 * 1.95 + wv * 0.6, y0 - 0.1, -0.42)]
+        x0, y0 = FX[k], FY[k]; wv = 0.035 * (1 if k % 2 else -1); r = [0.064, 0.053, 0.038, 0.016]
+        if pose == 'grip':      # curled tightly into a coil under the wrist
+            p = [(x0 * 0.85, y0, -0.05), (x0 * 0.9, y0 - 0.05, -0.2), (x0 * 0.7, y0 - 0.17, -0.28), (x0 * 0.45, y0 - 0.25, -0.18), (x0 * 0.3, y0 - 0.2, -0.07)]
+        elif pose == 'weapon':  # the tentacles wind together into one long tapering spear
+            p = [(x0 * 0.5, y0 * 0.5, -0.05), (x0 * 0.3, y0 * 0.4, -0.18), (x0 * 0.17, y0 * 0.3, -0.3), (x0 * 0.08, y0 * 0.2, -0.42)]; r = [0.07, 0.06, 0.044, 0.02]
+        elif pose == 'spread':  # a wide fan, the tips lifting
+            p = [(x0 * 0.85, y0, -0.05), (x0 * 1.9, y0 + 0.01, -0.16), (x0 * 3.0, y0 + 0.05, -0.28), (x0 * 3.9, y0 + 0.16, -0.36)]
+        else:                   # relaxed: reach forward, then curl UP toward you so the suckers on the inner curve face the camera
+            p = [(x0 * 0.9, y0, -0.05), (x0 * 1.4 + wv, y0, -0.2), (x0 * 1.7 - wv, y0 + 0.07, -0.37), (x0 * 1.9 + wv * 0.6, y0 + 0.2, -0.48), (x0 * 1.8, y0 + 0.36, -0.44)]
+        p = [(q[0] * 1.3, q[1] * 1.25, q[2] * 1.55) for q in p]; r = [v * 0.78 for v in r]      # bigger: from your own eyes the hand is foreshortened, so it needs real length and bulk to read as tentacles
         fv, fpath, frad, fframes = tube(p, [v * swell ** 0.4 for v in r], F_SEG, F_N)
         skin += fv
-        for i in (4, 8, 12, 16):                                     # four suckers along each finger
-            rr = frad[i]; c = fpath[i] + Vector((0, -1, 0)) * rr * 0.85
-            suck.append(sucker_verts(c, rr * 0.5, Vector((0, -1, 0))))
+        for i in range(3, F_N - 2, 2):                                # a row of suckers on the INNER side of each tentacle's curve, so they show
+            prev, nxt = fpath[max(i - 1, 0)], fpath[min(i + 1, F_N - 1)]
+            inner = ((prev + nxt) / 2 - fpath[i])
+            if inner.length < 1e-5: inner = Vector((0, -1, 0))
+            inner.normalize(); rr = frad[i]
+            if pose == 'basis': inner = (inner * 0.7 + Vector((0, 1, 0)) * 0.5).normalized()   # at rest the curl faces up: keep them facing the viewer
+            suck.append(sucker_verts(fpath[i] + inner * rr * 0.92, rr * 0.5, inner))
     return skin, suck
 
 faces = tube_faces(ARM_SEG, ARM_N, 0)
@@ -109,8 +114,12 @@ sfaces = []
 for bi in range(len(suck0)):
     for f in TFACES: sfaces.append(tuple(bi * len(TEMPLATE) + i for i in f))
 
+def conv(v):
+    """my coordinates are the game frame (x right, y up, z toward the camera); Blender wants +Y forward and +Z up, and the exporter turns that into the game frame"""
+    return Vector((v[0], -v[2], v[1]))
+
 def make(name, verts, fcs, material):
-    me = bpy.data.meshes.new(name); me.from_pydata([tuple(v) for v in verts], [], fcs); me.update(); me.materials.append(material)
+    me = bpy.data.meshes.new(name); me.from_pydata([tuple(conv(v)) for v in verts], [], fcs); me.update(); me.materials.append(material)
     me.polygons.foreach_set('use_smooth', [True] * len(me.polygons))
     o = bpy.data.objects.new(name, me); bpy.context.scene.collection.objects.link(o); return o
 hand = make('Hand', skin0, faces, SKIN)
@@ -121,9 +130,9 @@ for obj, idx in ((hand, 0), (sucks, 1)):
         sk = obj.shape_key_add(name=name, from_mix=False)
         data = build(pose)[idx]
         flat = data if idx == 0 else [v for s in data for v in s]
-        for i, v in enumerate(flat): sk.data[i].co = v
+        for i, v in enumerate(flat): sk.data[i].co = conv(v)
 bpy.context.view_layer.objects.active = hand
-sub = hand.modifiers.new('S', 'SUBSURF'); sub.levels = 1; sub.render_levels = 1
+# (no subdivision modifier: applying one on export would discard the shape keys)
 print('HAND v3 built:', len(hand.data.vertices), 'skin verts,', len(sucks.data.vertices), 'sucker verts, keys', [k.name for k in hand.data.shape_keys.key_blocks])
 
 world = bpy.data.worlds.get('World') or bpy.data.worlds.new('World'); bpy.context.scene.world = world; world.use_nodes = True
