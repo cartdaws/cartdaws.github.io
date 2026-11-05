@@ -438,7 +438,7 @@ export class Flight {
       this.trailT = boost ? 0.02 : 0.05;
       for (const e of this.ship.userData.engines) {
         _v.copy(e.position).applyQuaternion(this.ship.quaternion).add(this.ship.position);
-        this.combat.burst(_v, boost ? 0xb8f4ff : 0x8fe8ff, 1, 0, boost ? 1.9 : 1.15, 0.38, -0.5);
+        this.combat.burst(_v, boost ? 0xb8f4ff : 0x8fe8ff, 1, 0, boost ? 0.95 : 0.55, 0.3, -0.6);
       }
     }
     // a damaged ship smokes and sparks
@@ -485,7 +485,11 @@ export class Flight {
     const sens = (g.sens || 0.0022) * 0.9;
     const GAIN = 0.4;                                     // overall steering gain (the earlier 1.4 felt twitchy)
     let yawIn = 0, pitchIn = 0, rollIn = 0;
+    // touch: the stick sets throttle (up/down) and bank (left/right); DASH boosts for a moment, JUMP brakes for a moment
+    this.boostT = Math.max(0, (this.boostT || 0) - dt); this.brakeT = Math.max(0, (this.brakeT || 0) - dt);
+    if (input.touch) { if (input.was('ShiftLeft')) this.boostT = 1.6; if (input.was('Space')) this.brakeT = 1.2; }
     if (live) {
+      if (input.touch) { rollIn += -input.axisX; if (input.axisY > 0.25) this.throttle = Math.min(1, this.throttle + dt * 0.5 * input.axisY); if (input.axisY < -0.25) this.throttle = Math.max(0.1, this.throttle + dt * 0.5 * input.axisY); }
       yawIn = -lx * sens * GAIN; pitchIn = -ly * sens * GAIN;
       if (input.down('KeyA')) rollIn += 1; if (input.down('KeyD')) rollIn -= 1;
       if (input.down('KeyW')) this.throttle = Math.min(1, this.throttle + dt * 0.5);
@@ -498,8 +502,8 @@ export class Flight {
       e.set(this.pitchRate * dt, this.yawRate * dt, 0, 'YXZ'); q.setFromEuler(e);
       this.quat.multiply(q).normalize();
     }
-    const boost = live && (input.down('ShiftLeft') || input.down('ShiftRight'));
-    const brake = live && input.down('Space');
+    const boost = live && (input.down('ShiftLeft') || input.down('ShiftRight') || this.boostT > 0);
+    const brake = live && (input.down('Space') || this.brakeT > 0);
     const target = this.docking ? 14 : (boost ? 360 : 40 + this.throttle * 120) * (brake ? 0.25 : 1);
     this.speed = damp(this.speed, target, boost ? 1.6 : 1.1, dt);
     _f.set(0, 0, -1).applyQuaternion(this.quat);

@@ -70,6 +70,7 @@ export class Game {
       this.touchUI = new TouchControls(this.input, {
         onPause: () => { if (this.state === 'playing' || this.state === 'opening' || this.state === 'flight') this.input.unlock(); },
         onSkip: () => { if (this.opening.active && !this.paused) this.opening.skip(); },
+        onArms: () => { if (this.state === 'playing' && !this.opening.active && !this.paused) this.arsenal.cycle(); },
       });
     }
     this.admin = new Admin(this);
@@ -610,6 +611,7 @@ export class Game {
       // the screen shake and hit flash must keep fading in flight too (this branch returns before the normal decay below)
       this.trauma = Math.max(0, this.trauma - dt * 1.7); this.hitFlash = Math.max(0, this.hitFlash - dt * 2.2);
       this.flight.update(dt, input, this.lookX, this.lookY);
+      if (this.touchUI) this.touchUI.setVisible(this.paused ? false : 'flight', null);
       this.effects.update(dt);
       this.ui.update(dt);
       input.endFrame();
@@ -638,7 +640,7 @@ export class Game {
     this.body.setVisible(!this.cinePose && !this.opening.hideBody);
     this.body.update(dt);
     this.ui.update(dt);
-    if (this.touchUI) this.touchUI.setVisible(this.paused ? false : this.state === 'playing', this.opening.active ? this.opening.buttons() : null);
+    if (this.touchUI) this.touchUI.setVisible(this.paused ? false : this.state === 'flight' ? 'flight' : this.state === 'playing', this.opening.active ? this.opening.buttons() : null);
     if (this.state === 'playing' || this.state === 'dead') {
       this.ui.setHealth(player.health, player.maxHealth);
       this.ui.setDash(player.dashReady);

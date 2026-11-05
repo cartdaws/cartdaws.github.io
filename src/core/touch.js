@@ -3,7 +3,7 @@
 export const isTouchDevice = () => /[?&]touch\b/.test(location.search) || window.matchMedia('(pointer: coarse)').matches;
 
 export class TouchControls {
-  constructor(input, { onPause, onSkip }) {
+  constructor(input, { onPause, onSkip, onArms }) {
     this.input = input;
     const root = document.createElement('div');
     root.id = 'touch';
@@ -14,6 +14,7 @@ export class TouchControls {
       <button id="t-jump">JUMP</button>
       <button id="t-dash">DASH</button>
       <button id="t-absorb">ABSORB</button>
+      <button id="t-arms">ARMS</button>
       <button id="t-pause">II</button>`;
     document.body.appendChild(root);
     this.root = root;
@@ -75,6 +76,7 @@ export class TouchControls {
     hold($('t-jump'), () => input.pressed.add('Space'));
     hold($('t-dash'), () => input.pressed.add('ShiftLeft'));
     hold($('t-pause'), () => onPause());
+    hold($('t-arms'), () => { onArms && onArms(); });
     this.absorbBtn = $('t-absorb');
     hold(this.absorbBtn, () => { input.absorbTap = true; input.touchInteract = true; }, () => { input.touchInteract = false; });
 
@@ -88,6 +90,7 @@ export class TouchControls {
 
   setVisible(mode, flags = null) {
     this.root.classList.toggle('show', !!mode);
+    this.root.classList.toggle('flight', mode === 'flight');
     const f = flags || { fire: true, jump: true, dash: true };
     this.root.classList.toggle('no-fire', !f.fire); this.root.classList.toggle('no-jump', !f.jump); this.root.classList.toggle('no-dash', !f.dash);
   }

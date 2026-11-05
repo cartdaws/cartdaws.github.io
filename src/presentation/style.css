@@ -1122,3 +1122,12 @@ body.touch #banner { font-size: 16px; }
 
 #menu-complete .chapter { max-width: 520px; text-align: center; line-height: 1.7; letter-spacing: .08em; opacity: .85; margin: 0 0 18px; }
 #menu-complete .chapter-tag { letter-spacing: .3em; font-size: 10px; opacity: .55; margin-bottom: 22px; }
+
+/* touch: the ARMS button cycles weapons; in flight the same buttons mean brake, boost and barbs */
+#t-arms { right: calc(236px + env(safe-area-inset-right)); bottom: calc(92px + env(safe-area-inset-bottom)); width: 62px; height: 62px; font-size: 12px !important; }
+#touch.flight #t-arms { display: none !important; }
+#touch.flight #t-jump, #touch.flight #t-dash, #touch.flight #t-absorb { font-size: 0 !important; }
+#touch.flight #t-jump::after { content: 'BRAKE'; font-size: 12px; }
+#touch.flight #t-dash::after { content: 'BOOST'; font-size: 12px; }
+#touch.flight #t-absorb { display: block !important; opacity: 1 !important; }
+#touch.flight #t-absorb::after { content: 'BARBS'; font-size: 12px; }
