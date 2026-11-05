@@ -3,6 +3,8 @@ import { lerp, smooth, seg, clamp, damp, easeOut } from '../core/util.js';
 import { PLAYER_START, PISTOL_POS, CELL } from '../world/level.js';
 import { poseHuman, seatHuman } from '../world/humans.js';
 import { HomeWorld, HOME, HOME_START, WRECK_AT, PISTOL_AT } from '../world/home.js';
+import { addCockpit, SEAT_EYE, YOKE_GRIP } from '../game/cockpit.js';
+const _sq = new THREE.Quaternion(), _st = new THREE.Quaternion(), _sx = new THREE.Vector3(1, 0, 0), _sv = new THREE.Vector3(), _se = new THREE.Euler();
 import { save } from '../core/save.js';
 import { progress } from '../game/progress.js';
 import { makeHandGel } from './hand.js';
@@ -472,6 +474,7 @@ export class Intro {
     const g = this.g;
     if (this.wreck) return;
     this.wreck = makeLander(); this.wreck.scale.setScalar(1.1);
+    addCockpit(this.wreck);
     this.wreck.traverse((m) => { if (m.isMesh && m.material && m.material.emissive) { m.material = m.material.clone(); m.material.emissive.lerp(new THREE.Color(0x3a5560), 0.7); m.material.emissiveIntensity = 0.9; } });
     this.wreck.position.set(HOME.x + WRECK_AT.x, 1.15, HOME.z + WRECK_AT.z); this.wreck.rotation.set(0.1, 0.55, -0.16);
     this.wreck.userData.engines.forEach((sp) => { sp.visible = false; });
@@ -555,22 +558,9 @@ export class Intro {
         break;
       }
       case 6: this.updateBoarding(dt); break;
-      case 3: {                    // you climb into the lander, the systems wake, and it lifts off with you inside
+      case 3: {                    // in the seat: the systems wake and it lifts off with you inside
         this.moveLocked = true;
-        const T = this.stepT, w = this.wreck, B = this.f.b, sc = w.userData.screens || [];
-        // the cockpit seat, in world space, and the way the lander is facing
-        w.updateMatrixWorld(true);
-        const seat = w.localToWorld(_v.set(0, 0.78, -0.9));
-        const fwd = _l.set(0, 0, -1).applyQuaternion(w.quaternion);
-        const yawL = Math.atan2(-fwd.x, -fwd.z), pitchL = Math.asin(clamp(fwd.y, -1, 1));
-        const k = ease(T, 0, 2.5);
-        // the camera glides up over the wing and in through the canopy
-        const arc = Math.sin(k * Math.PI) * 1.4;
-        const pose = this.boardPose || (this.boardPose = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
-        pose.x = lerp(B.pos0.x, seat.x, k); pose.z = lerp(B.pos0.z, seat.z, k); pose.y = lerp(B.pos0.y, seat.y, k) + arc;
-        let dy = Math.atan2(Math.sin(yawL - B.yaw0), Math.cos(yawL - B.yaw0)); pose.yaw = B.yaw0 + dy * k;
-        pose.pitch = lerp(B.pitch0, pitchL + 0.04, k);
-        g.cinePose = pose; this.hideBody = true;
+        const T = this.stepT, w = this.wreck, sc = w.userData.screens || [];
         this.once('b1', () => g.audio.play('servo', { vol: 0.5 }));
         if (T > 2.4) this.once('b2', () => { g.audio.play('surge', { vol: 0.7 }); g.audio.play('unlock', { vol: 0.5 }); this.say('Their controls. I touch them, and I know them.', '', 3.4, true); });
         // systems wake: the screens come up, the engines kindle
@@ -578,17 +568,23 @@ export class Intro {
         sc.forEach((m, i) => { m.material.opacity = 0.25 + 0.65 * wake * (0.85 + 0.15 * Math.sin(g.time * 5 + i)); });
         w.userData.engines.forEach((e) => { e.visible = T > 3.2; e.scale.setScalar(0.8 + 2.2 * ease(T, 3.2, 5.6) + Math.sin(g.time * 40) * 0.1); });
         this.wreckLight.intensity = 22 + 50 * ease(T, 3.2, 5.6);
-        // lift-off: the wreck levels out and rises, the camera rides in the cockpit
+        // lift-off: the wreck levels out and rises
         if (T > 3.6) {
           const L = ease(T, 3.6, 8.0);
           const lvl = ease(T, 3.4, 5.2);
           w.rotation.x = lerp(0.1, -0.22, lvl);
           w.rotation.z = lerp(-0.16, 0, lvl);
           w.position.y = 1.15 + 80 * L * L;
-          g.addShake(0.05 + 0.1 * L);
+          g.addShake(0.03 + 0.05 * L);
         }
         if (T > 6.3) ui.fade(ease(T, 6.3, 7.8));
         if (T > 4.9) this.once('b3', () => this.say('Find them. Make them pay. Whatever it costs.', '', 3.2, true));
+        // the camera is placed after the ship has moved this frame. Reading the seat first left it a frame behind, further and further the faster the
+        // ship climbed, which sank the view through the floor.
+        this.seatPose(w); g.poseCamera();
+        this.reachAt(_w.copy(YOKE_GRIP).applyMatrix4(w.matrixWorld), 0.45);      // a hand on the yoke
+        vm.limp = 0.22;
+        this.hideBody = true;
         if (T > 8.0) this.launch();
         break;
       }
@@ -608,9 +604,9 @@ export class Intro {
       T: 0, pos: start.clone(), yaw: p.yaw, pitch: p.pitch,
       //   the wing's edge at your feet, hauled up onto it, along it to the hull, over the sill, down into the seat
       keys: [0, 1.2, 2.5, 4.0, 5.2, 6.0, 6.8],
-      pts: [start, foot, L(3.55, 1.34, 1.3), L(1.95, 1.42, 1.05), L(0.75, 1.9, 0.15), L(0.05, 1.72, -0.75), L(0, 0.78, -0.9)],
+      pts: [start, foot, L(3.55, 1.34, 1.3), L(1.95, 1.42, 1.05), L(0.75, 1.9, 0.15), L(0.05, 1.72, -0.75), SEAT_EYE.clone().applyMatrix4(w.matrixWorld)],
       looks: [L(3.2, 0.2, 0.9), L(2.4, 0.35, 0.8), L(0.5, 1.0, 0.2), L(0, 1.0, -0.6), L(0, 0.35, -1.25)],
-      wing: L(3.1, 0.14, 1.0), hull: L(0.95, 0.72, 0.15), seat: L(0, 0.78, -0.9),
+      wing: L(3.1, 0.14, 1.0), hull: L(0.95, 0.72, 0.15), seat: SEAT_EYE.clone().applyMatrix4(w.matrixWorld),
     };
     this.moveLocked = true; this.hideBody = true; p.extraSolid = null;
     g.audio.play('servo', { vol: 0.5 });
@@ -638,7 +634,9 @@ export class Intro {
     B.yaw += Math.atan2(Math.sin(wantYaw - B.yaw), Math.cos(wantYaw - B.yaw)) * lk; B.pitch += (wantPitch - B.pitch) * lk;
     const pose = this.boardPose || (this.boardPose = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
     pose.x = B.pos.x; pose.y = B.pos.y; pose.z = B.pos.z; pose.yaw = B.yaw; pose.pitch = B.pitch;
-    g.cinePose = pose;
+    this.seatPose(w, ease(T, 5.6, 7.4));
+    pose.x = B.pos.x; pose.y = B.pos.y; pose.z = B.pos.z;
+    if (w.userData.cockpit) w.userData.cockpit.visible = true;
     // your own arm does the work: it reaches for the wing, then for the hull
     const grab = ease(T, 0.8, 1.3) * (1 - ease(T, 2.2, 2.7)), grab2 = ease(T, 3.4, 3.9) * (1 - ease(T, 4.9, 5.4));
     if (grab > 0.01) this.reachAt(B.wing, 0.45 * grab); else if (grab2 > 0.01) this.reachAt(B.hull, 0.45 * grab2);
@@ -653,9 +651,21 @@ export class Intro {
     if (T > 6.6) this.once('bd3', () => g.audio.play('door', { vol: 0.8 }));
     if (T > 7.7) {
       // the same camera carries on into the lift-off
-      this.f.b = { pos0: B.seat.clone(), yaw0: Math.atan2(-fwd.x, -fwd.z), pitch0: Math.asin(clamp(fwd.y, -1, 1)) + 0.04 };
       this.step = 3; this.stepT = 2.5; this.moveLocked = true;
     }
+  }
+
+  // The eye of whoever sits in the pilot's seat: fixed to the ship, turning and rolling with it.
+  seatPose(w, blend = 1) {
+    const pose = this.boardPose || (this.boardPose = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
+    w.updateMatrixWorld(true);
+    w.getWorldQuaternion(_sq); _sq.multiply(_st.setFromAxisAngle(_sx, -0.17));
+    pose.q = pose.q || new THREE.Quaternion();
+    if (blend >= 1) {
+      _sv.copy(SEAT_EYE).applyMatrix4(w.matrixWorld); pose.x = _sv.x; pose.y = _sv.y; pose.z = _sv.z; pose.q.copy(_sq);
+    } else pose.q.setFromEuler(_se.set(pose.pitch, pose.yaw, 0, 'YXZ')).slerp(_sq, blend);
+    this.g.cinePose = pose;
+    return pose;
   }
 
   // Leave the homeworld: hand over to the free-flight scene.

@@ -113,7 +113,7 @@ export class AlienBody {
 
   home(leg, out, lead) {
     const { a } = leg.d;
-    const reach = leg.d.reach * (1 + 0.55 * (this.deathK || 0));
+    const reach = leg.d.reach * (this.firstPerson ? 0.72 : 1) * (1 + 0.55 * (this.deathK || 0));      // your feet stay under you, out of the bottom of the view
     const lx = Math.sin(a) * reach, lz = -Math.cos(a) * reach;
     const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
     out.set(this.player.pos.x + lx * cy + lz * sy, 0, this.player.pos.z - lx * sy + lz * cy);

@@ -724,7 +724,7 @@ export class Game {
     if (this.cinePose) {
       const cp = this.cinePose;
       c.position.set(cp.x, cp.y, cp.z);
-      c.rotation.set(cp.pitch, cp.yaw, 0);
+      if (cp.q) c.quaternion.copy(cp.q); else c.rotation.set(cp.pitch, cp.yaw, 0);       // a pose can ride a moving ship exactly, roll included
     } else {
       c.position.set(p.pos.x, p.eye, p.pos.z);
       c.rotation.set(p.pitch, p.yaw, 0);
