@@ -68,15 +68,21 @@ export class Shardcaster {
     const wall = g.world.raycast(cam.position.x, cam.position.y, cam.position.z, toMuzzle.x, toMuzzle.y, toMuzzle.z, len);
     if (wall) {
       const p = cam.position.clone().addScaledVector(toMuzzle, wall.t);
-      g.effects.impact(p, new THREE.Vector3(wall.nx, wall.ny, wall.nz));
+      g.effects.goo(p, new THREE.Vector3(wall.nx, wall.ny, wall.nz));
     } else {
       g.projectiles.spawnPlayer(_m.clone(), _o.clone(), this.speed, this.damage);
     }
     g.viewmodel.fireKick();
     g.viewmodel.recoilVel += 6;
     g.effects.muzzle(_m);
-    g.effects.glowP.emit(_m.x, _m.y, _m.z, 0, 0, 0, 0.09, 0.42, 0.6, 1, 1);
-    g.effects.flashLight(_m, 0x7ff0ff, 26, 0.06);
+    g.effects.glowP.emit(_m.x, _m.y, _m.z, 0, 0, 0, 0.09, 0.42, 0.55, 1, 0.7);
+    g.effects.flashLight(_m, 0x6dffb0, 26, 0.06);
+    // the maw spits: a spray of gel droplets after the spine, and the arm swells with the contraction
+    for (let i = 0; i < 7; i++) {
+      const sp = 2 + Math.random() * 4;
+      g.effects.glowP.emit(_m.x, _m.y, _m.z, _o.x * sp + (Math.random() - 0.5) * 1.4, _o.y * sp + Math.random() * 0.8, _o.z * sp + (Math.random() - 0.5) * 1.4, 0.25 + Math.random() * 0.25, 0.03 + Math.random() * 0.03, 0.4, 1, 0.55, 9, 0.8);
+    }
+    g.viewmodel.bulge = Math.max(g.viewmodel.bulge, 0.65);
     g.audio.play('shot', { vol: 0.95 });
     g.addShake(0.06);
     g.kick = Math.min(0.05, (g.kick || 0) + 0.016); // the view jumps a little with every shot

@@ -222,6 +222,7 @@ export class Effects {
     this.ring(pos, normal, 0x7ff0ff, 0.28, 0.22);
     const m = this.marks[this.markIdx];
     this.markIdx = (this.markIdx + 1) % this.marks.length;
+    m.mesh.material.color.set(0x7ff0ff);
     m.mesh.position.copy(pos).addScaledVector(normal, 0.015);
     m.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
     m.mesh.scale.setScalar(0.09);
@@ -236,7 +237,28 @@ export class Effects {
   }
 
   muzzle(pos) {
-    this.flashLight(pos, 0x7ff0ff, 18, 0.07);
+    this.flashLight(pos, 0x6dffb0, 18, 0.07);
+  }
+
+  // Organic impact: the spine bursts into a splash of glowing goo that drips and leaves a splat on the surface.
+  goo(pos, normal) {
+    for (let i = 0; i < 16; i++) {
+      const sp = rand(1.5, 5);
+      this.glowP.emit(pos.x, pos.y, pos.z,
+        normal.x * sp + rand(-2.2, 2.2), normal.y * sp + rand(-0.5, 2.5), normal.z * sp + rand(-2.2, 2.2),
+        rand(0.3, 0.7), rand(0.035, 0.07), 0.4, 1, 0.55, 12, 0.8);
+    }
+    for (let i = 0; i < 4; i++) this.glowP.emit(pos.x, pos.y, pos.z, rand(-0.3, 0.3), rand(-0.6, -0.1), rand(-0.3, 0.3), rand(0.6, 1.1), rand(0.04, 0.06), 0.3, 0.9, 0.45, 9, 2); // drips
+    this.glowP.emit(pos.x, pos.y, pos.z, 0, 0, 0, 0.14, 0.38, 0.6, 1, 0.75);
+    this.ring(pos, normal, 0x6dff9a, 0.24, 0.2);
+    const m = this.marks[this.markIdx];
+    this.markIdx = (this.markIdx + 1) % this.marks.length;
+    m.mesh.material.color.set(0x5dff8a);
+    m.mesh.position.copy(pos).addScaledVector(normal, 0.015);
+    m.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+    m.mesh.scale.setScalar(rand(0.1, 0.16));
+    m.mesh.visible = true;
+    m.t = 2.2;
   }
 
   enemyDeath(pos, big) {

@@ -111,17 +111,15 @@ export class Audio {
     const o = this.out(vol, pan);
     const p = rand(0.94, 1.06);
     switch (name) {
-      case 'shot':
-        this.tone(o, { type: 'triangle', f0: 2100 * p, f1: 700 * p, dur: 0.11, vol: 0.28 });
-        this.tone(o, { type: 'sine', f0: 3400 * p, f1: 2600 * p, dur: 0.16, vol: 0.12, delay: 0.01 });
-        this.tone(o, { type: 'sine', f0: 190, f1: 70, dur: 0.12, vol: 0.3 });
-        this.tone(o, { type: 'sine', f0: 120, f1: 42, dur: 0.16, vol: 0.42 });
-        this.noise(o, { dur: 0.07, vol: 0.32, type: 'lowpass', f0: 900, f1: 200 });
-        this.noise(o, { dur: 0.035, vol: 0.18, type: 'highpass', f0: 5000 });
+      case 'shot': // a wet, muscular spit: squelch, throat thump, spray
+        this.noise(o, { dur: 0.09, vol: 0.34, type: 'bandpass', f0: 1900 * p, f1: 420, q: 2.5 });
+        this.tone(o, { type: 'triangle', f0: 460 * p, f1: 170, dur: 0.08, vol: 0.14 });
+        this.tone(o, { type: 'sine', f0: 150, f1: 44, dur: 0.17, vol: 0.46 });
+        this.noise(o, { dur: 0.06, vol: 0.16, type: 'highpass', f0: 3200, delay: 0.015 });
         break;
-      case 'impact':
-        this.noise(o, { dur: 0.09, vol: 0.14, type: 'bandpass', f0: 5200, f1: 2500, q: 2 });
-        this.tone(o, { type: 'sine', f0: 2800 * p, f1: 1800, dur: 0.12, vol: 0.07 });
+      case 'impact': // splat
+        this.noise(o, { dur: 0.11, vol: 0.2, type: 'lowpass', f0: 1600, f1: 280 });
+        this.tone(o, { type: 'sine', f0: 320 * p, f1: 110, dur: 0.1, vol: 0.09 });
         break;
       case 'hit':
         this.tone(o, { type: 'square', f0: 1500, f1: 1200, dur: 0.045, vol: 0.09 });
