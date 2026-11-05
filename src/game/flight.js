@@ -346,7 +346,7 @@ export class Flight {
   hideMenu() {
     if (!this.menuActive) return;
     const g = this.g, s = g.scene, c = g.camera;
-    s.background = this.menuSaved.bg; s.fog = this.menuSaved.fog; c.far = this.menuSaved.far; c.fov = this.menuSaved.fov; c.updateProjectionMatrix();
+    s.background = this.menuSaved.bg; s.fog = this.menuSaved.fog; c.far = this.menuSaved.far; c.fov = this.menuSaved.fov; c.updateProjectionMatrix(); g.post.applyFog(s);
     if (!this.active) this.group.visible = this.sun.visible = this.fill.visible = false;
     this.menuActive = false; this.dust.visible = true; this.warship.visible = true;
     g.viewmodel.root.visible = true;
@@ -397,7 +397,7 @@ export class Flight {
   stop() {
     if (!this.active) return;
     const g = this.g, s = g.scene, c = g.camera;
-    s.background = this.saved.bg; s.fog = this.saved.fog; c.far = this.saved.far; c.updateProjectionMatrix();
+    s.background = this.saved.bg; s.fog = this.saved.fog; c.far = this.saved.far; c.updateProjectionMatrix(); g.post.applyFog(s);
     this.group.visible = this.sun.visible = this.fill.visible = false;
     this.active = false; this.phase = 'off';
     g.viewmodel.root.visible = true;

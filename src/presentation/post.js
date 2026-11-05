@@ -94,8 +94,11 @@ export class PostFX {
     snap.uSnap.value = retro ? 1 : 0;
     setRetroTextures(retro);
     document.body.classList.toggle('retro', retro);
-    if (scene) scene.fog.density = retro ? 0.03 : 0.016;
+    this.applyFog(scene);
   }
+
+  // fog thickness follows the graphics mode; the scene may have no fog at the moment (space scenes), and gets it back later
+  applyFog(scene) { if (scene && scene.fog && 'density' in scene.fog) scene.fog.density = this.mode === 'retro' ? 0.03 : 0.016; }
 
   resize(w, h) {
     const retro = this.mode === 'retro';
