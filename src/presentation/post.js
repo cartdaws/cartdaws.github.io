@@ -21,6 +21,13 @@ THREE.Material.prototype.onBeforeCompile = function (shader) {
       if (uSnap > 0.5 && uSnapOn > 0.5 && gl_Position.w > 1.0) { vec2 g = uSnapRes * 0.5; gl_Position.xy = floor(gl_Position.xy / gl_Position.w * g + 0.5) / g * gl_Position.w; }`);
 };
 
+// Safety net before the bloom: a single overbright or invalid (NaN/Infinity) pixel, such as a mirror-sharp highlight, would spread through the bloom
+// blur and blank the whole frame for a moment. Invalid pixels become black and everything is capped far above any normal brightness.
+const SanitizeShader = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); bvec3 bad = notEqual(c.rgb, c.rgb); vec3 ok = min(c.rgb, vec3(16.0)); gl_FragColor = vec4(mix(ok, vec3(0.0), vec3(bad)), c.a); }',
+};
 const GradeShader = {
   uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uMode: { value: 0 }, uHurt: { value: 0 }, uPulse: { value: 0 }, uHit: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -75,6 +82,7 @@ export class PostFX {
     vm.clear = false;
     vm.clearDepth = true;
     this.composer.addPass(vm);
+    this.composer.addPass(new ShaderPass(SanitizeShader));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.12, 0.4, 1.0);
     this.composer.addPass(this.bloom);
     this.grade = new ShaderPass(GradeShader);

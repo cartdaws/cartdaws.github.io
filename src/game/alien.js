@@ -21,16 +21,16 @@ const PALETTE = {
 export function buildAlien({ tint = 'player', arms = false } = {}) {
   const P = PALETTE[tint] || PALETTE.player;
   const root = ASSET.clone(true);
-  const skin = new THREE.MeshPhysicalMaterial({ color: P.skin, roughness: 0.3, metalness: 0, clearcoat: 0.85, clearcoatRoughness: 0.14, sheen: 1, sheenColor: new THREE.Color(P.sheen), sheenRoughness: 0.45, emissive: new THREE.Color(P.sheen).multiplyScalar(0.05) });
+  const skin = new THREE.MeshPhysicalMaterial({ color: P.skin, roughness: 0.3, metalness: 0, clearcoat: 0.8, clearcoatRoughness: 0.28, sheen: 1, sheenColor: new THREE.Color(P.sheen), sheenRoughness: 0.45, emissive: new THREE.Color(P.sheen).multiplyScalar(0.05) });
   const limb = skin.clone(); limb.color.set(P.limb);
   const mats = {
     skin, limb,
-    eye: new THREE.MeshPhysicalMaterial({ color: 0x010203, roughness: 0.05, clearcoat: 1 }),
+    eye: new THREE.MeshPhysicalMaterial({ color: 0x010203, roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.3 }),
     pupil: new THREE.MeshBasicMaterial({ color: P.pupil }),
     photo: new THREE.MeshBasicMaterial({ color: P.photo }),
     photoV: new THREE.MeshBasicMaterial({ color: P.photoV }),
     core: new THREE.MeshBasicMaterial({ color: P.photo, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }),
-    sucker: new THREE.MeshPhysicalMaterial({ color: 0x1a2634, roughness: 0.25, clearcoat: 0.9 }),
+    sucker: new THREE.MeshPhysicalMaterial({ color: 0x1a2634, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.3 }),
   };
   const byName = { SkinBody: skin, SkinLimb: limb, Underside: limb, Eye: mats.eye, Pupil: mats.pupil, Brow: skin, Sucker: mats.sucker, Photophore: mats.photo, PhotophoreViolet: mats.photoV, Core: mats.core };
   const drop = [];
