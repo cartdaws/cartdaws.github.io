@@ -591,6 +591,8 @@ export class Game {
     this.lookX = lx; this.lookY = ly;
     if (this.flight.menuActive) { if (this.state === 'menu') this.flight.updateMenu(dt); else this.flight.hideMenu(); }
     if (this.state === 'flight') {
+      // the screen shake and hit flash must keep fading in flight too (this branch returns before the normal decay below)
+      this.trauma = Math.max(0, this.trauma - dt * 1.7); this.hitFlash = Math.max(0, this.hitFlash - dt * 2.2);
       this.flight.update(dt, input, this.lookX, this.lookY);
       this.effects.update(dt);
       this.ui.update(dt);

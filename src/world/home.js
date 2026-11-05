@@ -4,6 +4,7 @@ import { makeSkin, skinParams } from '../creature/skin.js';
 import { makeShifter } from '../creature/palette.js';
 import { defaults } from '../creature/definition.js';
 import { buildElder, stepElder } from './elder.js';
+import { cloneWarship } from '../game/flight.js';
 
 // The homeworld memory: a small, composed place built from Blender assets (art/build_home.py -> public/models/home.glb).
 // It sits far from the ship (HOME) with its own sky, light and fog, which are swapped in while the memory plays.
@@ -206,6 +207,15 @@ export class HomeWorld {
     const top = new THREE.Mesh(new THREE.BoxGeometry(26, 2.4, 5), hull); top.position.y = 3; this.ship.add(top);
     for (const x of [-30, 30]) { const l = new THREE.Mesh(new THREE.SphereGeometry(0.7, 8, 6), new THREE.MeshBasicMaterial({ color: x < 0 ? 0xff3322 : 0xffffff })); l.position.set(x, 0, 0); this.ship.add(l); }
     for (let i = -3; i <= 3; i++) { const l = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.3, 0.9), new THREE.MeshBasicMaterial({ color: 0xffb040 })); l.position.set(i * 7, -3.1, 0); this.ship.add(l); }
+    {  // the attacker is the same authored warship that later leaves orbit in the flight scene (scaled to about 90 m here)
+      const wm = cloneWarship();
+      if (wm) {
+        for (const c of this.ship.children) c.visible = false;
+        wm.rotation.y = -Math.PI / 2; wm.scale.setScalar(0.3); this.ship.add(wm);                 // it travels toward +X, nose first
+        const eng = new THREE.Sprite(new THREE.SpriteMaterial({ map: canvasTex(64, 64, (gg, w, hh) => { const gr = gg.createRadialGradient(w / 2, hh / 2, 1, w / 2, hh / 2, w / 2); gr.addColorStop(0, 'rgba(160,230,255,1)'); gr.addColorStop(1, 'rgba(160,230,255,0)'); gg.fillStyle = gr; gg.fillRect(0, 0, w, hh); }), color: 0x8fe0ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+        eng.position.set(-54, 0.6, 0); eng.scale.setScalar(30); this.ship.add(eng);
+      }
+    }
     this.ship.position.set(-400, 48, -8);
     this.group.add(this.ship);
     const shTex = canvasTex(128, 64, (g, w, h) => { const gr = g.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2); gr.addColorStop(0, 'rgba(0,0,0,0.75)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, h); });

@@ -86,6 +86,8 @@ export async function loadLander() {
   LANDER = gltf.scene;
   LANDER.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
 }
+// A copy of the authored warship for other scenes (the attack on the homeworld), so the ship in the cutscene is the very ship you see leaving orbit.
+export function cloneWarship() { return WARSHIP_ASSET ? WARSHIP_ASSET.clone(true) : null; }
 function landerFromAsset() {
   const g = new THREE.Group();
   const model = LANDER.clone(true); g.add(model);
@@ -396,6 +398,7 @@ export class Flight {
     s.background = new THREE.Color(0x02040a); s.fog = null;
     c.far = 16000; c.updateProjectionMatrix();
     this.group.visible = this.sun.visible = this.fill.visible = true;
+    g.trauma = 0; g.hitFlash = 0;                        // start flight with a steady camera, whatever the cutscene left behind
     this.active = true; this.t = 0; this.phase = 'launch'; this.docking = null; this.hull = 100; this.shake = 0.4;
     this.pos.set(0, 0, 0); this.speed = 20; this.throttle = 0.45; this.roll = 0;
     const look = _v.copy(DOCK).sub(this.pos).normalize();
