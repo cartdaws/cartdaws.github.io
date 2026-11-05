@@ -147,7 +147,12 @@ export class AlienBody {
       if (!leg.init || leg.planted.distanceTo(p.pos) > 5) { leg.planted.copy(_v); leg.foot.copy(_v); leg.init = true; leg.chain.ready = false; }
       if (air) {
         // tuck and splay while airborne
-        const tgt = _o.copy(_v); tgt.y = p.pos.y + 0.35 + Math.sin(t * 6 + leg.d.a * 3) * 0.12;
+        const tgt = _o.copy(_v);
+        if (this.dangle) {
+          // carried or lifted: the legs hang loose under the body and sway, drawn in toward it, instead of staying fixed to the ground
+          tgt.x = p.pos.x + (_v.x - p.pos.x) * 0.5; tgt.z = p.pos.z + (_v.z - p.pos.z) * 0.5;
+          tgt.y = p.pos.y - 0.45 + Math.sin(t * 2.4 + leg.d.a * 3) * 0.14;
+        } else tgt.y = p.pos.y + 0.35 + Math.sin(t * 6 + leg.d.a * 3) * 0.12;
         leg.foot.lerp(tgt, 1 - Math.exp(-10 * dt));
         leg.planted.copy(leg.foot); leg.stepT = -1;
       } else if (leg.stepT >= 0) {

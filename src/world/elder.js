@@ -56,7 +56,10 @@ export function stepElder(E, dt, state, lift = 0.12) {
   const d = Math.max(dt, 1e-3);
   stub.vx = (_p.x - E.last.x) / d; stub.vz = (_p.z - E.last.z) / d;
   E.last.copy(_p);
-  stub.pos.set(_p.x, lift + (state.rise || 0), _p.z);              // a little height gives the elder longer legs than the player
+  stub.pos.set(_p.x, lift + (state.rise || 0), _p.z);
+  // once the elder leaves the ground its feet must leave with it: the legs dangle from the body rather than staying planted and stretching
+  const lifted = (state.rise || 0) > 0.05;
+  stub.grounded = !lifted; ab.dangle = lifted;              // a little height gives the elder longer legs than the player
   stub.yaw = state.yaw;
   ab.setVisible(anchor.visible !== false && E.visible !== false && !state.gone);
   ab.update(d);
