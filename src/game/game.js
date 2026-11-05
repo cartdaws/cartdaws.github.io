@@ -126,9 +126,10 @@ export class Game {
     this.resize();
     window.addEventListener('resize', () => this.resize());
 
-    // Menu backdrop: the containment chamber from the opening camera.
+    // Menu backdrop: the lander adrift above the lost homeworld.
     this.opening.samplePose(0);
     this.cinePose = this.opening.pose;
+    this.flight.showMenu();
     this.ui.fade(0);
     this.level.emergencyOn = true;
     this.viewmodel.cineW = 1;
@@ -584,6 +585,7 @@ export class Game {
     const { input, player } = this;
     const [lx, ly] = input.takeLook();
     this.lookX = lx; this.lookY = ly;
+    if (this.flight.menuActive) { if (this.state === 'menu') this.flight.updateMenu(dt); else this.flight.hideMenu(); }
     if (this.state === 'flight') {
       this.flight.update(dt, input, this.lookX, this.lookY);
       this.effects.update(dt);
@@ -700,7 +702,7 @@ export class Game {
   render(dt) {
     const r = this.renderer, c = this.camera, p = this.player;
     if (!this.paused) {
-      if (this.state === 'flight') this.flight.pose(c); else this.poseCamera();
+      if (this.state === 'flight' || (this.state === 'menu' && this.flight.menuActive)) this.flight.pose(c); else this.poseCamera();
       // Restrained trauma-based shake applied only to the rendered view.
       const s = this.trauma * this.trauma;
       if (s > 0.0005) {

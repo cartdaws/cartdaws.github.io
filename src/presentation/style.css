@@ -1106,3 +1106,16 @@ body.touch #subtitle { font-size: 13px; max-width: 50vw; bottom: 16%; padding: 5
 body.touch #hint { font-size: 11px; bottom: 36%; }
 body.touch #prompt { font-size: 12px; }
 body.touch #banner { font-size: 16px; }
+
+/* space-themed start menu: the live space scene shows through; only the left edge is darkened for legibility */
+.menu.start {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  background: linear-gradient(90deg, #02060acc 0%, #02060a73 34%, #02060a14 62%, #02060a00 100%);
+}
+.start .scan { opacity: 0.35; }
+.start h1 { text-shadow: 0 0 46px #7fb8ff66, 0 0 12px #50ffdc55; }
+.start .tag { color: #8fd6e6; }
+.menu.start button { background: linear-gradient(90deg, #0a1a2499, #06101a55); border-color: #8fc8f533; backdrop-filter: blur(3px); }
+.menu.start button.primary { background: linear-gradient(90deg, #1c5a8a80, #0a2a4a4d); border-color: #8fd0f5a6; }
+.menu.start button:hover { background: linear-gradient(90deg, #2a6f9a8c, #0a2a4a66); border-color: #a8dcffcc; box-shadow: 0 0 22px #7fb8ff33; }

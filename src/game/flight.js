@@ -11,6 +11,7 @@ const BAY = new THREE.Vector3(700, 78, -5880);      // the docking bay mouth in 
 const DOCK = new THREE.Vector3(700, 52, -5700);     // the approach point under the hull: fly through here, slowly, to be drawn in
 const PLANET = new THREE.Vector3(-300, -1500, 900); // the homeworld, below and behind the launch point
 
+const _m4 = new THREE.Matrix4();
 const q = new THREE.Quaternion(), e = new THREE.Euler(), _v = new THREE.Vector3(), _f = new THREE.Vector3(), _u = new THREE.Vector3(), _r = new THREE.Vector3();
 
 function glowTex(inner = 'rgba(255,255,255,1)', outer = 'rgba(255,255,255,0)') {
@@ -259,6 +260,37 @@ export class Flight {
     document.head.appendChild(st);
     this.combat = new FlightCombat(this);
     this.dying = null;
+  }
+
+  // The main menu's backdrop: the lander drifting above the burning homeworld, slow and quiet, with the planet and the sun behind it.
+  showMenu() {
+    if (this.menuActive) return;
+    const g = this.g, s = g.scene, c = g.camera;
+    this.menuSaved = { bg: s.background, fog: s.fog, far: c.far, fov: c.fov };
+    s.background = new THREE.Color(0x02040a); s.fog = null; c.far = 16000; c.fov = 50; c.updateProjectionMatrix();
+    this.group.visible = this.sun.visible = this.fill.visible = true;
+    this.menuActive = true; this.t = 0; this.warship.visible = false; this.dust.visible = false;
+    this.pos.set(0, 0, 0); this.quat.identity(); this.ship.position.set(0, 0, 0); this.ship.rotation.set(0, 0, 0);
+    for (const sp of this.ship.userData.engines) sp.scale.setScalar(1.5);
+    g.viewmodel.root.visible = false; g.body.setVisible(false);
+  }
+  hideMenu() {
+    if (!this.menuActive) return;
+    const g = this.g, s = g.scene, c = g.camera;
+    s.background = this.menuSaved.bg; s.fog = this.menuSaved.fog; c.far = this.menuSaved.far; c.fov = this.menuSaved.fov; c.updateProjectionMatrix();
+    if (!this.active) this.group.visible = this.sun.visible = this.fill.visible = false;
+    this.menuActive = false; this.dust.visible = true; this.warship.visible = true;
+    g.viewmodel.root.visible = true;
+  }
+  updateMenu(dt) {
+    this.t += dt;
+    const t = this.t;
+    this.camPos.set(2 + Math.sin(t * 0.07) * 5, 2.2 + Math.sin(t * 0.05) * 1.2, -15.5 + Math.cos(t * 0.06) * 2);
+    this.camQuat.setFromRotationMatrix(_m4.lookAt(this.camPos, _v.set(6 + Math.sin(t * 0.04) * 1.5, -1.2 + Math.sin(t * 0.09) * 0.5, 0), _u.set(0, 1, 0)));
+    this.ship.position.set(0, Math.sin(t * 0.6) * 0.25, 0); this.ship.rotation.set(Math.sin(t * 0.4) * 0.03, 0.18 + Math.sin(t * 0.13) * 0.08, Math.sin(t * 0.5) * 0.05);
+    this.stars.position.copy(this.camPos); this.sky.position.copy(this.camPos); this.starMat.uniforms.uTime.value = t;
+    this.vessel.userData.ring.rotation.z += dt * 0.05; this.fires.material.opacity = 0.6 + 0.3 * Math.sin(t * 3);
+    for (const sp of this.ship.userData.engines) sp.scale.setScalar(1.4 + Math.sin(t * 9) * 0.1);
   }
 
   // Enter flight just after liftoff: the ship hangs over the burning world, pointed at the research vessel.
