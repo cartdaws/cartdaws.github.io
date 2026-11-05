@@ -25,18 +25,39 @@ export class AlienBody {
     this.bell = new THREE.Mesh(geos.Mantle, bellGel);
     this.bell.scale.set(0.95, 1.0, 0.95);
     this.bell.renderOrder = 2;
+    this.bell.visible = false; // replaced by the continuous torso below
     this.group.add(this.bell);
+    this.deathK = 0;
+
+    // Torso: one continuous translucent body from the hips up to just under the eye, so looking down you see your own chest
+    // joined to the legs instead of organs hanging in mid-air. Heights are measured from the base of the torso.
+    const prof = [[0.0, 0.0], [0.22, 0.02], [0.31, 0.16], [0.375, 0.4], [0.395, 0.62], [0.365, 0.85], [0.3, 1.02], [0.2, 1.12], [0.09, 1.17], [0.0, 1.19]];
+    this.torsoY = -0.18; // base of the torso, relative to the group (which sits 0.52 above the feet)
+    this.torsoGel = makeGel({ color: 0x0a4a46, rim: 0x7ff0e0, alpha: 0.3 });
+    this.torso = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y * 0.93)), 44), this.torsoGel);
+    this.torso.position.y = this.torsoY;
+    this.torso.renderOrder = 3;
+    this.group.add(this.torso);
+    const radiusAt = (y) => { for (let i = 1; i < prof.length; i++) if (y <= prof[i][1]) { const k = (y - prof[i - 1][1]) / (prof[i][1] - prof[i - 1][1]); return prof[i - 1][0] + (prof[i][0] - prof[i - 1][0]) * k; } return 0.05; };
+    this.ribMat = new THREE.MeshBasicMaterial({ color: 0x59e8d4, transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending });
+    this.ribMat.userData.noSnap = true;
+    this.ribs = [0.3, 0.65, 0.95].map((y) => {
+      const r = new THREE.Mesh(new THREE.TorusGeometry(radiusAt(y) + 0.004, 0.006, 6, 40), this.ribMat);
+      r.rotation.x = Math.PI / 2; r.position.y = this.torsoY + y * 0.93; r.renderOrder = 4;
+      this.group.add(r);
+      return r;
+    });
 
     const organ = makeGel({ color: 0x0f6a60, rim: 0xc6fff6, alpha: 0.5 });
     this.core = new THREE.Mesh(geos.Organ, organ);
-    this.core.scale.setScalar(0.13);
-    this.core.position.y = 0.55;
+    this.core.scale.setScalar(0.15);
+    this.core.position.y = 0.42;
     this.group.add(this.core);
     this.sats = [];
     for (let i = 0; i < 4; i++) {
       const m = (() => { const o = new THREE.Mesh(geos.Organ, organ); o.scale.setScalar(0.05 + i * 0.01); return o; })();
       this.group.add(m);
-      this.sats.push({ m, a: i * 1.6, r: 0.27 + i * 0.03, h: 0.35 + i * 0.12 });
+      this.sats.push({ m, a: i * 1.6, r: 0.13 + i * 0.03, h: 0.3 + i * 0.13 });
     }
 
     this.legGel = makeTentacleGel({ color: 0x0a4a46, rim: 0x7ff0e0, alpha: 0.5, length: 2.4, r0: 0.11, r1: 0.012 });
@@ -59,7 +80,8 @@ export class AlienBody {
   dispose(scene) { scene.remove(this.group); for (const l of this.legs) scene.remove(l.mesh.mesh); }
 
   home(leg, out, lead) {
-    const { a, reach } = leg.d;
+    const { a } = leg.d;
+    const reach = leg.d.reach * (1 + 0.55 * (this.deathK || 0));
     const lx = Math.sin(a) * reach, lz = -Math.cos(a) * reach;
     const cy = Math.cos(this.yaw), sy = Math.sin(this.yaw);
     out.set(this.player.pos.x + lx * cy + lz * sy, 0, this.player.pos.z - lx * sy + lz * cy);
@@ -87,8 +109,19 @@ export class AlienBody {
     this.lean.x = damp(this.lean.x, clamp(lz * 0.02, -0.25, 0.25), 6, dt);
     this.lean.y = damp(this.lean.y, clamp(-lx * 0.02, -0.25, 0.25), 6, dt);
     const breathe = 1 + Math.sin(t * 1.8) * 0.025 + Math.sin(t * 7) * 0.006 * Math.min(1, speed);
-    this.group.position.set(p.pos.x, p.pos.y + 0.52, p.pos.z);
+    const dk = this.deathK || 0;
+    this.group.position.set(p.pos.x, p.pos.y + 0.52 - 0.25 * dk, p.pos.z);
     this.group.rotation.set(this.lean.x, this.yaw, this.lean.y, 'YXZ');
+    this.group.scale.set(1 + 0.25 * dk, 1 - 0.6 * dk, 1 + 0.25 * dk);
+    // the torso only shows when you look down at it, and fades away toward the horizon so it never blocks the view ahead
+    const down = clamp((-p.pitch - 0.3) / 0.55, 0, 1) * (1 - dk);
+    this.torsoGel.uniforms.uAlpha.value = 0.3 * down;
+    this.ribMat.opacity = 0.2 * down;
+    this.torso.visible = down > 0.01;
+    for (const r of this.ribs) r.visible = down > 0.01;
+    this.core.visible = down > 0.05;
+    for (const s of this.sats) s.m.visible = down > 0.05;
+    this.torsoGel.uniforms.uTime.value = t;
     this.bell.scale.set(0.95 * breathe, 1.0 / breathe, 0.95 * breathe);
     this.core.scale.setScalar(0.13 * (1 + Math.sin(t * 2.4) * 0.12));
     this.core.rotation.y = t * 0.2;

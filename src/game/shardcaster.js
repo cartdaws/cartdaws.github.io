@@ -32,7 +32,7 @@ export class Shardcaster {
     this.heldTime = trigger ? this.heldTime + dt : 0;
     if (want && this.cooldown <= 0) {
       this.fire();
-      this.cooldown = this.interval;
+      this.cooldown = this.game.admin && this.game.admin.rapid ? 0.05 : this.interval;
       this.pressLatch = false;
     }
     if (!want) this.pressLatch = false;
