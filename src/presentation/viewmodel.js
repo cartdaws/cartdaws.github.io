@@ -118,10 +118,10 @@ class HandArm {
     this.root.position.copy(pos);
 
     // ---- shape: morph targets drive grip, weapon form, recoil flare ----
-    this.setKey('Grip', clamp(curl * (1 - f * 0.9), 0, 1));
+    this.setKey('Grip', clamp(curl * (1 - f * 0.9) + (this.weapon ? vm.sGrip : 0), 0, 1));
     this.setKey('Weapon', clamp(f * (1 - 0.55 * rec), 0, 1));
-    this.setKey('Spread', clamp(rec * 1.2 + fid * 0.55, 0, 1));
-    this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35 + (this.weapon ? vm.bulge : 0), 0, 1.4));
+    this.setKey('Spread', clamp(rec * 1.2 + fid * 0.55 + (this.weapon ? vm.sSpread : 0), 0, 1));
+    this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35 + (this.weapon ? vm.bulge + vm.sSwell : 0), 0, 1.4));
 
     this.palmCore.scale.setScalar(1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6);
     if (!this.weapon) return;
@@ -157,6 +157,15 @@ class HandArm {
 }
 
 // First-person view: the arms are rendered in a separate pass so they never clip into level geometry.
+const _sc = new THREE.Color();
+// arm looks per weapon form: [rim colour, sucker glow colour, sucker glow strength, resting grip / spread / swell of the weapon arm]
+const STYLES = {
+  shardcaster: { rim: 0x48dccb, suck: 0x0a2a2c, suckI: 0.6, grip: 0, spread: 0, swell: 0 },
+  arc:         { rim: 0x9fd0ff, suck: 0x2a60ff, suckI: 1.6, grip: 0, spread: 0.5, swell: 0.1 },        // splayed, crackling blue-white
+  barb:        { rim: 0xb8e06a, suck: 0x405a10, suckI: 1.0, grip: 0.4, spread: 0.1, swell: 0.3 },       // tensed, olive and thorny
+  lash:        { rim: 0xd8a0ff, suck: 0x6a30b0, suckI: 1.3, grip: 0.55, spread: 0.2, swell: 0.05 },     // coiled, violet
+  gel:         { rim: 0x6dff9a, suck: 0x1a8a40, suckI: 1.5, grip: 0.1, spread: 0, swell: 0.75 },        // bulging and toxic green
+};
 export class ViewModel {
   constructor(asset) {
     this.asset = asset;
@@ -169,6 +178,9 @@ export class ViewModel {
     this.root.add(key);
 
     this.skinGel = makeHandGel({ color: 0x0e1c2c, rim: 0x48dccb, alpha: 0.78 });
+    // each weapon form gives the arm its own look: skin glow, sucker glow and a resting pose (blended smoothly when the form changes)
+    this.sGrip = 0; this.sSpread = 0; this.sSwell = 0;
+    this.styleTarget = STYLES.shardcaster; this.styleRim = new THREE.Color(0x48dccb); this.styleSuck = new THREE.Color(0x0a2a2c);
     this.suckerMat = new THREE.MeshStandardMaterial({ color: 0x2c3e52, roughness: 0.32, metalness: 0.1, emissive: 0x0a2a2c, emissiveIntensity: 0.6 });
     this.barrelGel = makeHandGel({ color: 0x0f2230, rim: 0x6fe8d8, alpha: 0.55 });
     this.coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8f86 });
@@ -202,6 +214,7 @@ export class ViewModel {
     this.left = new HandArm(this, -1, false);
   }
 
+  setStyle(id) { this.styleTarget = STYLES[id] || STYLES.shardcaster; }
   setPistol(group) {
     if (this.pistol) this.root.remove(this.pistol);
     this.pistol = group;
@@ -236,6 +249,10 @@ export class ViewModel {
     this.landK = damp(this.landK || 0, 0, 7, dt);
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
     this.skinGel.uniforms.uAlpha.value = lerp(0.78, 0.16, this.xray);
+    { const T = this.styleTarget, k = Math.min(1, dt * 5);
+      this.styleRim.lerp(_sc.set(T.rim), k); this.styleSuck.lerp(_sc.set(T.suck), k);
+      this.skinGel.uniforms.uRim.value.copy(this.styleRim); this.suckerMat.emissive.copy(this.styleSuck); this.suckerMat.emissiveIntensity = T.suckI;
+      this.sGrip = lerp(this.sGrip, T.grip, k); this.sSpread = lerp(this.sSpread, T.spread, k); this.sSwell = lerp(this.sSwell, T.swell, k); }
 
     this.swayX = damp(this.swayX, clamp(-ctx.lookX * 0.0012, -0.06, 0.06), 7, dt);
     this.swayY = damp(this.swayY, clamp(ctx.lookY * 0.0012, -0.06, 0.06), 7, dt);

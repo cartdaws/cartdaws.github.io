@@ -65,7 +65,7 @@ export class Arsenal {
   select(i) {
     if (i === this.index || !FORMS[i] || !this.unlocked.has(FORMS[i].id)) return;
     this.index = i; this.cool = Math.max(this.cool, 0.18); this.g.weapon.reset();
-    this.g.viewmodel.pulseGlow(0.6); this.g.audio.play('gel', { vol: 0.35 });
+    this.g.viewmodel.pulseGlow(0.6); this.g.audio.play('gel', { vol: 0.35 }); this.g.viewmodel.setStyle(this.active.id);
     this.render();
   }
   cycle() { for (let k = 1; k <= FORMS.length; k++) { const i = (this.index + k) % FORMS.length; if (this.unlocked.has(FORMS[i].id)) { this.select(i); return; } } }
@@ -78,7 +78,7 @@ export class Arsenal {
     g.ui.rewardNote('NEW FORM: ' + f.name);
     g.ui.hint(`${f.name} LEARNED  ·  PRESS ${FORMS.indexOf(f) + 1} OR Q`, 4);
     g.audio.play('crystal', { vol: 0.6 }); g.viewmodel.pulseGlow(1);
-    this.index = FORMS.indexOf(f); this.render();
+    this.index = FORMS.indexOf(f); this.g.viewmodel.setStyle(f.id); this.render();
     return true;
   }
 
