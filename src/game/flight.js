@@ -95,6 +95,13 @@ export function makeLander() {
     add(new THREE.BoxGeometry(0.1, 0.06, 1.3), trim, sx * 2.0, 0.04, 0.5);                                          // trim stripe
   }
   add(new THREE.BoxGeometry(0.12, 1.1, 1.4), dark, 0, 0.85, 2.0);                                                    // tail fin
+  // the cockpit: seen from inside when boarding; a console with softly glowing screens, a seat and a yoke
+  const screenMat = new THREE.MeshBasicMaterial({ color: 0x6fe8ff, transparent: true, opacity: 0.35 });
+  g.userData.screens = [];
+  const con = add(new THREE.BoxGeometry(1.2, 0.34, 0.7), dark, 0, 0.18, -1.55); con.rotation.x = -0.35;
+  for (const [sx, w] of [[-0.36, 0.36], [0, 0.4], [0.38, 0.3]]) { const sc = new THREE.Mesh(new THREE.PlaneGeometry(w, 0.2), screenMat.clone()); sc.position.set(sx, 0.36, -1.5); sc.rotation.x = -0.35 - Math.PI * 0.0; g.add(sc); g.userData.screens.push(sc); }
+  add(new THREE.BoxGeometry(0.6, 0.18, 0.5), dark, 0, -0.1, -0.3);                                                  // seat
+  add(new THREE.CylinderGeometry(0.03, 0.03, 0.3, 6), dark, 0, 0.12, -1.1);                                         // yoke
   g.userData.engines = [-0.9, 0.9].map((x) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(150,230,255,1)'), color: 0x8fe8ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); s.position.set(x, -0.1, 2.9); s.scale.setScalar(1.6); g.add(s); return s; });
   return g;
 }

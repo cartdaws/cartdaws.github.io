@@ -365,19 +365,24 @@ export class Intro {
         if (Math.hypot(bx - ex, bz - ez) > 3.5) this.bolt(bx, bz);
       }
     }
-    // the elder is seized: the searchlight becomes a tractor beam and carries it up into the ship
+    // the elder is seized: the searchlight becomes a tractor beam, and the elder is carried up along it, into the ship
     if (ct > 5.6) {
-      const k = ease(ct, 6.0, 10.2);
-      E.rise = k * 24; E.fear = 1; E.reach = 0;
+      const k = ease(ct, 6.0, 10.4);
+      if (!f.e0) f.e0 = H.elder.position.clone();
+      H.elder.position.x = lerp(f.e0.x, H.ship.position.x, k * 0.96); H.elder.position.z = lerp(f.e0.z, H.ship.position.z, k * 0.96);
+      E.rise = k * 44; E.fear = 1; E.reach = 0;
+      ex = HOME.x + H.elder.position.x; ez = HOME.z + H.elder.position.z;
       const shipW = _w.set(H.ship.position.x + HOME.x, 46, H.ship.position.z + HOME.z);
-      const fade = 1 - ease(ct, 10.4, 11.4);
+      const elderW = _l.set(ex, E.rise + 0.7, ez);
+      const fade = 1 - ease(ct, 10.6, 11.6);
       H.spot.visible = true; H.spot.intensity = 900 * ease(ct, 5.6, 6.4) * fade;
-      H.spot.position.copy(shipW);
-      H.spot.target.position.set(ex, E.rise * 0.5, ez);
-      H.cone.visible = true; H.cone.material.opacity = 0.09 * ease(ct, 5.6, 6.4) * fade;
+      H.spot.position.copy(shipW); H.spot.target.position.copy(elderW);
+      H.cone.visible = true; H.cone.material.opacity = 0.1 * ease(ct, 5.6, 6.4) * fade;
       H.cone.position.copy(shipW);
-      const dir = _v.subVectors(_l.set(ex, 0, ez), shipW); const len = dir.length();
-      H.cone.scale.set(1.8, len, 1.8); H.cone.quaternion.setFromUnitVectors(_l.set(0, -1, 0), dir.normalize());
+      const dir = _v.subVectors(elderW, shipW); const len = dir.length();
+      H.cone.scale.set(1.8, len, 1.8); H.cone.quaternion.setFromUnitVectors(_c3.set(0, -1, 0), dir.normalize());
+      // the carried elder turns slowly and flails
+      H.eState.yaw += dt * 1.6 * k;
       this.once('t1', () => { g.audio.play('surge', { vol: 0.6 }); g.audio.play('lockdown', { vol: 0.5 }); this.say('Elder!', '', 2.0, true); });
       if (ct > 8.2) this.once('t2', () => g.audio.play('groan', { vol: 0.9 }));
     }
@@ -491,15 +496,51 @@ export class Intro {
         const near = dh < 3.6;
         if (near) { this.actLabel = 'BOARD'; this.prompt(this.tr('HOLD RIGHT CLICK TO BOARD THE LANDER', 'HOLD THE BUTTON TO BOARD THE LANDER')); } else this.prompt('');
         this.pistolMarker.visible = true; this.pistolMarker.position.set(hx, 0.05, hz); this.pistolMarker.material.opacity = 0.5 + 0.3 * Math.sin(g.time * 4);
-        if (this.hold(dt, near, 1.0)) { this.step = 3; this.stepT = 0; this.prompt(''); ui.setHold(null); this.pistolMarker.visible = false; g.audio.play('door', { vol: 0.8 }); this.say('Find them. Whatever it takes.', '', 3, true); }
+        if (this.hold(dt, near, 1.0)) {
+          this.step = 3; this.stepT = 0; this.prompt(''); ui.setHold(null); this.pistolMarker.visible = false; g.audio.play('door', { vol: 0.8 });
+          g.camera.updateMatrixWorld();
+          this.f.b = { pos0: g.camera.position.clone(), yaw0: p.yaw, pitch0: p.pitch };
+          this.setObjective('');
+        }
         break;
       }
-      case 3:                      // the lander lifts off
+      case 3: {                    // you climb into the lander, the systems wake, and it lifts off with you inside
         this.moveLocked = true;
-        ui.fade(ease(this.stepT, 1.4, 3.0));
-        this.wreck.position.y += dt * 3 * this.stepT;
-        if (this.stepT > 3.2) this.launch();
+        const T = this.stepT, w = this.wreck, B = this.f.b, sc = w.userData.screens || [];
+        // the cockpit seat, in world space, and the way the lander is facing
+        w.updateMatrixWorld(true);
+        const seat = w.localToWorld(_v.set(0, 0.62, -0.45));
+        const fwd = _l.set(0, 0, -1).applyQuaternion(w.quaternion);
+        const yawL = Math.atan2(-fwd.x, -fwd.z), pitchL = Math.asin(clamp(fwd.y, -1, 1));
+        const k = ease(T, 0, 2.5);
+        // the camera glides up over the wing and in through the canopy
+        const arc = Math.sin(k * Math.PI) * 1.4;
+        const pose = this.boardPose || (this.boardPose = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
+        pose.x = lerp(B.pos0.x, seat.x, k); pose.z = lerp(B.pos0.z, seat.z, k); pose.y = lerp(B.pos0.y, seat.y, k) + arc;
+        let dy = Math.atan2(Math.sin(yawL - B.yaw0), Math.cos(yawL - B.yaw0)); pose.yaw = B.yaw0 + dy * k;
+        pose.pitch = lerp(B.pitch0, pitchL + 0.04, k);
+        g.cinePose = pose; this.hideBody = true;
+        this.once('b1', () => g.audio.play('servo', { vol: 0.5 }));
+        if (T > 2.4) this.once('b2', () => { g.audio.play('surge', { vol: 0.7 }); g.audio.play('unlock', { vol: 0.5 }); this.say('Their controls. Their language. My hands will learn it.', '', 3.4, true); });
+        // systems wake: the screens come up, the engines kindle
+        const wake = ease(T, 2.6, 4.0);
+        sc.forEach((m, i) => { m.material.opacity = 0.25 + 0.65 * wake * (0.85 + 0.15 * Math.sin(g.time * 5 + i)); });
+        w.userData.engines.forEach((e) => { e.visible = T > 3.2; e.scale.setScalar(0.8 + 2.2 * ease(T, 3.2, 5.6) + Math.sin(g.time * 40) * 0.1); });
+        this.wreckLight.intensity = 22 + 50 * ease(T, 3.2, 5.6);
+        // lift-off: the wreck levels out and rises, the camera rides in the cockpit
+        if (T > 3.6) {
+          const L = ease(T, 3.6, 8.0);
+          const lvl = ease(T, 3.4, 5.2);
+          w.rotation.x = lerp(0.1, -0.22, lvl);
+          w.rotation.z = lerp(-0.16, 0, lvl);
+          w.position.y = 1.15 + 80 * L * L;
+          g.addShake(0.05 + 0.1 * L);
+        }
+        if (T > 6.3) ui.fade(ease(T, 6.3, 7.8));
+        if (T > 3.8) this.once('b3', () => this.say('Find them. Whatever it takes.', '', 3.2, true));
+        if (T > 8.0) this.launch();
         break;
+      }
       default:
     }
   }
@@ -512,7 +553,7 @@ export class Intro {
     if (this.wreck) this.wreck.visible = this.pistolItem.visible = false;
     this.wreckLight.intensity = 0;
     g.ui.showSkip(false); g.ui.setHold(null); g.ui.clearSubtitle();
-    g.state = 'flight'; g.cinePose = null;
+    g.state = 'flight'; g.cinePose = null; this.hideBody = false; this.boardPose = null;
     g.flight.start();
   }
 
