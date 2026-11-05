@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 
-const boltGeo = new THREE.OctahedronGeometry(0.5);
-const haloGeo = new THREE.SphereGeometry(0.5, 10, 8);
-const boltMat = new THREE.MeshBasicMaterial({ color: 0xcffcff });
-const haloMat = new THREE.MeshBasicMaterial({ color: 0x35e6ff, transparent: true, opacity: 0.35, depthWrite: false, blending: THREE.AdditiveBlending });
+// The arm's ammunition is grown, not made: a barbed bone spine wrapped in glowing gel.
+const spineGeo = new THREE.ConeGeometry(0.5, 1, 7).rotateX(-Math.PI / 2); // points along -z after lookAt
+const barbGeo = new THREE.ConeGeometry(0.5, 1, 4).rotateX(-Math.PI / 2);
+const sheathGeo = new THREE.SphereGeometry(0.5, 12, 9);
+const spineMat = new THREE.MeshBasicMaterial({ color: 0xe9f0d8 });
+const sheathMat = new THREE.MeshBasicMaterial({ color: 0x4dff9a, transparent: true, opacity: 0.38, depthWrite: false, blending: THREE.AdditiveBlending });
+const GOO = [0.4, 1, 0.55];
 const shotGeo = new THREE.SphereGeometry(0.15, 12, 10);
 const shotMat = new THREE.MeshBasicMaterial({ color: 0xffe0b0 });
 const shotHaloMat = new THREE.MeshBasicMaterial({ color: 0xff3a14, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending });
@@ -31,15 +34,26 @@ export class Projectiles {
 
   spawnPlayer(origin, dir, speed = 95, damage = 10) {
     const mesh = new THREE.Group();
-    const core = new THREE.Mesh(boltGeo, boltMat);
-    core.scale.set(0.07, 0.07, 0.6);
-    const halo = new THREE.Mesh(haloGeo, haloMat);
-    halo.scale.set(0.2, 0.2, 0.9);
-    mesh.add(core, halo);
+    const spine = new THREE.Mesh(spineGeo, spineMat);
+    spine.scale.set(0.07, 0.07, 0.55);
+    spine.position.z = 0.05;
+    mesh.add(spine);
+    for (const [z, a] of [[0.12, 0.6], [0.2, 2.6], [0.27, 4.4]]) { // little barbs swept back along the shaft
+      const b = new THREE.Mesh(barbGeo, spineMat);
+      b.scale.set(0.03, 0.03, 0.09);
+      b.position.set(Math.cos(a) * 0.035, Math.sin(a) * 0.035, z);
+      b.rotation.set(Math.sin(a) * 0.5, -Math.cos(a) * 0.5, 0);
+      mesh.add(b);
+    }
+    const sheath = new THREE.Mesh(sheathGeo, sheathMat);
+    sheath.scale.set(0.2, 0.2, 0.75);
+    sheath.position.z = 0.08;
+    mesh.add(sheath);
+    mesh.userData.sheath = sheath;
     mesh.position.copy(origin);
     mesh.lookAt(origin.clone().add(dir));
     this.group.add(mesh);
-    this.list.push({ mesh, pos: origin.clone(), dir: dir.clone(), speed, damage, life: 1.4, enemy: false });
+    this.list.push({ mesh, pos: origin.clone(), dir: dir.clone(), speed, damage, life: 1.4, enemy: false, age: 0 });
   }
 
   spawnEnemy(origin, dir, speed, damage) {
@@ -102,7 +116,7 @@ export class Projectiles {
         if (hit.type === 'world') {
           const n = new THREE.Vector3(hit.n.nx, hit.n.ny, hit.n.nz);
           if (p.enemy) g.effects.hitSparks(hp, [1, 0.5, 0.2], 8);
-          else { g.effects.impact(hp, n); g.sfxAt('impact', hp, 0.8); }
+          else { g.effects.goo(hp, n); g.sfxAt('impact', hp, 0.8); }
         } else if (hit.type === 'enemy') g.onPlayerHit(hit.target, p.damage, hp);
         else if (hit.type === 'barrel') g.onPlayerHitBarrel(hit.target, p.damage, hp);
         else if (hit.type === 'player') g.damagePlayer(p.damage, hp);
@@ -110,6 +124,13 @@ export class Projectiles {
       }
       p.pos.set(ox + dx * step, oy + dy * step, oz + dz * step);
       p.mesh.position.copy(p.pos);
+      if (!p.enemy) {
+        // the gel sheath throbs and sheds droplets as it flies
+        p.age += dt;
+        const s = p.mesh.userData.sheath;
+        if (s) { const k = 1 + 0.18 * Math.sin(p.age * 60); s.scale.set(0.2 * k, 0.2 * k, 0.75 / k); }
+        if (Math.random() < 0.7) g.effects.glowP.emit(p.pos.x, p.pos.y, p.pos.z, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, (Math.random() - 0.5) * 0.6, 0.22, 0.035, GOO[0], GOO[1], GOO[2], 6, 1);
+      }
       if (p.life <= 0 || p.pos.y < -1 || p.pos.y > 20) { this.list.splice(i, 1); this.group.remove(p.mesh); }
     }
   }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Enemy } from './enemy.js';
 import { clamp, damp, yawTo, angleDiff, lerp, smooth, rand } from '../../core/util.js';
 
@@ -6,14 +7,22 @@ const SHOT_SPEED = 16;
 const _dir = { x: 0, z: 0 };
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
 
+// shared geometry: every android of a variant reuses the same shapes
+const GEO = new Map();
+const geo = (key, make) => { if (!GEO.has(key)) GEO.set(key, make()); return GEO.get(key); };
+const rbox = (w, h, d, r = 0.03) => geo(`rb${w}|${h}|${d}|${r}`, () => new RoundedBoxGeometry(w, h, d, 3, Math.min(r, w / 2 - 0.001, h / 2 - 0.001, d / 2 - 0.001)));
+const cap = (r, len) => geo(`cp${r}|${len}`, () => new THREE.CapsuleGeometry(r, len, 4, 10));
+const ball = (r) => geo(`sp${r}`, () => new THREE.SphereGeometry(r, 14, 10));
+const cyl = (r0, r1, h, n = 14) => geo(`cy${r0}|${r1}|${h}|${n}`, () => new THREE.CylinderGeometry(r0, r1, h, n));
+
 // Ship security androids. They keep their distance, strafe, telegraph with visor and cannon glow, then fire a short dodgeable burst.
 //  trooper - the standard unit
 //  scout   - light and quick, short bursts
 //  heavy   - armoured, slow, long bursts
 export const ANDROID_VARIANTS = {
-  trooper: { hp: 50, scale: 1, speed: 3.2, burst: 3, dmg: 8, heal: 16, body: 0x3a4148, trim: 0xd9a21b, keep: [6, 12], aimT: 0.65, gap: 0.2 },
-  scout: { hp: 30, scale: 0.92, speed: 5.0, burst: 2, dmg: 6, heal: 10, body: 0x4d565c, trim: 0x2aa8b0, keep: [5, 10], aimT: 0.5, gap: 0.16, slim: true },
-  heavy: { hp: 110, scale: 1.18, speed: 2.2, burst: 5, dmg: 9, heal: 32, body: 0x22282d, trim: 0xa8281c, keep: [7, 14], aimT: 0.85, gap: 0.14, bulky: true },
+  trooper: { hp: 50, scale: 1, speed: 3.2, burst: 3, dmg: 8, heal: 16, body: 0x2c3237, armor: 0xaab4bb, trim: 0xd9a21b, keep: [6, 12], aimT: 0.65, gap: 0.2 },
+  scout: { hp: 30, scale: 0.92, speed: 5.0, burst: 2, dmg: 6, heal: 10, body: 0x30373b, armor: 0xd2dad8, trim: 0x2aa8b0, keep: [5, 10], aimT: 0.5, gap: 0.16, slim: true },
+  heavy: { hp: 110, scale: 1.18, speed: 2.2, burst: 5, dmg: 9, heal: 32, body: 0x24292d, armor: 0x5d666d, trim: 0xa8281c, keep: [7, 14], aimT: 0.85, gap: 0.14, bulky: true },
 };
 
 export class SecurityAndroid extends Enemy {
@@ -41,61 +50,94 @@ export class SecurityAndroid extends Enemy {
   }
 
   build() {
-    const v = this.v, w = v.slim ? 0.85 : v.bulky ? 1.18 : 1;
-    const body = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.body, roughness: 0.42, metalness: 0.7, emissive: 0x000000 }));
-    const trim = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.trim, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
-    const joint = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0x15191c, roughness: 0.6, metalness: 0.5, emissive: 0x000000 }));
-    this.visorMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xff2a10, emissiveIntensity: 0.3 });
+    const v = this.v, w = v.slim ? 0.86 : v.bulky ? 1.2 : 1;
+    const body = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.body, roughness: 0.45, metalness: 0.45, emissive: 0x000000 }));
+    const plate = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.armor, roughness: 0.35, metalness: 0.25, emissive: 0x000000 }));
+    const trim = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.trim, roughness: 0.45, metalness: 0.45, emissive: 0x000000 }));
+    const joint = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0x1a1e21, roughness: 0.5, metalness: 0.5, emissive: 0x000000 }));
+    this.visorMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xff2a10, emissiveIntensity: 0.3, side: THREE.DoubleSide });
     this.gunMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xff5a20, emissiveIntensity: 0.2 });
-    const box = (parent, sx, sy, sz, x, y, z, mat) => { const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat); m.position.set(x, y, z); parent.add(m); return m; };
+    this.lightMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: v.trim, emissiveIntensity: 1.2 });
+    const put = (parent, g, mat, x, y, z, rx = 0, ry = 0, rz = 0) => { const m = new THREE.Mesh(g, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); parent.add(m); return m; };
     const pivot = (parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); return g; };
 
-    // pelvis and torso
+    // ---- pelvis: armoured hip block with a short plated skirt
     this.hips = pivot(this.group, 0, 0.95, 0);
-    box(this.hips, 0.34 * w, 0.14, 0.2, 0, 0, 0, joint);
-    this.torso = pivot(this.hips, 0, 0.08, 0);
-    box(this.torso, 0.32 * w, 0.22, 0.22, 0, 0.12, 0, joint);                       // abdomen
-    box(this.torso, 0.5 * w, 0.42, 0.3, 0, 0.42, 0, body);                           // chest
-    box(this.torso, 0.4 * w, 0.16, 0.04, 0, 0.5, -0.16, trim);                       // chest plate
-    box(this.torso, 0.34 * w, 0.36, 0.14, 0, 0.42, 0.21, joint);                     // backpack
-    if (v.bulky) for (const s of [-1, 1]) box(this.torso, 0.22, 0.14, 0.32, s * 0.33 * w, 0.62, 0, trim); // pauldrons
-    // head
-    this.head = pivot(this.torso, 0, 0.7, 0);
-    box(this.head, 0.06, 0.08, 0.06, 0, -0.04, 0, joint);
-    box(this.head, 0.22, 0.24, 0.24, 0, 0.1, 0, body);
-    this.visor = box(this.head, 0.19, 0.055, 0.02, 0, 0.12, -0.125, this.visorMat);
-    box(this.head, 0.03, 0.12, 0.03, 0.08, 0.27, 0.05, joint);                       // antenna
+    put(this.hips, rbox(0.32 * w, 0.14, 0.22, 0.05), joint, 0, 0, 0);
+    put(this.hips, rbox(0.3 * w, 0.12, 0.05, 0.02), plate, 0, -0.03, -0.12, 0.15);
+    for (const s of [-1, 1]) put(this.hips, rbox(0.1, 0.16, 0.2, 0.03), plate, s * 0.19 * w, -0.05, 0, 0, 0, s * 0.18);
 
-    // arms: shoulder -> upper arm -> elbow -> forearm; the right forearm carries the cannon
+    // ---- torso: ribbed waist, layered chest armour, collar, backpack with glowing vents
+    this.torso = pivot(this.hips, 0, 0.08, 0);
+    put(this.torso, cyl(0.11 * w, 0.13 * w, 0.2, 12), joint, 0, 0.1, 0);
+    for (let i = 0; i < 3; i++) put(this.torso, rbox(0.27 * w - i * 0.01, 0.045, 0.19, 0.02), body, 0, 0.06 + i * 0.06, -0.01);
+    put(this.torso, rbox(0.48 * w, 0.36, 0.28, 0.08), plate, 0, 0.42, 0);
+    for (const s of [-1, 1]) put(this.torso, rbox(0.22 * w, 0.2, 0.06, 0.03), plate, s * 0.11 * w, 0.48, -0.15, 0.12, s * 0.12, 0); // chest plates
+    put(this.torso, rbox(0.04, 0.26, 0.05, 0.015), joint, 0, 0.45, -0.165);
+    put(this.torso, rbox(0.12, 0.05, 0.03, 0.012), trim, 0, 0.35, -0.155);                                                       // sternum badge
+    put(this.torso, rbox(0.03, 0.03, 0.02, 0.008), this.lightMat, 0.14 * w, 0.32, -0.15);
+    put(this.torso, rbox(0.3 * w, 0.06, 0.24, 0.03), joint, 0, 0.62, 0);                                                          // collar
+    put(this.torso, rbox(0.34 * w, 0.38, 0.14, 0.05), plate, 0, 0.42, 0.2);                                                       // backpack
+    for (let i = 0; i < 3; i++) put(this.torso, rbox(0.22 * w, 0.025, 0.02, 0.008), this.lightMat, 0, 0.32 + i * 0.07, 0.275);   // vents
+    for (const s of [-1, 1]) put(this.torso, cyl(0.025, 0.025, 0.3, 8), joint, s * 0.12 * w, 0.5, 0.29, 0.2, 0, 0);               // coolant lines
+    if (v.bulky) for (const s of [-1, 1]) { put(this.torso, rbox(0.26, 0.15, 0.34, 0.06), trim, s * 0.34 * w, 0.64, 0, 0, 0, s * -0.25); put(this.torso, rbox(0.2, 0.06, 0.3, 0.02), plate, s * 0.36 * w, 0.55, 0, 0, 0, s * -0.4); }
+
+    // ---- head: neck cables, rounded helmet, wraparound glowing visor, sensor fin
+    this.head = pivot(this.torso, 0, 0.7, 0);
+    put(this.head, cyl(0.045, 0.06, 0.09, 10), joint, 0, -0.02, 0);
+    put(this.head, rbox(0.22, 0.24, 0.25, 0.08), plate, 0, 0.12, 0.01);
+    put(this.head, rbox(0.24, 0.07, 0.2, 0.03), trim, 0, 0.23, 0.03);
+    this.visor = put(this.head, geo('visor', () => new THREE.CylinderGeometry(0.118, 0.118, 0.055, 20, 1, true, Math.PI * 0.62, Math.PI * 0.76)), this.visorMat, 0, 0.12, 0.01);
+    for (const s of [-1, 1]) put(this.head, rbox(0.03, 0.11, 0.12, 0.012), joint, s * 0.115, 0.1, 0.03);
+    put(this.head, rbox(0.02, 0.1, 0.12, 0.01), trim, 0, 0.29, 0.06, -0.3, 0, 0);
+
+    // ---- arms: ball shoulder, armoured upper arm, elbow joint, forearm; the right forearm ends in the cannon
     this.arms = [-1, 1].map((s) => {
-      const sh = pivot(this.torso, s * 0.31 * w, 0.56, 0);
-      box(sh, 0.12, 0.12, 0.12, 0, 0, 0, joint);
-      box(sh, 0.1, 0.3, 0.1, 0, -0.17, 0, body);
+      const sh = pivot(this.torso, s * 0.3 * w, 0.56, 0);
+      put(sh, ball(0.075), joint, 0, 0, 0);
+      put(sh, rbox(0.15, 0.12, 0.17, 0.05), v.bulky ? trim : plate, s * 0.03, 0.04, 0, 0, 0, s * -0.2); // shoulder cap
+      put(sh, cap(0.05, 0.2), body, 0, -0.17, 0);
       const el = pivot(sh, 0, -0.33, 0);
-      box(el, 0.09, 0.28, 0.09, 0, -0.14, 0, body);
+      put(el, ball(0.055), joint, 0, 0, 0);
+      put(el, cap(0.048, 0.18), body, 0, -0.14, 0);
+      put(el, rbox(0.1, 0.14, 0.11, 0.03), plate, 0, -0.15, -0.01);
       let muzzle = null;
       if (s === 1) {
         const gun = pivot(el, 0, -0.26, 0);
-        box(gun, 0.11 * (v.bulky ? 1.4 : 1), 0.11, 0.36, 0, 0, -0.08, joint);
-        box(gun, 0.05, 0.05, 0.12, 0, 0, -0.3, this.gunMat);
-        if (v.bulky) box(gun, 0.05, 0.05, 0.12, 0.06, 0, -0.3, this.gunMat);
-        muzzle = new THREE.Object3D(); muzzle.position.set(0, 0, -0.38); gun.add(muzzle);
-      } else box(el, 0.08, 0.08, 0.08, 0, -0.3, 0, joint);
+        const gw = v.bulky ? 1.35 : 1;
+        put(gun, rbox(0.13 * gw, 0.13, 0.3, 0.04), joint, 0, 0, -0.06);
+        put(gun, cyl(0.04, 0.045, 0.22, 12), body, 0, 0, -0.27, Math.PI / 2, 0, 0);
+        for (const z of [-0.2, -0.3]) put(gun, cyl(0.052, 0.052, 0.025, 12), trim, 0, 0, z, Math.PI / 2, 0, 0);
+        put(gun, cyl(0.028, 0.028, 0.02, 10), this.gunMat, 0, 0, -0.385, Math.PI / 2, 0, 0);
+        if (v.bulky) { put(gun, cyl(0.03, 0.035, 0.2, 10), body, 0.07, -0.02, -0.25, Math.PI / 2, 0, 0); put(gun, cyl(0.02, 0.02, 0.02, 8), this.gunMat, 0.07, -0.02, -0.36, Math.PI / 2, 0, 0); }
+        put(gun, rbox(0.03, 0.03, 0.06, 0.01), this.lightMat, 0, 0.075, -0.05);
+        muzzle = new THREE.Object3D(); muzzle.position.set(0, 0, -0.4); gun.add(muzzle);
+      } else {
+        put(el, rbox(0.09, 0.08, 0.1, 0.03), joint, 0, -0.29, 0);
+        for (const f of [-1, 0, 1]) put(el, rbox(0.022, 0.07, 0.022, 0.008), joint, f * 0.028, -0.35, -0.02);
+      }
       return { s, sh, el, muzzle };
     });
     this.muzzle = this.arms[1].muzzle;
 
-    // legs: hip -> thigh -> knee -> shin -> foot
+    // ---- legs: hip ball, plated thigh, knee pad, armoured shin, two-part foot
     this.legs = [-1, 1].map((s) => {
       const hp = pivot(this.hips, s * 0.12 * w, -0.04, 0);
-      box(hp, 0.14, 0.44, 0.16, 0, -0.22, 0, body);
+      put(hp, ball(0.075), joint, 0, 0, 0);
+      put(hp, cap(0.07, 0.28), body, 0, -0.22, 0);
+      put(hp, rbox(0.13, 0.22, 0.06, 0.025), plate, 0, -0.2, -0.07);
       const kn = pivot(hp, 0, -0.45, 0);
-      box(kn, 0.1, 0.1, 0.12, 0, 0, -0.03, joint);
-      box(kn, 0.12, 0.42, 0.13, 0, -0.22, 0, body);
+      put(kn, ball(0.062), joint, 0, 0, 0);
+      put(kn, rbox(0.1, 0.11, 0.07, 0.03), trim, 0, 0.01, -0.06);
+      put(kn, cap(0.058, 0.3), body, 0, -0.22, 0);
+      put(kn, rbox(0.11, 0.26, 0.06, 0.025), plate, 0, -0.22, -0.06);
       const ft = pivot(kn, 0, -0.45, 0);
-      box(ft, 0.13, 0.06, 0.26, 0, -0.02, -0.05, joint);
+      put(ft, ball(0.045), joint, 0, 0.01, 0);
+      put(ft, rbox(0.13, 0.065, 0.18, 0.025), joint, 0, -0.025, -0.02);
+      put(ft, rbox(0.12, 0.05, 0.1, 0.02), plate, 0, -0.03, -0.14, 0.15, 0, 0);
       return { s, hp, kn, ft };
     });
+    this.group.traverse((o) => { if (o.isMesh) o.castShadow = false; });
   }
 
   syncSpheres() {
@@ -234,6 +276,7 @@ export class SecurityAndroid extends Enemy {
     this.aimK = 0;
     this.visorMat.emissive.setRGB(0.1, 0.55, 1);
     this.gunMat.emissive.setRGB(0.1, 0.55, 1);
+    this.lightMat.emissive.setRGB(0.1, 0.55, 1);
     this.fallDir = Math.random() < 0.5 ? -1 : 1;
     this.game.sfxAt(this.variant === 'heavy' ? 'groan' : 'powerdown', this.pos, 1.3);
   }
