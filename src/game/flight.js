@@ -8,8 +8,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 // restores them. Units are metres. The vessel is about a kilometre long.
 const OFFSET = new THREE.Vector3(8000, 0, 0);       // the space group sits well away from the facility and the homeworld
 const VESSEL = new THREE.Vector3(700, 120, -5600);  // the research vessel, relative to the start
-const BAY = new THREE.Vector3(700, 78, -5880);      // the docking bay mouth in the underside of the bow (relative to the start)
-const DOCK = new THREE.Vector3(700, 52, -5700);     // the approach point under the hull: fly through here, slowly, to be drawn in
+const BAY = new THREE.Vector3(700, 72, -5862);      // the docking bay mouth in the underside of the bow (relative to the start)
+const DOCK = new THREE.Vector3(700, 40, -5700);     // the approach point under the hull: fly through here, slowly, to be drawn in
 const PLANET = new THREE.Vector3(-300, -1500, 900); // the homeworld, below and behind the launch point
 
 const _m4 = new THREE.Matrix4();
@@ -135,7 +135,30 @@ export function makeLander() {
 }
 
 // The research vessel: a long spine, a rotating habitat ring, lit decks, antennae, and a brightly lit bay mouth on the underside of the bow.
+// The authored research vessel (art/build_vessel.py -> public/models/vessel.glb): fused hull, a separate spinning ring, lit windows, engines.
+let VESSEL_ASSET = null;
+export async function loadVessel() {
+  const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/vessel.glb');
+  VESSEL_ASSET = gltf.scene;
+  VESSEL_ASSET.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+}
+function vesselFromAsset() {
+  const g = new THREE.Group(); const m = VESSEL_ASSET.clone(true); g.add(m);
+  g.userData.ring = m.getObjectByName('Ring');
+  // the lit bay mouth set into the recess under the bow, with its glow and the approach lights leading in
+  const bay = new THREE.Mesh(new THREE.PlaneGeometry(92, 54), new THREE.MeshBasicMaterial({ color: 0x9fcde8, side: THREE.DoubleSide, transparent: true, opacity: 0.8 }));
+  bay.position.set(0, -47, -262); bay.rotation.x = Math.PI / 2; g.add(bay); g.userData.bay = bay;
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(190,235,255,1)'), color: 0xaadfff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  glow.position.set(0, -62, -262); glow.scale.setScalar(110); glow.material.opacity = 0.45; g.add(glow);
+  g.userData.lights = [];
+  for (let i = 1; i <= 12; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,200,90,1)'), color: 0xffc05a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    sp.position.set(0, -60, -262 + i * 24); sp.scale.setScalar(14); g.add(sp); g.userData.lights.push(sp);
+  }
+  return g;
+}
 function makeVessel() {
+  if (VESSEL_ASSET) return vesselFromAsset();
   const g = new THREE.Group();
   const hull = new THREE.MeshStandardMaterial({ color: 0x9aa4a8, roughness: 0.6, metalness: 0.6 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x353d42, roughness: 0.7, metalness: 0.5 });
