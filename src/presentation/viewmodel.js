@@ -29,6 +29,8 @@ class HandArm {
     const inner = (n, mat, order = 1) => { const m = A[n].clone(); m.material = mat; m.renderOrder = order; m.frustumCulled = false; this.root.add(m); return m; };
     this.cord = inner('Core', vm.coreMat);
     this.palmCore = inner('PalmCore', vm.coreMat);
+    // the arm is one seamless tentacle now: the straight inner cord and the palm organ were built for the old hand and only show as lines inside a curving arm
+    this.cord.visible = false; this.palmCore.visible = false;
     this.tip = new THREE.Object3D(); // palm: where the absorbed pistol parts travel
     this.root.add(this.tip);
     this.frags = [];
@@ -60,6 +62,7 @@ class HandArm {
           aq: new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, aa)),
           as: new THREE.Vector3(0.004, 0.017, 0.011),
         });
+        m.visible = false;      // the shards inside the old forearm read as loose pieces in a slim tentacle
         this.tip.add(m);
       }
     }
@@ -119,22 +122,22 @@ class HandArm {
 
     // ---- shape: morph targets drive grip, weapon form, recoil flare ----
     this.setKey('Grip', clamp(curl * (1 - f * 0.9) + (this.weapon ? vm.sGrip : 0), 0, 1));
-    this.setKey('Weapon', clamp(f * (1 - 0.55 * rec), 0, 1));
+    this.setKey('Weapon', clamp(f * (1 - 0.55 * rec) * (this.weapon ? vm.sWeapon : 1), 0, 1));
     this.setKey('Spread', clamp(rec * 1.2 + fid * 0.55 + (this.weapon ? vm.sSpread : 0), 0, 1));
     this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35 + (this.weapon ? vm.bulge + vm.sSwell : 0), 0, 1.4));
 
     this.palmCore.scale.setScalar(1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6);
     if (!this.weapon) return;
     const sq = 1 - rec * 0.12;
-    this.barrel.visible = this.maw.visible = f > 0.02;
+    this.barrel.visible = false; this.maw.visible = f > 0.02 && vm.sWeapon > 0.97;      // the tentacle itself is the barrel; the maw glows inside its open mouth
     this.barrel.scale.set(1 + rec * 0.1, 1 + rec * 0.1, Math.max(0.001, f) * sq);
     this.maw.scale.copy(this.barrel.scale);
     this.maw.scale.x = this.maw.scale.y = (1 + vm.pulse * 0.35);
-    this.tooth.visible = f > 0.25;
+    this.tooth.visible = f > 0.25 && vm.sWeapon > 0.97;
     this.tooth.scale.set(Math.max(0.001, f), Math.max(0.001, f), Math.max(0.001, f) * (1 + vm.pulse * 0.2));
     this.gland.visible = false;                 // the old forearm gland was sized for the thicker old arm and floated outside the new one
     this.gland.scale.setScalar(Math.max(0.001, f) * (1 + vm.pulse * 0.3 + vm.charge * 0.2 + Math.sin(t * 2.2) * 0.04));
-    this.muzzle.position.z = -0.31 * Math.max(0.001, f);
+    this.muzzle.position.z = -0.33 * Math.max(0.001, f);
     this.glow.position.copy(this.muzzle.position);
     vm.glowMat.opacity = vm.pulse * 0.85;
     this.glow.scale.setScalar(0.45 + vm.pulse * 1.3);
@@ -146,7 +149,7 @@ class HandArm {
     vm.fragMat.emissiveIntensity = 0.6 + vm.pulse * 1.5;
     for (const fr of this.frags) {
       const m = fr.mesh;
-      m.visible = vm.frag > 0.01;
+      m.visible = false;                 // the arm is one clean tentacle: no shards inside it
       m.position.lerpVectors(fr.sp, fr.ap, vm.crystal);
       m.quaternion.slerpQuaternions(fr.sq, fr.aq, vm.crystal);
       m.scale.lerpVectors(fr.ss, fr.as, vm.crystal).multiplyScalar(vm.frag * (fr.k ?? 1));
@@ -160,11 +163,11 @@ class HandArm {
 const _sc = new THREE.Color();
 // arm looks per weapon form: [rim colour, sucker glow colour, sucker glow strength, resting grip / spread / swell of the weapon arm]
 const STYLES = {
-  shardcaster: { rim: 0x48dccb, suck: 0x0a2a2c, suckI: 0.6, grip: 0, spread: 0, swell: 0 },
-  arc:         { rim: 0x9fd0ff, suck: 0x2a60ff, suckI: 1.6, grip: 0, spread: 0.5, swell: 0.1 },        // splayed, crackling blue-white
-  barb:        { rim: 0xb8e06a, suck: 0x405a10, suckI: 1.0, grip: 0.4, spread: 0.1, swell: 0.3 },       // tensed, olive and thorny
-  lash:        { rim: 0xd8a0ff, suck: 0x6a30b0, suckI: 1.3, grip: 0.55, spread: 0.2, swell: 0.05 },     // coiled, violet
-  gel:         { rim: 0x6dff9a, suck: 0x1a8a40, suckI: 1.5, grip: 0.1, spread: 0, swell: 0.75 },        // bulging and toxic green
+  shardcaster: { rim: 0x48dccb, suck: 0x0a2a2c, suckI: 0.6, grip: 0, spread: 0, swell: 0, weapon: 1 },        // the siphon, crystal in its mouth
+  arc:         { rim: 0x9fd0ff, suck: 0x2a60ff, suckI: 1.6, grip: 0, spread: 0.6, swell: 0.1, weapon: 0 },        // splayed, crackling blue-white
+  barb:        { rim: 0xb8e06a, suck: 0x405a10, suckI: 1.0, grip: 0, spread: 0, swell: 0.45, weapon: 0.75 },       // tensed, olive and thorny
+  lash:        { rim: 0xd8a0ff, suck: 0x6a30b0, suckI: 1.3, grip: 1, spread: 0, swell: 0.05, weapon: 0 },     // coiled, violet
+  gel:         { rim: 0x6dff9a, suck: 0x1a8a40, suckI: 1.5, grip: 0.3, spread: 0, swell: 0.8, weapon: 0.35 },        // bulging and toxic green
 };
 export class ViewModel {
   constructor(asset) {
@@ -179,7 +182,7 @@ export class ViewModel {
 
     this.skinGel = makeHandGel({ color: 0x0e1c2c, rim: 0x48dccb, alpha: 0.78 });
     // each weapon form gives the arm its own look: skin glow, sucker glow and a resting pose (blended smoothly when the form changes)
-    this.sGrip = 0; this.sSpread = 0; this.sSwell = 0;
+    this.sGrip = 0; this.sSpread = 0; this.sSwell = 0; this.sWeapon = 1;
     this.styleTarget = STYLES.shardcaster; this.styleRim = new THREE.Color(0x48dccb); this.styleSuck = new THREE.Color(0x0a2a2c);
     this.suckerMat = new THREE.MeshStandardMaterial({ color: 0x2c3e52, roughness: 0.32, metalness: 0.1, emissive: 0x0a2a2c, emissiveIntensity: 0.6 });
     this.barrelGel = makeHandGel({ color: 0x0f2230, rim: 0x6fe8d8, alpha: 0.55 });
@@ -252,7 +255,7 @@ export class ViewModel {
     { const T = this.styleTarget, k = Math.min(1, dt * 5);
       this.styleRim.lerp(_sc.set(T.rim), k); this.styleSuck.lerp(_sc.set(T.suck), k);
       this.skinGel.uniforms.uRim.value.copy(this.styleRim); this.suckerMat.emissive.copy(this.styleSuck); this.suckerMat.emissiveIntensity = T.suckI;
-      this.sGrip = lerp(this.sGrip, T.grip, k); this.sSpread = lerp(this.sSpread, T.spread, k); this.sSwell = lerp(this.sSwell, T.swell, k); }
+      this.sGrip = lerp(this.sGrip, T.grip, k); this.sSpread = lerp(this.sSpread, T.spread, k); this.sSwell = lerp(this.sSwell, T.swell, k); this.sWeapon = lerp(this.sWeapon, T.weapon, k); }
 
     this.swayX = damp(this.swayX, clamp(-ctx.lookX * 0.0012, -0.06, 0.06), 7, dt);
     this.swayY = damp(this.swayY, clamp(ctx.lookY * 0.0012, -0.06, 0.06), 7, dt);

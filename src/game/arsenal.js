@@ -80,7 +80,7 @@ export class Arsenal {
     this.unlocked.add(id); this.save();
     const f = FORMS.find((x) => x.id === id), g = this.g;
     g.ui.rewardNote('NEW FORM: ' + f.name);
-    g.ui.hint(`${f.name} LEARNED  ·  PRESS ${FORMS.indexOf(f) + 1} OR Q`, 4);
+    g.ui.hint(g.touchMode ? `${f.name} LEARNED  ·  TAP ARMS TO SWITCH` : `${f.name} LEARNED  ·  PRESS ${FORMS.indexOf(f) + 1} OR Q`, 4);
     g.audio.play('crystal', { vol: 0.6 }); g.viewmodel.pulseGlow(1);
     this.index = FORMS.indexOf(f); this.g.viewmodel.setStyle(f.id); this.render();
     return true;

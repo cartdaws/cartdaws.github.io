@@ -67,8 +67,9 @@ export class Tongue {
     }
     // pulses of swallowed matter run from the tip to the base
     const rad = (s) => {
-      let r = 0.026 - 0.013 * Math.pow(s, 0.8);
-      r += 0.014 * smooth((s - 0.9) / 0.07) * (1 - 0.35 * this.stuck); // sucker bulb at the tip
+      let r = 0.04 - 0.024 * Math.pow(s, 0.8);
+      r += 0.012 * smooth((s - 0.9) / 0.07) * (1 - 0.35 * this.stuck); // sucker bulb at the tip
+      if (s > 0.97) r *= Math.sqrt(Math.max(0.01, 1 - ((s - 0.97) / 0.03) ** 2));    // closed and rounded, never an open tube end
       for (const sp of this.pulses) { const d = (s - sp) / 0.07; r *= 1 + 0.75 * Math.exp(-d * d); }
       return r;
     };
@@ -92,9 +93,10 @@ export class Tongue {
         this.pos[k + 1] = base.y + (_c.y * ca + n2.y * sa) * r;
         this.pos[k + 2] = base.z + (_c.z * ca + n2.z * sa) * r;
         // translucent teal skin, lightening toward the tip, flaring white-blue where matter passes
-        this.col[k] = 0.16 + 0.2 * s + 0.6 * glow;
-        this.col[k + 1] = 0.6 + 0.25 * s + 0.35 * glow;
-        this.col[k + 2] = 0.55 + 0.25 * s + 0.45 * glow;
+        // the same dark skin as the arms; only the swallowed matter travelling along it glows
+        this.col[k] = 0.05 + 0.03 * s + 0.65 * glow;
+        this.col[k + 1] = 0.1 + 0.08 * s + 0.85 * glow;
+        this.col[k + 2] = 0.15 + 0.08 * s + 0.8 * glow;
       }
     }
     this.geo.attributes.position.needsUpdate = true;
@@ -108,8 +110,8 @@ export class Tongue {
 
 export function makeTongueMaterial() {
   const m = new THREE.MeshStandardMaterial({
-    color: 0xffffff, vertexColors: true, emissive: 0x1fd6bd, emissiveIntensity: 0.55,
-    roughness: 0.32, metalness: 0, transparent: true, opacity: 0.94, side: THREE.DoubleSide,
+    color: 0xffffff, vertexColors: true, emissive: 0x0b3a38, emissiveIntensity: 0.45,
+    roughness: 0.3, metalness: 0, side: THREE.DoubleSide,
   });
   m.userData.noSnap = true;
   return m;

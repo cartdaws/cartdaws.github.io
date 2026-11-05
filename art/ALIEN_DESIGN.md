@@ -1,3 +1,5 @@
+> Current body: v4, the dark soft cephalopod (`art/build_alien.py`). The silhouette notes below describe the earlier v2 concept.
+
 # The survivor's kind: design brief (v2, "stranger")
 
 The old body was a bell on rope legs. This is a creature no Earth animal resembles.
@@ -9,7 +11,7 @@ The old body was a bell on rope legs. This is a creature no Earth animal resembl
 - **Frill**: a skirt of pointed membrane flaps hanging from the waist. It hides the leg roots and ripples when it walks.
 - **Inside** (visible through the gel): a spine of glowing nodes, a central core that pulses, two dark organ sacs.
 - **Legs**: six jointed stilts in a tripod gait. Each has a swollen knee, a long calf and a three-toed paddle foot, a luminous seam down the front. They are *not* ropes: they bend at the knee like an insect's, and the feet never stretch (two-bone IK, planted feet).
-- **Arms** (first person): long, double-jointed, ending in a hand of four fine tentacle-fingers around a glowing palm lens.
+- **Arms** (first person): one seamless tapering tentacle per side, no hand and no fingers, staggered suckers on the side facing the player (`art/build_hand2.py`). Each weapon form changes how it curls and glows.
 
 ## Elder variant
 Same anatomy, 1.28x, paler violet-tinted gel, longer feelers, a second ring on the collar, slower breathing.

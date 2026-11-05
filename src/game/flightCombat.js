@@ -217,7 +217,7 @@ export class FlightCombat {
     const g = this.f.g;
     if (!this.barbs) {
       this.barbs = true; try { localStorage.setItem(BARB_KEY, '1'); } catch (e) { /* none */ }
-      g.ui.rewardNote('SALVAGED: HOMING BARBS'); g.ui.hint('RIGHT CLICK: FIRE HOMING BARBS  ·  3 AT A TIME', 5); g.audio.play('crystal', { vol: 0.6 });
+      g.ui.rewardNote('SALVAGED: HOMING BARBS'); g.ui.hint(g.touchMode ? 'TAP BARBS: HOMING SHOTS, 3 AT A TIME' : 'RIGHT CLICK: FIRE HOMING BARBS  ·  3 AT A TIME', 5); g.audio.play('crystal', { vol: 0.6 });
     }
     this.render();
   }

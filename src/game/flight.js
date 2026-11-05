@@ -544,7 +544,7 @@ export class Flight {
     const dist = this.distance();
     if (dist < 4200 && !this.f.b) { this.f.b = true; g.ui.subtitle('Their ship is headed there. The vessel. Whatever they took, it is aboard.', '', 4, true); g.audio.play('pa', { vol: 0.4 }); }
     if (dist < 2300 && !this.f.c) { this.f.c = true; g.ui.subtitle('Unidentified craft. You are approaching a restricted vessel. Turn back.', 'SHIP AI', 4.4); g.audio.play('alert', { vol: 0.4 }); }
-    if (dist < 900 && !this.f.d) { this.f.d = true; g.ui.setObjective('ENTER THE DOCKING BAY'); g.ui.hint('FLY INTO THE LIT BAY  ·  SLOW DOWN TO DOCK', 5); }
+    if (dist < 900 && !this.f.d) { this.f.d = true; g.ui.setObjective('ENTER THE DOCKING BAY'); g.ui.hint('FLY TOWARD THE LIT BAY', 5); }
 
     // ---- docking: steer into the glowing mouth of the bay at a safe speed and the ship is pulled in
     // docking assist: near the bay the ship's computer takes over the throttle and draws the lander in; no precise flying needed

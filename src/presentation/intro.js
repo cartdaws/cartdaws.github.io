@@ -867,7 +867,7 @@ export class Intro {
     this.prompt(''); g.ui.setHold(null); this.seamMarker.visible = false;
     c.crack.visible = false; c.crack.material.opacity = 0;
     if (c.doorGlass) c.doorGlass.visible = false;
-    c.spill.visible = true;
+    c.spill.visible = false;
     a.play('shatter', { vol: 1 }); a.play('crack', { vol: 0.8 }); g.addShake(0.12);
     const p = new THREE.Vector3(CX - 0.05, 1.7, CZ - 1.1);
     for (let i = 0; i < 36; i++) g.effects.glowP.emit(p.x + (Math.random() - 0.5), p.y + (Math.random() - 0.5) * 2.4, p.z, (Math.random() - 0.5) * 5, Math.random() * 3 - 0.5, -1.5 - Math.random() * 5, 0.6 + Math.random() * 0.6, 0.02 + Math.random() * 0.025, 0.75, 0.92, 1, 9, 0.6);
@@ -1118,7 +1118,7 @@ export class Intro {
     // the breach has happened and stays that way
     c.setDoorOpen(1.75);
     if (c.doorGlass) c.doorGlass.visible = false;
-    c.crack.visible = false; c.crack.material.opacity = 0; c.spill.visible = true;
+    c.crack.visible = false; c.crack.material.opacity = 0; c.spill.visible = false;
     c.display.power = 0.2; c.display.fieldLevel = 0.03; c.display.set('breach');
     c.sealPower = 0;
     const s = c.scanner; s.carriage.position.z = 1.5; s.link.rotation.set(0.2, 0, 0); s.head.rotation.set(-0.5, 0, 0); s.probe.scale.set(1, 0.3, 1);

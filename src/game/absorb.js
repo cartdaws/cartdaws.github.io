@@ -48,9 +48,9 @@ export class Absorber {
     this.core.visible = false;
     this.core.material.userData.noSnap = true;
     game.scene.add(this.core);
-    // six butterfly tongues, three from each arm, living in the first-person scene so they draw over the world
+    // one long feeding tongue from inside each arm, living in the first-person scene so they draw over the world
     const mat = makeTongueMaterial();
-    this.tongues = Array.from({ length: 6 }, () => new Tongue(game.viewmodel.scene, mat));
+    this.tongues = Array.from({ length: 2 }, () => new Tongue(game.viewmodel.scene, mat));
   }
 
   hideTongues() { for (const tg of this.tongues) { tg.setVisible(false); tg.pulses.length = 0; } }
@@ -190,12 +190,13 @@ export class Absorber {
     const retract = smooth((t - RETRACT0) / (RETRACT1 - RETRACT0));
     let arrived = 0;
     this.tongues.forEach((tg, i) => {
-      const tip = D.tips[i], te = t - tip.delay, side = i < 3 ? 1 : -1, k = i % 3;
+      const tip = D.tips[i], te = t - tip.delay, arm = i ? vm.left : vm.right;
       tg.ext = smooth(te / EXT_T) * (1 - retract);
       tg.uncoil = smooth(te / (EXT_T + 0.1)) * (1 - smooth((t - RETRACT0) / (RETRACT1 - RETRACT0) * 1.15));
       tg.stuck = smooth((t - STICK - tip.delay) / 0.2) * (1 - smooth((t - RETRACT0) / 0.2));
-      // base: on the arm, in front of the eye
-      tg.o.copy(cam.localToWorld(_p.set(side * (0.26 + 0.04 * k), -0.3 + 0.05 * k, -0.6 - 0.03 * k)));
+      // base: inside the arm itself, so the tongue grows out of the tentacle with no visible join
+      arm.root.updateWorldMatrix(true, false);
+      tg.o.copy(arm.root.localToWorld(_p.set(0, -0.01, -0.1)));
       // tip: a point on the machine, sinking with it
       tg.t.set(D.center.x + tip.off.x, D.center.y * (1 - 0.55 * m) + tip.off.y * (1 - 0.6 * m), D.center.z + tip.off.z);
       // matter flows back toward the arm

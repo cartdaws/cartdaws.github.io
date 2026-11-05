@@ -15,6 +15,7 @@ const N = 10;
 // the new creature's legs: thick and muscular at the hip, tapering smoothly to a soft, slightly flattened tip (no padded swelling)
 function legRadius2(t) {
   let r = lerp(0.135, 0.034, Math.pow(t, 0.85)) * (1 + 0.05 * Math.sin(t * 8));
+  if (t < 0.05) r *= Math.sqrt(Math.max(0.02, t / 0.05));          // a rounded root, never a flat cut end
   if (t > 0.94) r *= Math.sqrt(Math.max(0.05, 1 - ((t - 0.94) / 0.06) ** 2));
   return r;
 }
@@ -98,6 +99,10 @@ export class AlienBody {
   // The new body: the Blender creature in place of the old bell and torso (the procedural legs stay)
   attachAlien(opts) {
     this.alien = buildAlien(opts);
+    if (opts.firstPerson) {                          // a soft dark hub where the legs join: all you see of your own body when you look straight down
+      this.hub = new THREE.Mesh(new THREE.SphereGeometry(0.2, 20, 12), new THREE.MeshStandardMaterial({ color: 0x070f18, roughness: 0.9, metalness: 0 }));
+      this.hub.scale.set(1, 0.42, 1.1); this.hub.position.y = -0.22; this.group.add(this.hub);
+    }
     this.firstPerson = !!opts.firstPerson;           // the player's own body is never drawn from inside it (only legs are seen when looking down)
     this.alien.root.scale.setScalar(0.6); this.alien.root.position.y = -0.5;
     this.group.add(this.alien.root);
@@ -201,14 +206,16 @@ export class AlienBody {
 
       // Spine of the tentacle: out and up from the bell, arching down to the foot.
       const { a } = leg.d;
-      const rx = Math.sin(a) * 0.3, rz = -Math.cos(a) * 0.3;
+      const hipR = this.firstPerson ? 0.1 : 0.3;      // seen from above, the legs must meet at one point rather than start from separate cut ends
+      const rx = Math.sin(a) * hipR, rz = -Math.cos(a) * hipR;
       const cyb = Math.cos(this.yaw), syb = Math.sin(this.yaw);
-      leg.root.set(p.pos.x + rx * cyb + rz * syb, p.pos.y + 0.62, p.pos.z - rx * syb + rz * cyb);
+      leg.root.set(p.pos.x + rx * cyb + rz * syb, p.pos.y + (this.firstPerson ? 0.34 : 0.62), p.pos.z - rx * syb + rz * cyb);
       const dx = leg.foot.x - leg.root.x, dz = leg.foot.z - leg.root.z, hd = Math.hypot(dx, dz) || 1;
       const ox = dx / hd, oz = dz / hd;
       const lift = Math.max(0, leg.foot.y - (this.world.groundHeight(leg.foot.x, leg.foot.z, p.pos.y + 0.4, 0.2)));
-      leg.c1.set(leg.root.x + ox * hd * 0.35, leg.root.y + 0.5 + hd * 0.18, leg.root.z + oz * hd * 0.35);
-      leg.c2.set(leg.foot.x - ox * hd * 0.2, leg.foot.y + 0.55 + hd * 0.12 + lift * 0.5, leg.foot.z - oz * hd * 0.2);
+      const arch = this.firstPerson ? 0.05 : 0.5 + hd * 0.18;
+      leg.c1.set(leg.root.x + ox * hd * 0.35, leg.root.y + arch, leg.root.z + oz * hd * 0.35);
+      leg.c2.set(leg.foot.x - ox * hd * 0.2, leg.foot.y + (this.firstPerson ? 0.22 : 0.55 + hd * 0.12) + lift * 0.5, leg.foot.z - oz * hd * 0.2);
       for (let i = 0; i < N; i++) bezier(leg.root, leg.c1, leg.c2, leg.foot, i / (N - 1), leg.ideal[i]);
       for (let i = 1; i < N - 1; i++) {
         const w = i / (N - 1), amp = 0.02 * Math.sin(w * Math.PI) * (1 + Math.min(1, speed));
