@@ -365,14 +365,14 @@ export function buildLevel(scene, world, kit) {
     } else {
       chamberLights[0].intensity = 56; chamberLights[1].intensity = 52; lampMat.emissiveIntensity = 1.5; status.emissiveIntensity = 1.3;
     }
-    const strobe = 0.5 + 0.5 * Math.sin(t * 7);
-    if (L.emergencyOn) L.emergency.intensity = 30 * strobe; else L.emergency.intensity = 0;
+    const strobe = 0.5 + 0.5 * Math.sin(t * 3.2);                         // a slow pulse, not a flicker
+    if (L.emergencyOn) L.emergency.intensity = 14 * strobe; else L.emergency.intensity = 0;
     if (L.alarm) {
-      for (const l of L.alarmLights) l.intensity = 40 + strobe * 240;
-      beaconMat.emissiveIntensity = 0.2 + strobe * 3;
+      for (const l of L.alarmLights) l.intensity = 25 + strobe * 85;
+      beaconMat.emissiveIntensity = 0.2 + strobe * 1.4;
     } else {
       for (const l of L.alarmLights) l.intensity = 0;
-      beaconMat.emissiveIntensity = L.emergencyOn ? 0.2 + strobe * 3 : 0.1;
+      beaconMat.emissiveIntensity = L.emergencyOn ? 0.2 + strobe * 1.2 : 0.1;
     }
   };
   L.extraDoors = []; // doors of the generated facility

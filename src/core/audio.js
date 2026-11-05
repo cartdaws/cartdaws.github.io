@@ -186,8 +186,8 @@ export class Audio {
         this.noise(o, { dur: 2.4, vol: 0.18, type: 'bandpass', f0: 800, f1: 5200, q: 1.5, attack: 0.6 });
         break;
       case 'alert': // console alarm double beep
-        this.tone(o, { type: 'square', f0: 1320, f1: 1320, dur: 0.1, vol: 0.1 });
-        this.tone(o, { type: 'square', f0: 1320, f1: 1320, dur: 0.1, vol: 0.1, delay: 0.16 });
+        this.tone(o, { type: 'triangle', f0: 880, f1: 880, dur: 0.12, vol: 0.05 });
+        this.tone(o, { type: 'triangle', f0: 880, f1: 880, dur: 0.12, vol: 0.05, delay: 0.2 });
         break;
       case 'crack':
         this.noise(o, { dur: 0.12, vol: 0.5, type: 'highpass', f0: 4000, f1: 2200 });
@@ -284,23 +284,25 @@ export class Audio {
     if (!this.ctx || this.siren) return;
     const ctx = this.ctx;
     const o = ctx.createOscillator();
-    o.type = 'sawtooth';
-    o.frequency.value = 620;
+    o.type = 'triangle';
+    o.frequency.value = 440;
     const lfo = ctx.createOscillator();
-    lfo.frequency.value = 1.6;
+    lfo.frequency.value = 0.8;
     const lg = ctx.createGain();
-    lg.gain.value = 220;
+    lg.gain.value = 90;
     lfo.connect(lg);
     lg.connect(o.frequency);
     const f = ctx.createBiquadFilter();
     f.type = 'lowpass';
-    f.frequency.value = 1400;
+    f.frequency.value = 700;
     const g = ctx.createGain();
     g.gain.value = 0.0001;
-    g.gain.linearRampToValueAtTime(0.085, ctx.currentTime + 0.1);
+    g.gain.linearRampToValueAtTime(0.03, ctx.currentTime + 0.6);
+    g.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 9);      // it dies away by itself after a few seconds
     o.connect(f); f.connect(g); g.connect(this.master);
     o.start(); lfo.start();
     this.siren = { o, lfo, g };
+    setTimeout(() => { if (this.siren && this.siren.o === o) this.stopSiren(); }, 9500);
   }
 
   stopSiren() {

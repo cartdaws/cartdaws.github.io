@@ -1127,7 +1127,6 @@ export class Intro {
     L.pistol.visible = false; L.pistolLight.intensity = 0; L.pistol.scale.setScalar(1.25);
     this.pistolMarker.visible = false; this.seamMarker.visible = false; this.glassPrint.material.opacity = 0;
     L.surge = 0; L.emergencyOn = true; L.alarm = false;
-    g.audio.startSiren();
     this.cellBox(true);
     L.doors.containment.close(true);
     // the shot-lock and the low barrier
