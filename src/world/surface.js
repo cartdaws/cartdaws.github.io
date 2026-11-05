@@ -517,7 +517,8 @@ export class Surface {
   gainHp(n) { const g = this.g, p = g.player; for (let i = 0; i < n; i++) progress.addMaxHp(); p.maxHealth += n; p.health = Math.min(p.maxHealth, p.health + n); g.ui.setHealth(p.health, p.maxHealth); }
   reward(talk) {
     const g = this.g, ui = g.ui; this.done[this.id] = 1; this.saveDone();
-    ui.rewardNote(talk.note); g.audio.play('crystal', { vol: 0.6 }); g.viewmodel.pulseGlow(1); g.addShake(0.08);
+    if (talk.gift === 'hp' || talk.gift === 'hull') ui.rewardNote(talk.note);      // a new form announces itself when it unlocks
+    g.audio.play('crystal', { vol: 0.6 }); g.viewmodel.pulseGlow(1); g.addShake(0.08);
     if (talk.gift === 'hp') this.gainHp(10); else if (talk.gift === 'hull') { try { localStorage.setItem('intruder-armor', '1'); } catch (e) { /* optional */ } g.flight.armor = 0.5; } else g.arsenal.unlock(talk.gift);
     ui.setObjective(this.place.w.name + ': EXPLORE');
   }
