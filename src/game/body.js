@@ -9,6 +9,14 @@ const LEGS = [ // angle from forward (rad), reach (m), gait group
   { a: -2.55, reach: 2.0, g: 0 }, { a: 2.55, reach: 2.0, g: 1 },
 ];
 const N = 10;
+
+// Leg thickness along its length (0 = hip, 1 = foot): stays thick all the way down, swells into a padded foot, ends rounded.
+function legRadius(t) {
+  let r = lerp(0.15, 0.068, Math.pow(t, 1.1)) * (1 + 0.08 * Math.sin(t * 10));
+  if (t > 0.84) r += 0.022 * Math.sin(Math.min(1, (t - 0.84) / 0.13) * Math.PI);
+  if (t > 0.965) r *= Math.sqrt(Math.max(0.05, 1 - ((t - 0.965) / 0.035) ** 2));
+  return r;
+}
 const _o = new THREE.Vector3(), _v = new THREE.Vector3();
 
 // The player's own octopus body: a translucent bell with glowing organs, walking on six independent tentacles.
@@ -33,7 +41,7 @@ export class AlienBody {
     // joined to the legs instead of organs hanging in mid-air. Heights are measured from the base of the torso.
     const prof = [[0.0, 0.0], [0.22, 0.02], [0.31, 0.16], [0.375, 0.4], [0.395, 0.62], [0.365, 0.85], [0.3, 1.02], [0.2, 1.12], [0.09, 1.17], [0.0, 1.19]];
     this.torsoY = -0.18; // base of the torso, relative to the group (which sits 0.52 above the feet)
-    this.torsoGel = makeGel({ color: 0x0d6560, rim: 0x7fe8da, alpha: 0.3 });
+    this.torsoGel = makeGel({ color: 0x0b5652, rim: 0x7fe8da, alpha: 0.22 });
     this.torso = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y * 0.93)), 44), this.torsoGel);
     this.torso.position.y = this.torsoY;
     this.torso.renderOrder = 3;
@@ -60,7 +68,7 @@ export class AlienBody {
       this.sats.push({ m, a: i * 1.6, r: 0.13 + i * 0.03, h: 0.3 + i * 0.13 });
     }
 
-    this.legGel = makeTentacleGel({ color: 0x0d6560, rim: 0x7fe8da, alpha: 0.5, length: 2.4, r0: 0.11, r1: 0.012 });
+    this.legGel = makeTentacleGel({ color: 0x0d6560, rim: 0x7fe8da, alpha: 0.5, length: 2.4, r0: 0.11, r1: 0.06 });
     this.legs = LEGS.map((d) => {
       const leg = {
         d,
@@ -69,7 +77,7 @@ export class AlienBody {
         chain: new SpringChain(N, 360, 90, 0.8),
         ideal: Array.from({ length: N }, () => new THREE.Vector3()),
         c1: new THREE.Vector3(), c2: new THREE.Vector3(), root: new THREE.Vector3(),
-        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: (t) => lerp(0.15, 0.015, Math.pow(t, 0.75)) * (1 + 0.1 * Math.sin(t * 10)), material: this.legGel }),
+        mesh: new TentacleMesh({ rings: 28, radial: 14, radius: legRadius, material: this.legGel }),
       };
       leg.mesh.mesh.renderOrder = 2;
       scene.add(leg.mesh.mesh);
@@ -115,7 +123,7 @@ export class AlienBody {
     this.group.scale.set(1 + 0.25 * dk, 1 - 0.6 * dk, 1 + 0.25 * dk);
     // the torso only shows when you look down at it, and fades away toward the horizon so it never blocks the view ahead
     const down = clamp((-p.pitch - 0.3) / 0.55, 0, 1) * (1 - dk);
-    this.torsoGel.uniforms.uAlpha.value = 0.3 * down;
+    this.torsoGel.uniforms.uAlpha.value = 0.22 * down;
     this.ribMat.opacity = 0.2 * down;
     this.torso.visible = down > 0.01;
     for (const r of this.ribs) r.visible = down > 0.01;
