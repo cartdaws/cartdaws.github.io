@@ -6,8 +6,9 @@ const RADIUS = 0.4;
 const HEIGHT = 1.8;
 const EYE = 1.6;
 const SPEED = 7.2;
-const GRAVITY = 24;
-const JUMP_V = 7.6;
+const GRAVITY = 27;
+const JUMP_V = 9.9;           // a jump clears about 1.8 m: high enough to be a real way of getting around the room
+const MANTLE = 0.72;         // and you pull yourself up onto a ledge this far above your feet
 const DASH_SPEED = 18;
 const DASH_TIME = 0.17;
 const DASH_COOLDOWN = 1.3;
@@ -39,7 +40,7 @@ export class Player {
     this.justDashed = false;
   }
 
-  get eye() { return this.pos.y + EYE; }
+  get eye() { return this.pos.y + EYE + (this.stepOff || 0); }
   get dashReady() { return 1 - clamp(this.dashCd / DASH_COOLDOWN, 0, 1); }
 
   look(dx, dy, sens) {
@@ -107,7 +108,7 @@ export class Player {
         this.vz = this.dashDir.y * SP * 1.1;
       }
     } else {
-      const lambda = this.grounded ? (l > 0.01 ? 16 : 13) : 3.2;
+      const lambda = this.grounded ? (l > 0.01 ? 16 : 19) : (l > 0.01 ? 7 : 11);       // enough air control to actually land on what you jumped at
       this.vx = damp(this.vx, wx * SP, lambda, dt);
       this.vz = damp(this.vz, wz * SP, lambda, dt);
     }
@@ -133,17 +134,35 @@ export class Player {
       if (this.extraSolid) this.extraSolid(this.pos);      // solids outside the box world: the homeworld's houses, trees and rocks
     }
 
+    // Pressing into a ledge in the air: haul yourself up onto it.
+    if (!this.grounded && controllable && l > 0.01 && !this.dashing && this.vy < 4.5) {
+      const rise = this.game.world.ledgeRise(this.pos.x, this.pos.z, this.pos.y, RADIUS + 0.12, wx, wz, MANTLE, HEIGHT);
+      if (rise > 0) this.vy = Math.max(this.vy, Math.sqrt(2 * GRAVITY * (rise + 0.08)));
+    }
+
     // Vertical motion and ground.
-    const wasGrounded = this.grounded;
+    const wasGrounded = this.grounded, y0 = this.pos.y;
     this.pos.y += this.vy * dt;
+    const ceil = this.game.world.ceilingHeight(this.pos.x, this.pos.z, Math.min(y0, this.pos.y), RADIUS - 0.02);
+    if (this.pos.y + HEIGHT > ceil) { this.pos.y = ceil - HEIGHT; this.vy = Math.min(0, this.vy); }
+    this.stepOff = damp(this.stepOff || 0, 0, 13, dt);
     const ground = this.game.world.groundHeight(this.pos.x, this.pos.z, this.pos.y, RADIUS);
     if (this.pos.y <= ground + 0.001 && this.vy <= 0) {
       if (!wasGrounded && this.vy < -6) this.game.audio.play('land', { vol: clamp(-this.vy / 14, 0.3, 1) });
+      if (wasGrounded && ground > y0 + 0.01) this.stepOff -= ground - y0;      // up a step: the feet pop, the view glides
       this.pos.y = ground;
       this.vy = 0;
       this.grounded = true;
+    } else if (wasGrounded && this.vy <= 0 && this.pos.y - ground <= 0.32) {
+      this.stepOff += y0 - ground;                                              // down a small step: stay on your feet
+      this.pos.y = ground; this.vy = 0;
     } else if (this.pos.y > ground + 0.02) {
       this.grounded = false;
+    }
+    // footsteps: you are a heavy wet thing on a metal deck, and now you can hear it
+    if (this.grounded && !this.dashing) {
+      this.stepAcc = (this.stepAcc || 0) + Math.hypot(this.vx, this.vz) * dt;
+      if (this.stepAcc > 2.3) { this.stepAcc = 0; this.game.audio.play('step', { vol: 0.14 + 0.1 * clamp(Math.hypot(this.vx, this.vz) / SPEED, 0, 1) }); }
     }
     if (this.pos.y + HEIGHT > 6.3) { this.pos.y = 6.3 - HEIGHT; this.vy = Math.min(0, this.vy); }
     if (this.pos.y < -2) { this.pos.set(0, 0, REPLAY_SAFE.z); } // never fall out of the world

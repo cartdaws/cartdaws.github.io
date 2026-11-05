@@ -122,6 +122,7 @@ export class Encounter {
       return;
     }
     g.ui.setObjective(`REACH THE HANGAR  ·  ${this.label(r)}`);
+    if (r.id > 0 && r.kind === 'combat') g.ui.hintOnce('highground', g.touchMode ? 'TAP JUMP INTO CRATES AND DESKS TO CLIMB: HIGH GROUND' : 'JUMP INTO CRATES AND DESKS TO CLIMB: HIGH GROUND', 4);
     if (r.kind === 'quiet') {
       g.pickups.reveal(r, 'start');
       this.advance();

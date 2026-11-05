@@ -235,7 +235,7 @@ function furnish(B, r, placer, L) {
     return f;
   };
   // the kit has no collider for a chair: a small box, so you bump into it like everything else in the room
-  const chair = (x, z, rot = 0) => { kit.place(B.group, 'chair', { x, z, rotY: rot }); B.W.add(x - 0.26, 0, z - 0.26, x + 0.26, 0.9, z + 0.26); placer.add(x - 0.3, x + 0.3, z - 0.3, z + 0.3); };
+  const chair = (x, z, rot = 0) => { kit.place(B.group, 'chair', { x, z, rotY: rot }); B.W.add(x - 0.26, 0, z - 0.26, x + 0.26, 0.61, z + 0.26); placer.add(x - 0.3, x + 0.3, z - 0.3, z + 0.3); };
   const hasDoor = (s) => r.inSide === s || r.outSide === s;
 
   // approach lanes in front of each doorway stay clear

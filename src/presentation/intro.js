@@ -602,67 +602,58 @@ export class Intro {
   startBoarding() {
     const g = this.g, p = g.player, w = this.wreck;
     w.updateMatrixWorld(true);
-    const a = buildElder(g.scene, g.elderKit.geos, g.elderKit.hand, 'player', 1.05);
-    g.scene.add(a.anchor);
-    a.stub.pitch = -1.2; a.ab.group.visible = true;
-    const tmp = new THREE.Vector3();
-    this.wingY = w.localToWorld(tmp.set(3.6, 0.12, 0.8)).y;
-    a.flat.groundHeight = (x, z) => { tmp.set(x, 0, z); w.worldToLocal(tmp); return (tmp.z > 0.35 && tmp.z < 3.3 && Math.abs(tmp.x) > 0.9 && Math.abs(tmp.x) < 4.9) ? this.wingY : 0; };
-    a.anchor.position.set(p.pos.x, 0, p.pos.z); a.anchor.updateMatrixWorld(true);
-    g.camera.updateMatrixWorld();
-    this.actor = a;
     const L = (x, y, z) => w.localToWorld(new THREE.Vector3(x, y, z));
-    const G1 = L(3.7, 0, -0.9); G1.y = 0;
-    this.bd = { T: 0, cam0: g.camera.position.clone(), yaw0: p.yaw, pitch0: p.pitch, yaw: p.yaw, S: new THREE.Vector3(p.pos.x, 0, p.pos.z), G1, W1: L(3.7, 0.12, 0.9), W2: L(1.7, 0.2, 0.3), H1: L(0.62, 0.74, -0.15), C1: L(0, 0.34, -0.9),
-      V1: L(7.6, 2.0, -6.0), V2: L(6.4, 2.9, 3.8), seat: L(0, 0.78, -0.9) };
-    g.viewmodel.root.visible = false; this.hideBody = true;
+    const start = g.camera.position.clone(), foot = L(3.9, 0, 1.75); foot.y = p.eye;
+    this.bd = {
+      T: 0, pos: start.clone(), yaw: p.yaw, pitch: p.pitch,
+      //   the wing's edge at your feet, hauled up onto it, along it to the hull, over the sill, down into the seat
+      keys: [0, 1.2, 2.5, 4.0, 5.2, 6.0, 6.8],
+      pts: [start, foot, L(3.55, 1.34, 1.3), L(1.95, 1.42, 1.05), L(0.75, 1.9, 0.15), L(0.05, 1.72, -0.75), L(0, 0.78, -0.9)],
+      looks: [L(3.2, 0.2, 0.9), L(2.4, 0.35, 0.8), L(0.5, 1.0, 0.2), L(0, 1.0, -0.6), L(0, 0.35, -1.25)],
+      wing: L(3.1, 0.14, 1.0), hull: L(0.95, 0.72, 0.15), seat: L(0, 0.78, -0.9),
+    };
+    this.moveLocked = true; this.hideBody = true; p.extraSolid = null;
     g.audio.play('servo', { vol: 0.5 });
   }
 
   updateBoarding(dt) {
-    const g = this.g, w = this.wreck, B = this.bd, a = this.actor, ui = g.ui;
-    B.T += dt; const T = B.T;
-    const lerpV = (u, v, k, out) => out.lerpVectors(u, v, k);
-    const yawTo = (from, to) => Math.atan2(-(to.x - from.x), -(to.z - from.z));
-    const pos = this._bp || (this._bp = new THREE.Vector3());
-    let climb = 0, planted = false, face = B.G1;
-    if (T < 2.2) { lerpV(B.S, B.G1, ease(T, 0, 2.2), pos); face = B.G1; }
-    else if (T < 3.6) { const k = ease(T, 2.2, 3.6); lerpV(B.G1, B.W1, k, pos); pos.y = lerp(0, B.W1.y, k); pos.y += Math.sin(k * Math.PI) * 0.18; climb = Math.sin(k * Math.PI); face = B.W1; }
-    else if (T < 5.4) { lerpV(B.W1, B.W2, ease(T, 3.6, 5.4), pos); planted = true; face = B.W2; }
-    else if (T < 6.7) { const k = ease(T, 5.4, 6.7); lerpV(B.W2, B.H1, k, pos); pos.y = lerp(B.W2.y, B.H1.y, k) + Math.sin(k * Math.PI) * 0.15; climb = Math.sin(k * Math.PI); face = B.H1; }
-    else { const k = ease(T, 6.7, 8.1); lerpV(B.H1, B.C1, k, pos); pos.y = lerp(B.H1.y, B.C1.y, k) + Math.sin(k * Math.PI) * 0.25; climb = 0.6 * Math.sin(k * Math.PI); face = B.C1; }
-    const wantYaw = yawTo(a.anchor.position, face);
-    B.yaw += Math.atan2(Math.sin(wantYaw - B.yaw), Math.cos(wantYaw - B.yaw)) * Math.min(1, dt * 6);
-    // the actor: the anchor carries its x and z, the body height comes from 'rise'
-    a.anchor.position.set(pos.x, 0, pos.z);
-    a.armL.rotation.x = lerp(a.armL.rotation.x, -0.5 + 1.6 * climb, Math.min(1, dt * 8)); a.arm.rotation.x = lerp(a.arm.rotation.x, -0.5 + 1.6 * climb, Math.min(1, dt * 8));
-    stepElder(a, dt, { yaw: B.yaw, fear: 0, rise: pos.y, planted: planted || (T >= 6.7) });
-    const fade = 1 - ease(T, 7.3, 8.0);
-    a.ab.alien.setOpacity(fade); if (fade <= 0.01) a.ab.setVisible(false);
-    // the canopy opens at the start and closes once the pilot is inside
-    const open = ease(T, 0.2, 1.4) * (1 - ease(T, 8.0, 9.2));
-    if (w.userData.canopyPivot) w.userData.canopyPivot.rotation.x = 1.15 * open;
-    // dialogue and sound: what the lander is, why it still flies, what it is for
-    if (T > 0.4) this.once('bd1', () => { this.say('Scorched, split open, but the drive core is still warm. Their machines are built to survive.', '', 4.4, true); g.audio.play('unlock', { vol: 0.5 }); });
-    if (T > 4.8) this.once('bd2', () => this.say('My people went up there. So will I.', '', 3.2, true));
-    if (T > 8.1) this.once('bd3', () => { g.audio.play('door', { vol: 0.8 }); });
-    // three shots: wide from the front of the wing, then following from behind, then through the canopy into the pilot's own eyes
-    const cam = this._bc || (this._bc = new THREE.Vector3()), tgt = this._bt || (this._bt = new THREE.Vector3());
-    const head = this._bh || (this._bh = new THREE.Vector3());
-    head.set(pos.x, pos.y + 0.9, pos.z);
-    if (T < 3.4) { lerpV(B.cam0, B.V1, ease(T, 0, 1.6), cam); tgt.copy(head); }
-    else if (T < 6.9) { lerpV(B.V1, B.V2, ease(T, 3.4, 4.6), cam); tgt.copy(head); }
-    else { lerpV(B.V2, B.seat, ease(T, 6.9, 8.4), cam); const fwd = _l.set(0, 0, -1).applyQuaternion(w.quaternion); const aim = _w.copy(B.seat).addScaledVector(fwd, 6); lerpV(head, aim, ease(T, 6.9, 8.4), tgt); }
+    const g = this.g, w = this.wreck, B = this.bd, vm = g.viewmodel;
+    const T = (B.T += dt);
+    // along the path, through its key points
+    const K = B.keys, P = B.pts; let i = 0;
+    while (i < K.length - 2 && T >= K[i + 1]) i++;
+    const u = clamp((T - K[i]) / (K[i + 1] - K[i]), 0, 1);
+    const a0 = P[Math.max(0, i - 1)], a1 = P[i], a2 = P[i + 1], a3 = P[Math.min(P.length - 1, i + 2)];
+    const cr = (q0, q1, q2, q3) => 0.5 * ((2 * q1) + (q2 - q0) * u + (2 * q0 - 5 * q1 + 4 * q2 - q3) * u * u + (3 * q1 - q0 - 3 * q2 + q3) * u * u * u);
+    const heave = (i === 1 ? Math.sin(u * Math.PI * 3) * 0.05 : 0) + (i === 2 ? Math.abs(Math.sin(u * Math.PI * 3)) * 0.05 : 0);      // pulling, then crawling
+    const tx = cr(a0.x, a1.x, a2.x, a3.x), ty = cr(a0.y, a1.y, a2.y, a3.y) + heave, tz = cr(a0.z, a1.z, a2.z, a3.z);
+    const k = 1 - Math.exp(-11 * dt);
+    B.pos.x += (tx - B.pos.x) * k; B.pos.y += (ty - B.pos.y) * k; B.pos.z += (tz - B.pos.z) * k;
+    // the view leads the body: it goes where you are about to put your weight
+    const fwd = _l.set(0, 0, -1).applyQuaternion(w.quaternion);
+    const look = T < 6.0 ? B.looks[Math.min(4, Math.max(0, i))] : _w.copy(B.seat).addScaledVector(fwd, 6);
+    const dx = look.x - B.pos.x, dy = look.y - B.pos.y, dz = look.z - B.pos.z;
+    const wantYaw = Math.atan2(-dx, -dz), wantPitch = Math.atan2(dy, Math.hypot(dx, dz));
+    const lk = 1 - Math.exp(-4.2 * dt);
+    B.yaw += Math.atan2(Math.sin(wantYaw - B.yaw), Math.cos(wantYaw - B.yaw)) * lk; B.pitch += (wantPitch - B.pitch) * lk;
     const pose = this.boardPose || (this.boardPose = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
-    const dx = tgt.x - cam.x, dy = tgt.y - cam.y, dz = tgt.z - cam.z;
-    pose.x = cam.x; pose.y = cam.y; pose.z = cam.z; pose.yaw = Math.atan2(-dx, -dz); pose.pitch = Math.atan2(dy, Math.hypot(dx, dz));
+    pose.x = B.pos.x; pose.y = B.pos.y; pose.z = B.pos.z; pose.yaw = B.yaw; pose.pitch = B.pitch;
     g.cinePose = pose;
-    if (T > 8.2) g.viewmodel.root.visible = true;
-    if (T > 9.2) {
-      // hand over to the cockpit: the camera is at the seat, looking where the lander looks, the canopy is shut
-      const fwd = _l.set(0, 0, -1).applyQuaternion(w.quaternion);
+    // your own arm does the work: it reaches for the wing, then for the hull
+    const grab = ease(T, 0.8, 1.3) * (1 - ease(T, 2.2, 2.7)), grab2 = ease(T, 3.4, 3.9) * (1 - ease(T, 4.9, 5.4));
+    if (grab > 0.01) this.reachAt(B.wing, 0.45 * grab); else if (grab2 > 0.01) this.reachAt(B.hull, 0.45 * grab2);
+    // the canopy lifts as you come and closes once you are in
+    if (w.userData.canopyPivot) w.userData.canopyPivot.rotation.x = 1.15 * ease(T, 0.3, 1.8) * (1 - ease(T, 6.5, 7.6));
+    if (T > 0.4) this.once('bd1', () => { this.say('Scorched, split open, but the drive core is still warm. Their machines are built to survive.', '', 4.4, true); g.audio.play('unlock', { vol: 0.4 }); });
+    if (T > 1.1) this.once('bds1', () => g.audio.play('gel', { vol: 0.5 }));
+    if (T > 2.4) this.once('bds2', () => { g.audio.play('land', { vol: 0.5 }); g.addShake(0.08); vm.landK = 0.6; });
+    if (T > 3.5) this.once('bds3', () => g.audio.play('gel', { vol: 0.4 }));
+    if (T > 4.9) this.once('bd2', () => this.say('My people went up there. So will I.', '', 2.6, true));
+    if (T > 6.75) this.once('bds4', () => { g.audio.play('land', { vol: 0.4 }); g.addShake(0.06); vm.landK = 0.5; });
+    if (T > 6.6) this.once('bd3', () => g.audio.play('door', { vol: 0.8 }));
+    if (T > 7.7) {
+      // the same camera carries on into the lift-off
       this.f.b = { pos0: B.seat.clone(), yaw0: Math.atan2(-fwd.x, -fwd.z), pitch0: Math.asin(clamp(fwd.y, -1, 1)) + 0.04 };
-      a.ab.dispose(g.scene); g.scene.remove(a.anchor); this.actor = null;
       this.step = 3; this.stepT = 2.5; this.moveLocked = true;
     }
   }

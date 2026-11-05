@@ -93,10 +93,11 @@ class HandArm {
     pos.y += (Math.sin(t * 1.25 + this.phase) * 0.009 + Math.sin(t * 0.53 + this.phase * 1.7) * 0.004) * idle;
     pos.x += Math.sin(t * 0.71 + this.phase) * 0.004 * idle;
     // running: the arms pump alternately and bounce with every step; jumping lifts them, landing dips them
-    pos.y += (0.012 - Math.abs(Math.sin(st)) * 0.034) * mk + vm.airK * 0.035 - vm.landK * 0.06;
-    pos.x += side * Math.sin(st + ph) * 0.018 * mk;
-    pos.z += Math.sin(st + ph) * 0.05 * mk - vm.airK * 0.02;
-    const pumpPitch = Math.sin(st + ph) * 0.13 * mk - vm.airK * 0.14 + vm.landK * 0.12;
+    // a slow, weighted sway with the stride, not a bounce
+    pos.y += (0.004 - (0.5 - 0.5 * Math.cos(st * 2)) * 0.012) * mk + vm.airK * 0.035 - vm.landK * 0.06;
+    pos.x += side * Math.sin(st + ph) * 0.006 * mk;
+    pos.z += Math.sin(st + ph) * 0.018 * mk - vm.airK * 0.02;
+    const pumpPitch = Math.sin(st + ph) * 0.035 * mk - vm.airK * 0.14 + vm.landK * 0.12;
     _e.set(0.44 + rec * 0.1 + vm.swayY * 0.4 + vm.dashK * 0.1 + pumpPitch, side * -0.1 + vm.swayX * 0.5 - side * vm.dashK * 0.1 + side * 0.05 * mk, side * -0.08 + side * Math.sin(st) * 0.05 * mk + side * Math.sin(t * 0.8 + this.phase) * 0.02 * idle, 'YXZ');
     // the body is failing or thrown: the arms are not held up by anything
     const limp = vm.limp || 0, fling = vm.fling || 0;
@@ -271,14 +272,15 @@ export class ViewModel {
     // locomotion for the arm animation
     const speed = Math.hypot(ctx.velX || 0, ctx.velZ || 0), air = !!ctx.air;
     this.moveK = damp(this.moveK || 0, clamp(speed / 7.2, 0, 1.3) * (air ? 0.25 : 1), 8, dt);
-    this.stride = (this.stride || 0) + dt * (1.6 + speed * 1.15) * (air ? 0.2 : 1);
+    this.stride = (this.stride || 0) + dt * (1.4 + speed * 0.62) * (air ? 0.2 : 1);
     this.airK = damp(this.airK || 0, air ? 1 : 0, 7, dt);
     if (this.wasAir && !air) this.landK = 1;
     this.wasAir = air;
     this.landK = damp(this.landK || 0, 0, 7, dt);
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
     this.pump = Math.min(2, (this.pump ?? 2) + dt * 2.6);
-    TENT.tTime.value = t; TENT.tMove.value = this.moveK; TENT.tPump.value = this.pump; TENT.tAim.value = 0.8 * this.armK; TENT.tGain.value = this.pumpGain ?? 1;
+    this.waveT = (this.waveT || 0) + dt * (1 + 0.5 * this.moveK);
+    TENT.tTime.value = t; TENT.tWave.value = this.waveT; TENT.tPump.value = this.pump; TENT.tAim.value = 0.8 * this.armK; TENT.tGain.value = this.pumpGain ?? 1;
     this.fling = Math.max(0, (this.fling || 0) - dt * 1.4);
     this.skinGel.uniforms.uAlpha.value = lerp(0.78, 0.16, this.xray);
     { const T = this.styleTarget, k = Math.min(1, dt * 5);

@@ -59,8 +59,9 @@ export class CollisionWorld {
       let moved = false;
       for (const b of this.boxes) {
         if (!b.enabled) continue;
-        if (pos.y + height <= b.minY + 0.001 || pos.y >= b.maxY - 0.001) continue;
-        if (b.maxY <= pos.y + stepUp) continue; // low enough to step onto
+        if (pos.y + height <= b.minY + 0.001) continue;
+        // noStand: a thin row of screens on a desk blocks you, but is not a floor to be walked on
+        if (!b.noStand && (pos.y >= b.maxY - 0.001 || b.maxY <= pos.y + stepUp)) continue;
         const cx = clamp(pos.x, b.minX, b.maxX), cz = clamp(pos.z, b.minZ, b.maxZ);
         const dx = pos.x - cx, dz = pos.z - cz;
         const d2 = dx * dx + dz * dz;
@@ -87,12 +88,39 @@ export class CollisionWorld {
   groundHeight(x, z, feetY, radius, stepUp = 0.3) {
     let h = 0;
     for (const b of this.boxes) {
-      if (!b.enabled || b.maxY > feetY + stepUp || b.maxY <= h) continue;
-      if (b.minY > 0.6) continue; // overhead slab, not a floor
-      if (x < b.minX - radius * 0.3 || x > b.maxX + radius * 0.3 || z < b.minZ - radius * 0.3 || z > b.maxZ + radius * 0.3) continue;
+      if (!b.enabled || b.noStand || b.maxY > feetY + stepUp || b.maxY <= h) continue;
+      // you stay on a surface until almost all of you is past its edge, so you step off cleanly instead of being shoved sideways
+      const m = radius * 0.85;
+      if (x < b.minX - m || x > b.maxX + m || z < b.minZ - m || z > b.maxZ + m) continue;
       h = b.maxY;
     }
     return h;
+  }
+
+  // The lowest thing overhead: nothing may push a head up through it (it would shove the player sideways through walls instead).
+  ceilingHeight(x, z, feetY, radius) {
+    let h = Infinity;
+    for (const b of this.boxes) {
+      if (!b.enabled || b.minY < feetY + 1 || b.minY >= h) continue;
+      const dx = x - clamp(x, b.minX, b.maxX), dz = z - clamp(z, b.minZ, b.maxZ);
+      if (dx * dx + dz * dz < radius * radius) h = b.minY;
+    }
+    return h;
+  }
+
+  // A ledge you are pressing into and could pull yourself onto: how far above your feet its top is, or 0.
+  ledgeRise(x, z, feetY, radius, dirX, dirZ, maxRise, height) {
+    let best = 0;
+    for (const b of this.boxes) {
+      if (!b.enabled || b.noStand) continue;
+      const rise = b.maxY - feetY;
+      if (rise <= 0 || rise > maxRise || (best && rise >= best)) continue;
+      const cx = clamp(x, b.minX, b.maxX), cz = clamp(z, b.minZ, b.maxZ), dx = cx - x, dz = cz - z;
+      if (dx * dx + dz * dz > radius * radius || dx * dirX + dz * dirZ <= 0) continue;
+      if (this.ceilingHeight(cx + dirX * 0.3, cz + dirZ * 0.3, b.maxY, radius * 0.6) - b.maxY < height) continue;    // no room to stand up there
+      best = rise;
+    }
+    return best;
   }
 
   // Nearest hit along a unit-length ray. filter(box) -> false ignores that solid.

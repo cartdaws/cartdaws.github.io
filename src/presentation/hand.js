@@ -22,15 +22,15 @@ export async function loadHand() {
 const gels = [];
 
 // Shared by the skin and the suckers so they always move as one piece. In model space z runs from the elbow (+1.36) to the tip.
-export const TENT = { tTime: { value: 0 }, tMove: { value: 0 }, tPump: { value: 2 }, tAim: { value: 0 }, tGain: { value: 1 } };
+export const TENT = { tTime: { value: 0 }, tWave: { value: 0 }, tPump: { value: 2 }, tAim: { value: 0 }, tGain: { value: 1 } };
 export const TENT_GLSL = `
-  uniform float tTime, tMove, tPump, tAim, tGain;
+  uniform float tTime, tWave, tPump, tAim, tGain;
   vec3 tentacleLive(vec3 p, vec3 n, out float band) {
     float side = determinant(mat3(modelMatrix)) >= 0.0 ? 1.0 : -1.0;     // the left arm is the right one mirrored
-    float s = clamp((1.15 - p.z) / 1.9, 0.0, 1.0), a = s * s, ph = side * 1.7, sp = 1.0 + tMove * 2.2;
+    float s = clamp((1.15 - p.z) / 1.9, 0.0, 1.0), a = s * s, ph = side * 1.7;
     if (side > 0.0) a *= 1.0 - tAim;                                     // the firing arm holds steady so the shots leave where you aim
-    p.x += (sin(p.z * 4.2 + tTime * 1.35 * sp + ph) * 0.03 + sin(p.z * 9.0 - tTime * 0.9 + ph) * 0.007) * a;
-    p.y += sin(p.z * 3.4 - tTime * 1.05 * sp + ph * 0.6) * 0.034 * a;
+    p.x += (sin(p.z * 4.2 + tWave * 1.35 + ph) * 0.03 + sin(p.z * 9.0 - tTime * 0.9 + ph) * 0.007) * a;
+    p.y += sin(p.z * 3.4 - tWave * 1.05 + ph * 0.6) * 0.034 * a;
     float d = (s - tPump) / 0.05;
     band = side > 0.0 ? exp(-d * d) * tGain : 0.0;
     return p + n * 0.024 * band;
