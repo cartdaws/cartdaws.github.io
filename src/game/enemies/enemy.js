@@ -52,7 +52,7 @@ export class Enemy {
   activate() { this.active = true; }
 
   takeDamage(amount, point) {
-    if (!this.alive) return false;
+    if (!this.alive || this.absorbing) return false;
     this.hp -= amount;
     this.flashT = 0.1;
     if (this.hp <= 0) { this.die(false); return true; }

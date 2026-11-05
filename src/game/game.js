@@ -617,7 +617,7 @@ export class Game {
       this.post.grade.uniforms.uPulse.value = this.hbPulse;
       this.post.grade.uniforms.uHit.value = this.hitFlash;
       const dashing = p.dashing && !this.cinePose;
-      this.fov = damp(this.fov, BASE_FOV + (dashing ? 5 : 0), 14, dt);
+      this.fov = damp(this.fov, BASE_FOV + (dashing ? 5 : 0) + (this.absorbFov || 0), 14, dt);
       if (Math.abs(c.fov - this.fov) > 0.01) { c.fov = this.fov; c.updateProjectionMatrix(); this.effects.setScale(r.domElement.height, c.fov); }
       c.updateMatrixWorld();
       const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
