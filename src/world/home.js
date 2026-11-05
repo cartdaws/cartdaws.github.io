@@ -21,6 +21,11 @@ export async function loadHome() {
       if (src && src.geometry && dst) dst.geometry = src.geometry;
     }
   } catch (e) { /* the original flora stays */ }
+  try {
+    const st = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/settlement.glb');
+    st.scene.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+    gltf.scene.userData.settlement = st.scene;
+  } catch (e) { /* no settlement */ }
   return gltf.scene;
 }
 
@@ -151,6 +156,7 @@ export class HomeWorld {
     this.elder.position.set(ELDER_AT.x, 0, ELDER_AT.z);
     this.group.add(this.elder);
     this.eState = { yaw: 0, reach: 0, step: 0, breath: 0, alert: 0, pulse: 0, fear: 0 };
+    this.buildSettlement(asset && asset.userData && asset.userData.settlement, S);
 
     // ---- sky: gradient dome with stars, a ring overhead, two moons
     this.sky = new THREE.Group();
@@ -279,6 +285,43 @@ export class HomeWorld {
     this.elder.updateMatrixWorld(true);
     return this.elderArm.localToWorld(this.elderTip ? out.copy(this.elderTip) : out.set(0, 0.04, -0.98));
   }
+
+  // The settlement: dome houses around the hollow, and the same place after the attack (broken houses, felled spires, craters, rubble).
+  buildSettlement(src, S) {
+    this.settleIntact = new THREE.Group(); this.settleRuin = new THREE.Group();
+    this.group.add(this.settleIntact, this.settleRuin); this.settleRuin.visible = false;
+    if (!src) return;
+    const hx = (c) => (S ? S.hex(c) : c);
+    const mats = {
+      Moss: new THREE.MeshStandardMaterial({ color: hx(0x1a4a46), roughness: 0.55, emissive: hx(0x04201e), emissiveIntensity: 0.9 }),
+      Rock: new THREE.MeshStandardMaterial({ color: hx(0x2a343c), roughness: 0.9 }),
+      Char: new THREE.MeshStandardMaterial({ color: 0x1a1512, roughness: 0.95 }),
+      Glow: new THREE.MeshBasicMaterial({ color: hx(0x9affea) }),
+    };
+    const part = (name) => { const o = src.getObjectByName(name); if (!o || !o.isMesh) return null; const m = new THREE.Mesh(o.geometry, mats[(o.material && o.material.name) || 'Moss'] || mats.Moss); m.frustumCulled = false; return m; };
+    const HOUSES = [[-9, -5], [10, -8], [-16, -9], [6, -19], [-4, -27], [15, -20]];
+    const face = (x, z) => Math.atan2(-(1.2 - x), -(-9.5 - z));            // doors face the hollow where the elder waits
+    for (const [x, z] of HOUSES) {
+      const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = face(x, z); g.scale.setScalar(0.9 + ((x * 7 + z * 3) % 5) * 0.04);
+      for (const n of ['Dwelling', 'DwellingRibs', 'DwellingBase', 'DwellingGlow']) { const m = part(n); if (m) g.add(m); }
+      this.settleIntact.add(g);
+      const r = new THREE.Group(); r.position.set(x, 0, z); r.rotation.y = face(x, z) + 0.5; r.scale.copy(g.scale);
+      for (const n of ['DwellingRuin', 'RuinRubble']) { const m = part(n); if (m) r.add(m); }
+      this.settleRuin.add(r);
+    }
+    for (const [x, z, a] of [[3, -4, 0.7], [-8, -22, 2.2], [11, -14, 4.0], [-12, -2, 5.2]]) {
+      const m = part('FallenSpire'); if (!m) continue; m.position.set(x, 0, z); m.rotation.y = a; m.scale.setScalar(1.1); this.settleRuin.add(m);
+    }
+    for (const [x, z, s] of [[-4, -3, 1.0], [8, -6, 0.9], [-12, -11, 1.1], [2, -14, 0.9], [-6, -24, 0.8], [-14, -17, 1.0], [5, -22, 0.9]]) {
+      const m = part('Crater'); if (!m) continue; m.position.set(x, 0.02, z); m.scale.setScalar(s * 1.3); this.settleRuin.add(m);
+    }
+    let sd = 99; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 70; i++) {
+      const m = part('Rubble'); if (!m) break; const a = rr() * 6.28, d = 3 + rr() * 24;
+      m.position.set(Math.cos(a) * d, 0, -9 + Math.sin(a) * d); m.rotation.set(0, rr() * 6.28, 0); m.scale.setScalar(0.5 + rr() * 1.1); this.settleRuin.add(m);
+    }
+  }
+  setRuined(r) { if (this.settleIntact) { this.settleIntact.visible = !r; this.settleRuin.visible = !!r; } }
 
   // Light a fire at a local position; the pool recycles the oldest.
   addFire(x, z, s = 1) {

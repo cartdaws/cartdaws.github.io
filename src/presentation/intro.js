@@ -175,7 +175,7 @@ export class Intro {
     this.phase = phase; this.t = 0; this.step = 0; this.stepT = 0; this.h = 0; this.f = {};
     ui.setHold(null);
     if (phase === 'home') {
-      this.home.show(true); p.speedMul = 1; this.home.dome.material.color.set(0xffffff);
+      this.home.setRuined(false); this.home.show(true); p.speedMul = 1; this.home.dome.material.color.set(0xffffff);
       this.hideBody = false; this.moveLocked = true; this.lookAcc = 0; this.walkAcc = 0;
       p.reset(HOME.x + HOME_START.x, HOME.z + HOME_START.z, HOME_START.yaw);
       this.home.eState.yaw = 0; this.home.eState.reach = 0; this.home.eState.fear = 0; this.home.eState.alert = 0;
@@ -198,7 +198,7 @@ export class Intro {
       ui.fade(1);
     } else if (phase === 'wreck') {
       this.buildWreck();
-      const H = this.home;
+      const H = this.home; H.setRuined(true);
       this.wreck.visible = this.pistolItem.visible = true; this.wreck.position.y = 1.15;
       H.ship.position.set(-9999, 48, 0); H.shadow.visible = false; H.spot.visible = false; H.cone.visible = false;
       H.eState.rise = 0; H.eState.gone = true; H.elder.visible = false; if (H.elderKit) H.elderKit.ab.setVisible(false);
