@@ -3,12 +3,6 @@ export const EncounterState = Object.freeze({ WAITING: 'waiting', SEALING: 'seal
 const SEAL_WARNING = 2.2;   // door slam + readable alarm before enemies wake
 const WAVE_WARNING = 1.7;   // reinforcements power up before they attack
 
-const LOCK_LINES = [
-  'Lockdown engaged. Sealing the section.',
-  'Containment breach. Sealing the section.',
-  'Intruder detected. Sealing the section.',
-];
-
 // Walks the player through the run, one room at a time. Combat rooms seal behind the player and open when cleared;
 // quiet rooms are free to explore. The state is that of the room the player is about to enter or is fighting in.
 export class Encounter {
@@ -128,7 +122,6 @@ export class Encounter {
     }
     g.ui.setObjective(`REACH THE HANGAR  ·  ${this.label(r)}`);
     if (r.kind === 'quiet') {
-      g.ui.banner(r.theme.name.join(' '), 'goal', 2.2);
       g.pickups.reveal(r, 'start');
       this.advance();
     } else {
@@ -149,10 +142,11 @@ export class Encounter {
     g.audio.play('door', { vol: 0.9 });
     g.audio.play('lockdown', { vol: 0.9 });
     g.audio.startSiren();
-    g.ui.banner(r.kind === 'finale' ? 'FINAL LOCKDOWN' : 'LOCKDOWN', 'red', 2.4);
+    g.ui.banner(r.kind === 'finale' ? 'FINAL LOCKDOWN' : 'LOCKDOWN', 'red', 1.5);
     g.audio.play('announce', { vol: 0.8 });
-    g.ui.subtitle(r.id === 0 ? 'Intruder in the Robotics Deck. Sealing the workshop.' : LOCK_LINES[r.id % LOCK_LINES.length], 'SHIP AI', 3.2);
-    if (!this.told.drums && r.barrels.length) { this.told.drums = true; g.ui.hint('Red drums are explosive', 4); }
+    // the ship AI speaks at the first lockdown only; after that the alarm says enough
+    if (r.id === 0 || r.kind === 'finale') g.ui.subtitle(r.id === 0 ? 'Intruder in the Robotics Deck. Sealing the workshop.' : 'Final lockdown. All units to the hangar lift.', 'SHIP AI', 2.6);
+    if (!this.told.drums && r.barrels.length) { this.told.drums = true; g.ui.hintOnce('drums', 'RED DRUMS EXPLODE', 2.5); }
     g.addShake(0.25);
     for (const e of g.enemies) e.warn?.();
   }
@@ -191,7 +185,7 @@ export class Encounter {
     const list = g.spawnWave(r, r.waveIdx);
     for (const e of list) e.warn?.();
     this.pending = { t: WAVE_WARNING, list };
-    g.ui.banner('REINFORCEMENTS', 'red', 2.2);
+    g.ui.banner('REINFORCEMENTS', 'red', 1.3);
     g.audio.play('lockdown', { vol: 0.7 });
     g.addShake(0.2);
   }
@@ -206,10 +200,9 @@ export class Encounter {
     r.doors.out.open();
     g.audio.play('unlock', { vol: 1 });
     g.audio.play('door', { vol: 0.8 });
-    g.ui.banner(r.kind === 'finale' ? 'LIFT UNLOCKED' : locked ? 'SECTOR CLEAR' : 'EXIT UNLOCKED', 'green', 2.6);
+    g.ui.banner(r.kind === 'finale' ? 'LIFT UNLOCKED' : locked ? 'SECTOR CLEAR' : 'EXIT UNLOCKED', 'green', 1.4);
     g.ui.setObjective(locked ? 'FIND THE KEYCARD' : 'REACH THE HANGAR');
     g.pickups.reveal(r, 'clear');
-    if (r === this.hasKeyRoom()) g.ui.hint('KEYCARD RECOVERED — TAKE IT', 4);
     g.clearEnemies();
     this.advance();
   }
@@ -221,8 +214,7 @@ export class Encounter {
     if (this.hasKey) return;
     this.hasKey = true;
     g.audio.play('unlock', { vol: 0.9 });
-    g.ui.banner('KEYCARD ACQUIRED', 'green', 2.4);
-    g.ui.subtitle('Level 2 clearance. Find the sealed security door.', 'SHIP AI', 3.2);
+    g.ui.rewardNote('KEYCARD ACQUIRED');
     g.ui.setObjective('USE THE KEYCARD ON THE SEALED DOOR');
   }
 
@@ -240,11 +232,11 @@ export class Encounter {
       if (r.kind === 'quiet' || r.cleared) d.open();
       g.audio.play('unlock', { vol: 0.9 });
       g.audio.play('door', { vol: 0.8 });
-      g.ui.banner('ACCESS GRANTED', 'green', 1.8);
+      g.ui.rewardNote('ACCESS GRANTED');
       g.ui.setObjective('REACH THE HANGAR');
     } else if (this.lockHintT <= 0) {
-      this.lockHintT = 4;
-      g.ui.hint('SECURITY DOOR — KEYCARD REQUIRED', 3);
+      this.lockHintT = 15;
+      g.ui.hint('KEYCARD REQUIRED', 2);
     }
   }
 }

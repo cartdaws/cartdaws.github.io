@@ -356,7 +356,7 @@ export class Opening {
     once('ai2', T.aiRoute, () => this.say('Automated security deployed on all research decks. Hangar access restricted.', 'SHIP AI', 4.2));
     c.evacGlow.opacity = stage(t, T.lookRoute, T.lookRoute + 0.4, T.goal, T.goal + 1.0) * (0.55 + 0.45 * Math.sin(t * 6));
     once('thought3', T.lookRoute + 2.2, () => this.say('The hangar. A ship. Home.', '', 2.8, true));
-    once('goal', T.goal, () => { ui.banner('Reach the hangar.\nFind a way home.', 'green goal', 4.0); a.play('unlock', { vol: 0.7 }); });
+    once('goal', T.goal, () => { ui.banner('Reach the hangar.\nFind a way home.', 'green goal', 2.8); a.play('unlock', { vol: 0.7 }); });
     if (t >= T.end) this.finish();
   }
 

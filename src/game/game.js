@@ -307,12 +307,9 @@ export class Game {
     this.ui.clearTransient();
     this.ui.setObjective('REACH THE HANGAR');
     if (this.touchMode) {
-      this.ui.hint('LEFT THUMB — MOVE     RIGHT THUMB — LOOK', 3.5);
-      this.ui.hint('FIRE · JUMP · DASH BUTTONS', 3.5);
+      this.ui.hintOnce('controls', 'LEFT THUMB MOVE · RIGHT THUMB LOOK', 3.5);
     } else {
-      this.ui.hint('WASD — MOVE', 3);
-      this.ui.hint('SPACE — JUMP     SHIFT — DASH', 3.5);
-      this.ui.hint('LEFT CLICK — FIRE  (HOLD TO KEEP FIRING)', 4);
+      this.ui.hintOnce('controls', 'WASD MOVE · SPACE JUMP · SHIFT DASH · CLICK FIRE', 4);
     }
   }
 

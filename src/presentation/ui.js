@@ -112,7 +112,17 @@ export class UI {
     this.bannerDur = dur;
   }
 
-  hint(text, dur = 3.5) { this.hintQueue.push({ text, dur }); }
+  hint(text, dur = 3) { this.hintQueue.push({ text, dur }); }
+
+  // Tutorial hints: shown once ever on this device, then never again.
+  hintOnce(key, text, dur = 3) {
+    let seen = {};
+    try { seen = JSON.parse(localStorage.getItem('intruder-seen') || '{}'); } catch (e) { /* optional */ }
+    if (seen[key]) return;
+    seen[key] = 1;
+    try { localStorage.setItem('intruder-seen', JSON.stringify(seen)); } catch (e) { /* optional */ }
+    this.hint(text, dur);
+  }
   clearHints() { this.hintQueue.length = 0; this.hintTimer = 0; this.hintEl.classList.remove('show'); }
 
   clearTransient() {

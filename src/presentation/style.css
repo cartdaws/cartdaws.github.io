@@ -1091,3 +1091,18 @@ body.touch #subtitle {
     display: none;
   }
 }
+
+/* ---- toned-down HUD: smaller, quieter, less screen clutter ---- */
+#banner { font-size: 20px; letter-spacing: 0.38em; padding-left: 0.38em; top: 14%; text-shadow: 0 0 10px currentColor, 0 1px 2px #000; }
+#banner.goal { font-size: 16px; letter-spacing: 0.2em; line-height: 1.5; padding: 8px 22px; background: rgba(4, 8, 10, 0.45); }
+#subtitle { font-size: 15px; line-height: 1.35; padding: 6px 14px; max-width: min(56vw, 640px); background: rgba(4, 7, 9, 0.42); bottom: 8%; }
+#subtitle b { font-size: 10px; margin-bottom: 1px; opacity: 0.8; }
+#hint { font-size: 11px; letter-spacing: 0.22em; bottom: 30%; text-shadow: 0 1px 3px #000; }
+#hint.show { opacity: 0.6; }
+#prompt { font-size: 11px; letter-spacing: 0.25em; opacity: 0.75; }
+#objective { font-size: 10px; opacity: 0.55; }
+#rewardNote { font-size: 11px; }
+body.touch #subtitle { font-size: 13px; max-width: 50vw; bottom: 16%; padding: 5px 12px; }
+body.touch #hint { font-size: 11px; bottom: 36%; }
+body.touch #prompt { font-size: 12px; }
+body.touch #banner { font-size: 16px; }
