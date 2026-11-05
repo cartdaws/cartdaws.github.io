@@ -85,9 +85,9 @@ export class Pickups {
       if (p.dead || g.state !== 'playing') continue;
       if (Math.hypot(p.pos.x - it.x, p.pos.z - it.z) > REACH || p.pos.y > 1.6) continue;
       if (it.type === 'health') {
-        if (p.health >= p.maxHealth) { if (!it.hinted) { it.hinted = true; g.ui.hint('VITALITY FULL — SAVE IT FOR LATER', 2.2); } continue; }
+        if (p.health >= p.maxHealth) continue;
         p.health = Math.min(p.maxHealth, p.health + HEAL);
-        g.ui.hint(`+${HEAL} VITALITY`, 1.6);
+        g.ui.rewardNote(`+${HEAL} VITALITY`);
         g.audio.play('crystal', { vol: 0.55 });
       } else {
         g.encounter.gotKey();

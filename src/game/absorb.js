@@ -103,8 +103,8 @@ export class Absorber {
     vm.bulge = Math.max(0, vm.bulge - dt * 4);
 
     if (!target) { ui.setPrompt(''); return; }
-    if (!this.hinted) { this.hinted = true; ui.hint(g.touchMode ? 'TAP ABSORB ON DISABLED ROBOTS' : 'RIGHT CLICK TO ABSORB DISABLED ROBOTS', 4); }
-    ui.setPrompt(g.touchMode ? 'ABSORB' : 'RIGHT CLICK — ABSORB');
+    if (!this.hinted) { this.hinted = true; ui.hintOnce('absorb', g.touchMode ? 'TAP ABSORB ON SHUT-DOWN ROBOTS' : 'RIGHT CLICK SHUT-DOWN ROBOTS TO ABSORB', 3); }
+    ui.setPrompt(g.touchMode ? 'ABSORB' : 'ABSORB  ·  RMB');
     const c = target.hitSpheres[0].c;
     if (Math.random() < 0.5) g.effects.glowP.emit(c.x + rand(-0.25, 0.25), c.y + rand(-0.2, 0.2), c.z + rand(-0.25, 0.25), 0, 0.6, 0, 0.3, 0.04, 0.15, 0.6, 1);
     if (tap) this.begin(target);
