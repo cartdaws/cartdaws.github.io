@@ -81,9 +81,9 @@ export class AlienBody {
     // shoulder sockets for the eight arms: the two starting arms at the shoulders, the extra pairs lower and further back
     const P = this.limbSockets = [this.shape.sockets.R, this.shape.sockets.L];
     for (let i = 2; i < 8; i++) {
-      const pair = (i - 2) >> 1, right = i % 2 === 1, a = -0.55 - 0.4 * pair;
+      const pair = (i - 2) >> 1, right = i % 2 === 1, a = -0.5 - 0.5 * pair;
       const p = new THREE.Vector3(), n = new THREE.Vector3();
-      this.shape.surface(0.58 - 0.1 * pair, right ? a : Math.PI - a, p, n);
+      this.shape.surface(0.62 - 0.15 * pair, right ? a : Math.PI - a, p, n);
       P.push({ p, n });
     }
     const gl = new THREE.Color(def.skin.glow);

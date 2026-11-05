@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Enemy } from './enemy.js';
+import { VARIANTS } from './variants.js';
 import { instantiateRobot, droneComponents } from './robotAsset.js';
 import { clamp, damp, yawTo, angleDiff, rand } from '../../core/util.js';
 
@@ -7,8 +8,9 @@ const SHOT_SPEED = 15;
 
 // Hovering turret: relocates between waypoints, lights its lens, then fires a short dodgeable burst.
 export class SentryDrone extends Enemy {
-  constructor(game, x, z) {
+  constructor(game, x, z, variant = VARIANTS[0]) {
     super(game, x, 2.3, z);
+    this.variant = variant;
     this.kind = 'drone';
     this.big = true;
     this.radius = 0.55;
@@ -27,15 +29,16 @@ export class SentryDrone extends Enemy {
 
   build() {
     const g = this.group;
-    const body = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0x343c44, roughness: 0.35, metalness: 0.8, emissive: 0x000000 }));
-    const trim = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0xd9a21b, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
-    const dark = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.55, metalness: 0.7, emissive: 0x000000 }));
+    const body = this.trackFlash(new THREE.MeshStandardMaterial({ color: this.variant.body, roughness: 0.35, metalness: 0.8, emissive: 0x000000 }));
+    const trim = this.trackFlash(new THREE.MeshStandardMaterial({ color: this.variant.plate, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
+    const dark = this.trackFlash(new THREE.MeshStandardMaterial({ color: this.variant.dark, roughness: 0.55, metalness: 0.7, emissive: 0x000000 }));
     this.lensMat = new THREE.MeshStandardMaterial({ color: 0x120404, emissive: 0xff2a10, emissiveIntensity: 0.1 });
     const eye = new THREE.MeshStandardMaterial({ color: 0x120404, emissive: 0xff2a10, emissiveIntensity: 1.2 });
-    const glow = new THREE.MeshStandardMaterial({ color: 0, emissive: 0xffa030, emissiveIntensity: 2 });
-    this.coreMat = new THREE.MeshStandardMaterial({ color: 0, emissive: 0xffb84a, emissiveIntensity: 1.8 });
+    const glow = new THREE.MeshStandardMaterial({ color: 0, emissive: this.variant.glow, emissiveIntensity: 2 });
+    this.coreMat = new THREE.MeshStandardMaterial({ color: 0, emissive: this.variant.core, emissiveIntensity: 1.8 });
     // The modelled drone (art/build_robots.py): shell, spinning ring, firing assembly with emitter lens, core, thrusters.
     this.model = instantiateRobot(this.game.robots.Drone, { RobotBody: body, RobotPlate: trim, RobotDark: dark, RobotEye: eye, RobotGlow: glow, RobotCore: this.coreMat, RobotLens: this.lensMat });
+    this.model.scale.setScalar(this.variant.scale);
     g.add(this.model);
     this.ring = this.model.getObjectByName('RingPivot');
     this.lensLight = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff3a1a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));

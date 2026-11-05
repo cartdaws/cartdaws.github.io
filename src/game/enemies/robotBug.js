@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Enemy } from './enemy.js';
+import { VARIANTS } from './variants.js';
 import { instantiateRobot, bugComponents } from './robotAsset.js';
 import { M } from '../../world/materials.js';
 import { clamp, damp, yawTo, angleDiff, lerp } from '../../core/util.js';
@@ -9,8 +10,9 @@ const BODY = { color: 0x2d343b, roughness: 0.4, metalness: 0.75, emissive: 0x000
 
 // Small mechanical insect: runs in, raises its front legs, lunges once, then recovers.
 export class RobotBug extends Enemy {
-  constructor(game, x, z) {
+  constructor(game, x, z, variant = VARIANTS[0]) {
     super(game, x, 0, z);
+    this.variant = variant;
     this.kind = 'bug';
     this.radius = 0.42;
     this.hp = this.maxHp = 30;
@@ -28,14 +30,16 @@ export class RobotBug extends Enemy {
 
   build() {
     const g = this.group;
-    const body = this.trackFlash(new THREE.MeshStandardMaterial(BODY));
-    const plate = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0xd9a21b, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
-    const dark = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.6, metalness: 0.6, emissive: 0x000000 }));
+    const v = this.variant;
+    const body = this.trackFlash(new THREE.MeshStandardMaterial({ ...BODY, color: v.body }));
+    const plate = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.plate, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
+    const dark = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.dark, roughness: 0.6, metalness: 0.6, emissive: 0x000000 }));
     this.eyeMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xff2a10, emissiveIntensity: 0.3 });
-    this.glowMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffa030, emissiveIntensity: 1.2 });
-    this.coreMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xffb84a, emissiveIntensity: 1.8 });
+    this.glowMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: v.glow, emissiveIntensity: 1.2 });
+    this.coreMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: v.core, emissiveIntensity: 1.8 });
     // The modelled bug (art/build_robots.py): shell, head, core, six articulated legs, two claws, each on its own pivot.
     this.model = instantiateRobot(this.game.robots.Bug, { RobotBody: body, RobotPlate: plate, RobotDark: dark, RobotEye: this.eyeMat, RobotGlow: this.glowMat, RobotCore: this.coreMat });
+    this.model.scale.setScalar(v.scale);
     g.add(this.model);
     this.legs = [];
     for (const side of ['L', 'R']) {

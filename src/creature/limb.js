@@ -8,7 +8,7 @@ import * as THREE from 'three';
 // then curves smoothly into the shoulder on a cubic whose first tangent continues the forearm, so nothing kinks. A slow travelling wobble and a
 // faint breathing swell make it read as jelly rather than rod.
 const RN = 30, RAD = 16, NS = 10;       // rings along the limb, segments round it, rings on the straight stretch
-export const STRAIGHT = 0.56;
+export const STRAIGHT = 0.64;
 const START = 0.10;                     // the tube picks up exactly where the hand mesh stops (its clip plane), at the same radius
 
 const _p = new THREE.Vector3(), _t = new THREE.Vector3(), _u = new THREE.Vector3(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
@@ -38,7 +38,9 @@ export class FlowLimb {
   // wrist W, unit axis pointing from the wrist back along the forearm, shoulder S and its outward normal
   solve(W, axis, S, out, dt) {
     this.W.copy(W); this.axis.copy(axis); this.S.copy(S);
-    this.P1.copy(W).addScaledVector(axis, START + STRAIGHT);
+    // the straight stretch shortens when the shoulder is close (a lowered arm), so the limb never doubles back on itself
+    this.L = Math.min(STRAIGHT, Math.max(0.2, W.distanceTo(S) * 0.78));
+    this.P1.copy(W).addScaledVector(axis, START + this.L);
     const away = _w.subVectors(S, this.P1).length();
     // the bend: continue the forearm's direction, then arrive at the shoulder from outside the body
     this.c1.copy(this.P1).addScaledVector(axis, 0.1 + 0.25 * Math.min(1, away));
@@ -66,7 +68,7 @@ export class FlowLimb {
     let prevU = null;
     for (let i = 0; i < RN; i++) {
       let a;                                    // 0 at the wrist, 1 at the shoulder
-      if (i < NS) { const s = i / (NS - 1); _p.copy(this.W).addScaledVector(this.axis, START + STRAIGHT * s); a = 0.4 * s; }
+      if (i < NS) { const s = i / (NS - 1); _p.copy(this.W).addScaledVector(this.axis, START + this.L * s); a = 0.4 * s; }
       else { const u = (i - NS + 1) / NB; this.bezierAt(u, _p); a = 0.4 + 0.6 * u; }
       // travelling wobble along the curved part, fading to nothing at both ends
       if (i >= NS) { const u = (i - NS + 1) / NB, f = Math.sin(Math.PI * u) * 0.011; _p.x += Math.sin(t * 1.7 + this.seed + u * 6) * f; _p.y += Math.cos(t * 1.3 + this.seed * 1.7 + u * 5) * f; }
@@ -77,7 +79,7 @@ export class FlowLimb {
       prevU = this._pu = (this._pu || new THREE.Vector3()).copy(_u);
       _v.crossVectors(_t, _u).normalize();
       // jelly thickness: a soft taper from the wrist to a fuller upper arm, a faint swell at the bend, a slow breathing pulse, a rounded end inside the body
-      const swell = 1 + 0.75 * a + 0.14 * Math.exp(-(((a - 0.62) / 0.14) ** 2)) + 0.025 * Math.sin(t * 1.4 + this.seed + a * 9);
+      const swell = 1 + 0.42 * a + 0.14 * Math.exp(-(((a - 0.62) / 0.14) ** 2)) + 0.025 * Math.sin(t * 1.4 + this.seed + a * 9);
       const end = i > RN - 3 ? 1 - (i - (RN - 3)) * 0.22 : 1;
       const ramp = i === 0 ? 0.9 : i === 1 ? 0.98 : 1;                 // starts just inside the hand's skin, emerges at full width where the hand mesh stops
       const r = this.rw * width * swell * end * ramp;
@@ -92,7 +94,7 @@ export class FlowLimb {
 
   // the centre line (without the wobble), used for neighbours' tangents
   pointAt(i, out) {
-    if (i < NS) return out.copy(this.W).addScaledVector(this.axis, START + STRAIGHT * (i / (NS - 1)));
+    if (i < NS) return out.copy(this.W).addScaledVector(this.axis, START + this.L * (i / (NS - 1)));
     return this.bezierAt((i - NS + 1) / (RN - NS), out);
   }
 }

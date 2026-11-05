@@ -293,7 +293,7 @@ export class ViewModel {
       act.push(f);
     }
     // separation: nudge the bends of any two limbs that would touch (a few relaxation passes), so arms never pass through each other
-    for (let pass = 0; pass < 5; pass++) {
+    for (let pass = 0; pass < 10; pass++) {
       for (let a = 0; a < act.length; a++) for (let b = a + 1; b < act.length; b++) {
         const A = act[a], B = act[b], need = (A.rw + B.rw) * 1.75 + 0.012;
         let best = 9, pa = null, pb = null;

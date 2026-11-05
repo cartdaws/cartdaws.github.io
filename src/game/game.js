@@ -23,6 +23,7 @@ import { Absorber } from './absorb.js';
 import { save } from '../core/save.js';
 import { Creator } from '../creature/creator.js';
 import { Loadout } from './weapons.js';
+import { variantFor } from './enemies/variants.js';
 import { uiColors } from '../creature/palette.js';
 import { WeaponWheel } from '../presentation/wheel.js';
 
@@ -155,9 +156,10 @@ export class Game {
     for (const b of this.barrels) b.dispose();
     this.enemies = [];
     this.barrels = [];
-    for (const s of this.level.enemySpawns) {
-      this.enemies.push(s.type === 'bug' ? new RobotBug(this, s.x, s.z) : new SentryDrone(this, s.x, s.z));
-    }
+    this.level.enemySpawns.forEach((s, i) => {
+      const v = variantFor(i, s.type);
+      this.enemies.push(s.type === 'bug' ? new RobotBug(this, s.x, s.z, v) : new SentryDrone(this, s.x, s.z, v));
+    });
     for (const s of this.level.barrelSpawns) this.barrels.push(new Barrel(this, s.x, s.z));
   }
 
