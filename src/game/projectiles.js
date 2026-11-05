@@ -110,11 +110,15 @@ export class Projectiles {
       if (p.enemy) {
         p.age += dt;
         // seekers bend toward the player for a moment after launch
-        if (p.def.homing && p.age < 1.6 && !g.player.dead) {
+        // (a gentle curve, never a U-turn: it stops steering once the player is behind it or it has bent ~35 degrees)
+        if (p.def.homing && p.age < 1.6 && !g.player.dead && !p.lostLock) {
           _aim.set(g.player.pos.x - p.pos.x, g.player.pos.y + 1.0 - p.pos.y, g.player.pos.z - p.pos.z).normalize();
-          const k = Math.min(1, p.def.homing * dt);
-          p.dir.lerp(_aim, k).normalize();
-          p.mesh.lookAt(p.pos.clone().add(p.dir));
+          if (!p.d0) p.d0 = p.dir.clone();
+          if (_aim.dot(p.dir) < 0.35 || p.d0.angleTo(p.dir) > 0.6) p.lostLock = true;
+          else {
+            p.dir.lerp(_aim, Math.min(1, p.def.homing * dt)).normalize();
+            p.mesh.lookAt(p.pos.clone().add(p.dir));
+          }
         }
         const tr = p.def.trail;
         if (Math.random() < 0.6) g.effects.glowP.emit(p.pos.x, p.pos.y, p.pos.z, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, (Math.random() - 0.5) * 0.4, 0.2, p.def.size * 0.5, tr[0], tr[1], tr[2], 0, 2);
