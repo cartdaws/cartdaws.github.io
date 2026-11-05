@@ -32,7 +32,7 @@ const BASE_FOV = 78;
 export class Game {
   constructor(canvas, armGeos, kit, handAsset, homeAsset, creatureAsset) {
     this.homeAsset = homeAsset;
-    this.elderKit = { creature: creatureAsset, hand: handAsset };
+    this.elderKit = { geos: armGeos, hand: handAsset };
     this.canvas = canvas;
     this.kit = kit;
     this.arena = ARENA;

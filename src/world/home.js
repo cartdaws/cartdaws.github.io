@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { makeSkin, skinParams } from '../creature/skin.js';
 import { makeShifter } from '../creature/palette.js';
 import { defaults } from '../creature/definition.js';
-import { buildElder } from './elder.js';
+import { buildElder, stepElder } from './elder.js';
 
 // The homeworld memory: a small, composed place built from Blender assets (art/build_home.py -> public/models/home.glb).
 // It sits far from the ship (HOME) with its own sky, light and fog, which are swapped in while the memory plays.
@@ -128,10 +128,11 @@ export class HomeWorld {
     const gel = makeSkin({ ...skinParams(def, 'body'), pattern: 'none' });
     const core = new THREE.MeshBasicMaterial({ color: new THREE.Color(def.skin.glow).lerp(new THREE.Color(0xffffff), 0.7), transparent: true, opacity: 0.92 });
     const swap = (o) => { o.traverse((m) => { if (m.isMesh) { const nm = (m.material && m.material.name) || ''; m.material = nm === 'GelCore' ? core : gel; m.frustumCulled = false; } }); return o; };
-    if (kit && kit.creature && kit.hand) {
+    if (kit && kit.geos && kit.hand) {
       // an elder of the player's own kind: the same body, skin, legs, arm and hand, with small differences of age
-      const E = buildElder(kit.creature, kit.hand, def);
-      this.elder = E.root; this.elderBody = E.body; this.elderArm = E.arm; this.elderArmL = E.armL; this.elderCore = E.core; this.elderTip = E.tipLocal; this.elderNew = true;
+      const E = buildElder(scene, kit.geos, kit.hand);
+      this.elderKit = E; this.elder = E.anchor; this.elderArm = E.arm; this.elderArmL = E.armL; this.elderTip = E.tipLocal; this.elderNew = true;
+      this.elderBody = E.ab.group; this.elderCore = { opacity: 0 };
     } else {
       this.elder = new THREE.Group();
       this.elderBody = swap(node('Elder_Body').clone(true));
@@ -211,13 +212,14 @@ export class HomeWorld {
   }
 
   // Swap the sky, light and fog in or out (the ship's own scene is restored on hide).
-  dispose() { this.scene.remove(this.group, this.hemi, this.sun, this.sky, this.spot, this.spot.target, this.cone); }
+  dispose() { if (this.elderKit) this.elderKit.ab.dispose(this.scene); this.scene.remove(this.group, this.hemi, this.sun, this.sky, this.spot, this.spot.target, this.cone); }
 
   show(v) {
     const s = this.scene;
     if (v && !this.shown) { this.saved = { bg: s.background, fog: s.fog }; s.background = this.bg; s.fog = this.fog; }
     if (!v && this.shown) { s.background = this.saved.bg; s.fog = this.saved.fog; }
     this.shown = v;
+    if (this.elderKit) this.elderKit.ab.setVisible(v);
     this.group.visible = this.hemi.visible = this.sun.visible = this.sky.visible = v;
     if (!v) { this.spot.visible = false; this.cone.visible = false; this.collar.visible = false; this.shadow.visible = false; }
   }
@@ -234,21 +236,22 @@ export class HomeWorld {
     el.rotation.y = E.yaw;
     E.breath += dt;
     const br = 1 + Math.sin(E.breath * 1.4) * 0.014;
-    this.elderBody.scale.set(1 / Math.sqrt(br), br, 1 / Math.sqrt(br));
-    if (this.elderNew) this.elderBody.scale.multiplyScalar(1);
-    this.elderBody.rotation.z = Math.sin(E.breath * 0.6) * 0.012 - E.fear * 0.12;
-    this.elderBody.rotation.x = -E.fear * 0.18;                       // flinches back when the shadow comes
+    if (!this.elderNew) this.elderBody.scale.set(1 / Math.sqrt(br), br, 1 / Math.sqrt(br));
+    if (!this.elderNew) {
+      this.elderBody.rotation.z = Math.sin(E.breath * 0.6) * 0.012 - E.fear * 0.12;
+      this.elderBody.rotation.x = -E.fear * 0.18;                       // flinches back when the shadow comes
+    } else { this.elderKit.visible = this.shown; stepElder(this.elderKit, dt, E); }
     el.position.y = 0;
     // arm: hangs, then rises to offer an open palm as the player nears
     const r = E.reach;
     this.elderArm.rotation.x = -(1 - r) * 1.15 + Math.sin(E.breath * 1.4 + 1) * 0.015 - E.fear * 0.5;
     this.elderArm.rotation.y = (1 - r) * -0.25;
     if (this.elderNew) {
-      this.elderArm.position.y = this.elderArm.userData.y0 + Math.sin(E.breath * 1.4) * 0.01;
+      this.elderArm.position.y = this.elderKit.armBaseY + Math.sin(E.breath * 1.4) * 0.01;
       this.elderArmL.rotation.x = -1.3 + Math.sin(E.breath * 1.1) * 0.03 - E.fear * 0.35;
       this.elderArmL.rotation.z = 0.1;
     } else this.elderArm.position.y = 1.78 + Math.sin(E.breath * 1.4) * 0.01;
-    this.elderCore.opacity = 0.7 + 0.2 * Math.sin(E.breath * 1.8) + E.pulse * 0.3;
+    if (!this.elderNew) this.elderCore.opacity = 0.7 + 0.2 * Math.sin(E.breath * 1.8) + E.pulse * 0.3;
     E.pulse = Math.max(0, E.pulse - dt * 1.4);
     return dist;
   }
