@@ -1119,3 +1119,6 @@ body.touch #banner { font-size: 16px; }
 .menu.start button { background: linear-gradient(90deg, #0a1a2499, #06101a55); border-color: #8fc8f533; backdrop-filter: blur(3px); }
 .menu.start button.primary { background: linear-gradient(90deg, #1c5a8a80, #0a2a4a4d); border-color: #8fd0f5a6; }
 .menu.start button:hover { background: linear-gradient(90deg, #2a6f9a8c, #0a2a4a66); border-color: #a8dcffcc; box-shadow: 0 0 22px #7fb8ff33; }
+
+#menu-complete .chapter { max-width: 520px; text-align: center; line-height: 1.7; letter-spacing: .08em; opacity: .85; margin: 0 0 18px; }
+#menu-complete .chapter-tag { letter-spacing: .3em; font-size: 10px; opacity: .55; margin-bottom: 22px; }

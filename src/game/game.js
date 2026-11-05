@@ -382,6 +382,7 @@ export class Game {
   }
 
   resetEncounter() {
+    this.ending = null; this.opening.moveLocked = false;
     this.projectiles.clear();
     this.effects.clear();
     this.encounter.restartRoom(); // resets the room being fought and places the player at its checkpoint
@@ -457,7 +458,22 @@ export class Game {
     c.rotation.y += this.deathRoll * 0.18 * roll;
   }
 
+  // The end of the opening chapter: the hangar lift engages, the elder's signal is traced to a departing flagship, then the screen fades to the chapter card.
   complete() {
+    if (this.ending) return;
+    this.ending = { t: 0 }; this.opening.moveLocked = true;
+    this.audio.play('unlock', { vol: 0.9 });
+    this.ui.setObjective('');
+    this.ui.subtitle('Hangar lift engaged. Tracing the elder’s signal.', 'SHIP AI', 3.2);
+  }
+  updateEnding(dt) {
+    const E = this.ending; E.t += dt;
+    if (E.t > 3.4 && !E.a) { E.a = 1; this.ui.subtitle('Signal found. Source: the flagship MERIDIAN. It is leaving the system.', 'SHIP AI', 4.2); this.audio.play('alert', { vol: 0.5 }); this.addShake(0.2); }
+    if (E.t > 8.0 && !E.b) { E.b = 1; this.ui.subtitle('Then that is where I am going.', '', 3.0, true); }
+    if (E.t > 6.5) this.ui.fade(smooth(clamp((E.t - 6.5) / 2.5, 0, 1)));
+    if (E.t > 9.6) { this.ending = null; this.opening.moveLocked = false; this.ui.fade(0); this.finishChapter(); }
+  }
+  finishChapter() {
     this.state = 'complete';
     this.input.clear();
     this.ui.clearTransient();
@@ -614,7 +630,8 @@ export class Game {
     for (let i = 0; i < steps; i++) this.simulate(h);
 
     if (this.state === 'dead') this.updateDeath();
-    if (this.state === 'playing' && this.encounter.won) this.complete();
+    if (this.ending) this.updateEnding(dt);
+    if (this.state === 'playing' && this.encounter.won && !this.ending) this.complete();
 
     this.level.update(this.time);
     this.effects.update(dt);
