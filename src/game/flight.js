@@ -402,11 +402,12 @@ export class Flight {
     if (dist < 900 && !this.f.d) { this.f.d = true; g.ui.setObjective('ENTER THE DOCKING BAY'); g.ui.hint('FLY INTO THE LIT BAY  ·  SLOW DOWN TO DOCK', 5); }
 
     // ---- docking: steer into the glowing mouth of the bay at a safe speed and the ship is pulled in
-    if (!this.docking && dist < 70 && this.speed < 150) {
+    // docking assist: near the bay the ship's computer takes over the throttle and draws the lander in; no precise flying needed
+    if (!this.docking && dist < 260 && this.speed > 120) this.speed = damp(this.speed, 110, 1.6, dt);
+    if (!this.docking && dist < 130) {
       this.docking = { t: 0 }; g.ui.setPrompt(''); g.audio.play('door', { vol: 0.8 }); g.ui.subtitle('Docking clamps engaged.', 'SHIP AI', 2.6);
-    } else if (!this.docking && dist < 70 && this.speed >= 150) {
-      g.ui.setPrompt('TOO FAST TO DOCK  ·  SLOW DOWN');
-    } else if (!this.docking && dist >= 70) g.ui.setPrompt('');
+    } else if (!this.docking && dist < 330) g.ui.setPrompt('DOCKING ASSIST');
+    else if (!this.docking) g.ui.setPrompt('');
     if (this.docking) {
       this.docking.t += dt;
       const k = smooth(clamp(this.docking.t / 3.2, 0, 1));

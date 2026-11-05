@@ -175,7 +175,7 @@ export class Intro {
     this.phase = phase; this.t = 0; this.step = 0; this.stepT = 0; this.h = 0; this.f = {};
     ui.setHold(null);
     if (phase === 'home') {
-      this.home.show(true);
+      this.home.show(true); p.speedMul = 1; this.home.dome.material.color.set(0xffffff);
       this.hideBody = false; this.moveLocked = true; this.lookAcc = 0; this.walkAcc = 0;
       p.reset(HOME.x + HOME_START.x, HOME.z + HOME_START.z, HOME_START.yaw);
       this.home.eState.yaw = 0; this.home.eState.reach = 0; this.home.eState.fear = 0; this.home.eState.alert = 0;
@@ -204,7 +204,11 @@ export class Intro {
       H.eState.rise = 0; H.eState.gone = true; H.elder.visible = false; if (H.elderKit) H.elderKit.ab.setVisible(false);
       H.hemi.intensity = 0.55; H.sun.intensity = 0.25; H.fog.color.set(0x3a1a14);
       this.hideBody = false; this.moveLocked = false;
-      p.reset(HOME.x + 5, HOME.z + 3, 0.576); p.pitch = -0.1;
+      H.hemi.intensity = 0.95; H.sun.intensity = 0.3;
+      p.reset(HOME.x + 6, HOME.z + 5, 0.55); p.pitch = 0.0;
+      // the ruined settlement: fires and scorched ground, a burning wreck beside the lander
+      H.clearFires();
+      for (const [fx, fz, fs] of [[-4, -3, 1.3], [8, -6, 1.1], [-12, -11, 1.5], [2, -14, 1.2], [-6, -24, 1.0], [-14, -17, 1.3], [5, -22, 1.1]]) H.addFire(fx, fz, fs);
       this.setObjective('');
       ui.fade(1);
     } else if (phase === 'escape') {
@@ -273,29 +277,31 @@ export class Intro {
     H.palmWorld(_w);
     const touchHome = this.tr('', '');
     switch (this.step) {
-      case 0:                        // look around
-        this.moveLocked = true;
-        this.prompt(this.tr('MOVE THE MOUSE TO LOOK AROUND', 'DRAG THE RIGHT SIDE TO LOOK AROUND'));
-        if (t > 1.2 && (this.lookAcc > 1.6 || this.stepT > 12)) { this.step = 1; this.stepT = 0; this.prompt(''); }
+      case 0:                        // fade in: a still moment in the valley; you can look about, nothing is asked of you
+        this.moveLocked = true; ui.fade(1 - ease(t, 0.2, 2.4));
+        if (t > 1.6) this.once('h1', () => this.say('The valley. The old hollow. It is quiet tonight.', '', 3.6, true));
+        if (t > 5.6) { this.step = 1; this.stepT = 0; }
         break;
-      case 1:                        // look down at your own body
-        this.prompt(this.tr('LOOK DOWN AT YOURSELF', 'DRAG DOWN TO LOOK AT YOURSELF'));
-        if ((p.pitch < -0.85 && this.stepT > 0.4) || this.stepT > 14) {
-          this.step = 2; this.stepT = 0; this.prompt('');
-          this.say('My body.', '', 2.0, true);
-        }
+      case 1: {                      // the head dips by itself: your own body, for a moment
+        const k = ease(this.stepT, 0, 1.0) * (1 - ease(this.stepT, 2.0, 3.2));
+        if (this.f.p0 === undefined) this.f.p0 = p.pitch;
+        p.pitch = lerp(this.f.p0, -1.05, k);
+        if (this.stepT > 0.9) this.once('h2', () => this.say('My body. Whole. Home.', '', 2.6, true));
+        if (this.stepT > 3.4) { this.step = 2; this.stepT = 0; this.f.w0 = p.pos.clone(); }
         break;
-      case 2:                        // walk
-        this.moveLocked = false;
-        this.prompt(this.tr('W A S D  TO WALK', 'LEFT THUMB TO WALK'));
-        if (!this.f.w0) { this.f.w0 = p.pos.clone(); }
-        if (p.pos.distanceTo(this.f.w0) > 3.5) { this.step = 3; this.stepT = 0; this.prompt(''); this.setObjective('GO TO THE ONE WHO WAITS'); }
+      }
+      case 2: {                      // the body walks on its own toward the elder; you may still look around and the walk pulls you back
+        this.moveLocked = false; E.alert = 1; p.speedMul = 0.42;
+        const wantYaw = Math.atan2(-(ex - p.pos.x), -(ez - p.pos.z));
+        p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * Math.min(1, dt * 1.9);
+        g.input.keys.clear(); g.input.keys.add('KeyW');
+        if (this.stepT > 2.2) this.once('h3', () => this.say('The elder is waiting at the hollow.', '', 3.2, true));
+        if (this.stepT > 7.5) this.once('h4', () => this.say('They have been waiting a long time.', '', 3.0, true));
+        if (dist < 3.4) { g.input.keys.delete('KeyW'); p.speedMul = 1; this.step = 4; this.stepT = 0; this.moveLocked = true; }
         break;
-      case 3:                        // approach
-        E.alert = 1;
-        if (dist < 3.4) { this.step = 4; this.stepT = 0; }
-        break;
+      }
       case 4: {                      // the elder offers a hand; hold to reach out
+        this.moveLocked = true; p.speedMul = 1;
         E.reach = damp(E.reach, dist < 5 ? 1 : 0, 2.5, dt);
         const near = dist < 4.2 && E.reach > 0.85;
         if (near) { this.actLabel = 'REACH'; this.prompt(this.tr('HOLD RIGHT CLICK TO REACH OUT', 'HOLD THE BUTTON TO REACH OUT')); }
@@ -327,7 +333,19 @@ export class Intro {
     const g = this.g, p = g.player, H = this.home, E = H.eState, ui = g.ui, f = this.f, vm = g.viewmodel;
     const ct = f.capT += dt;
     this.moveLocked = ct > 3.2;
-    const ex = HOME.x + H.elder.position.x, ez = HOME.z + H.elder.position.z;
+    let ex = HOME.x + H.elder.position.x, ez = HOME.z + H.elder.position.z;
+    p.speedMul = 1;
+    // the elder backs away from you as the light finds it, so the beam lifts it well clear of the view
+    if (ct > 1.3 && ct < 5.8) { const away = _v.set(ex - p.pos.x, 0, ez - p.pos.z); if (away.length() < 11.5) { away.normalize(); H.elder.position.x += away.x * 2.1 * dt; H.elder.position.z += away.z * 2.1 * dt; ex = HOME.x + H.elder.position.x; ez = HOME.z + H.elder.position.z; } }
+    // look assist: ease the view toward the elder, then up with it
+    if (ct > 2.4) {
+      const wantYaw = Math.atan2(-(ex - p.pos.x), -(ez - p.pos.z)), dd = Math.hypot(ex - p.pos.x, ez - p.pos.z);
+      const wantPitch = clamp(Math.atan2((H.eState.rise || 0) * 0.55 + 1.2 - 1.55, Math.max(2, dd)), -0.1, 0.9);
+      p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * Math.min(1, dt * 1.6);
+      p.pitch += (wantPitch - p.pitch) * Math.min(1, dt * 1.3);
+    }
+    // the sky goes to smoke and ember
+    H.dome.material.color.setRGB(lerp(1, 0.62, ease(ct, 1.5, 8)), lerp(1, 0.42, ease(ct, 1.5, 8)), lerp(1, 0.46, ease(ct, 1.5, 8)));
     // the shadow of the ship slides across the settlement and settles overhead
     const sx = lerp(-230, 30, ease(ct, 0, 8.5));
     H.ship.position.set(p.pos.x - HOME.x + sx, 48, p.pos.z - HOME.z - 2);
@@ -399,10 +417,11 @@ export class Intro {
   buildWreck() {
     const g = this.g;
     if (this.wreck) return;
-    this.wreck = makeLander(); this.wreck.scale.setScalar(1.7);
+    this.wreck = makeLander(); this.wreck.scale.setScalar(1.3);
+    this.wreck.traverse((m) => { if (m.isMesh && m.material && m.material.emissive) { m.material = m.material.clone(); m.material.emissive.lerp(new THREE.Color(0x3a5560), 0.7); m.material.emissiveIntensity = 0.9; } });
     this.wreck.position.set(HOME.x + WRECK_AT.x, 1.15, HOME.z + WRECK_AT.z); this.wreck.rotation.set(0.1, 0.55, -0.16);
     this.wreck.userData.engines.forEach((sp) => { sp.visible = false; });
-    this.wreckLight = new THREE.PointLight(0x6fd9e8, 0, 9, 2); this.wreckLight.position.set(HOME.x + WRECK_AT.x, 2.2, HOME.z + WRECK_AT.z + 1); this.wreckLight.userData.keepOn = true;
+    this.wreckLight = new THREE.PointLight(0x6fd9e8, 0, 16, 2); this.wreckLight.position.set(HOME.x + WRECK_AT.x, 2.2, HOME.z + WRECK_AT.z + 1); this.wreckLight.userData.keepOn = true;
     this.pistolItem = this.makeViewPistol(); this.pistolItem.position.set(HOME.x + PISTOL_AT.x, 0.12, HOME.z + PISTOL_AT.z); this.pistolItem.scale.setScalar(1.5); this.pistolItem.rotation.set(0, 0.9, 0);
     for (const m of this.pistolItem.userData.parts) m.frustumCulled = false;
     g.scene.add(this.wreck, this.wreckLight, this.pistolItem);
@@ -420,35 +439,56 @@ export class Intro {
     if (dd > 30) { p.pos.x = cx + dx / dd * 30; p.pos.z = cz + dz / dd * 30; }
     const wx = HOME.x + WRECK_AT.x, wz = HOME.z + WRECK_AT.z, px = HOME.x + PISTOL_AT.x, pz = HOME.z + PISTOL_AT.z;
     const dw = Math.hypot(p.pos.x - wx, p.pos.z - wz), dpst = Math.hypot(p.pos.x - px, p.pos.z - pz);
-    if (dw < 3.4) { p.pos.x = wx + (p.pos.x - wx) / dw * 3.4; p.pos.z = wz + (p.pos.z - wz) / dw * 3.4; }   // the lander is solid
-    this.wreckLight.intensity = (this.step >= 2 ? 3.5 : 1.2) * (0.8 + 0.2 * Math.sin(g.time * 5));
+    if (dw < 2.6) { p.pos.x = wx + (p.pos.x - wx) / dw * 2.6; p.pos.z = wz + (p.pos.z - wz) / dw * 2.6; }   // the lander is solid
+    this.wreckLight.intensity = (this.step >= 2 ? 22 : 9) * (0.85 + 0.15 * Math.sin(g.time * 5));
     this.pistolMarker.position.set(px, 0.05, pz);
     switch (this.step) {
       case 0:                      // wake in the ruins
-        this.moveLocked = false; ui.fade(1 - ease(t, 0.3, 2.4));
-        if (!f.w1 && t > 0.8) { f.w1 = true; this.say('They took the elder. All of them.', '', 3.4, true); }
-        if (t > 3.2) { this.step = 1; this.stepT = 0; this.setObjective('SEARCH THE WRECKED HUMAN LANDER'); }
+        this.moveLocked = false; ui.fade(1 - ease(t, 0.3, 2.6));
+        { const wantYaw = Math.atan2(-(wx - p.pos.x), -(wz - p.pos.z)); if (t < 5) { p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * Math.min(1, dt * 0.9); p.pitch += (0.02 - p.pitch) * Math.min(1, dt * 1.5); } }
+        if (!f.w1 && t > 1.0) { f.w1 = true; this.say('They took the elder. All of them.', '', 3.4, true); }
+        if (!f.w1b && t > 4.6) { f.w1b = true; this.say('Whatever did this is still out there. And it left a ship behind.', '', 3.6, true); }
+        if (t > 6.4) { this.step = 1; this.stepT = 0; this.setObjective('SEARCH THE WRECKED HUMAN LANDER'); }
         break;
       case 1: {                    // the sidearm
         const near = this.pistolItem.visible && dpst < 2.6;
         this.pistolMarker.visible = true; this.pistolMarker.material.opacity = 0.5 + 0.3 * Math.sin(g.time * 4);
         if (dw < 14 && !f.w2) { f.w2 = true; this.say('A human craft. Burning. The pilot is still in it.', '', 3.2, true); }
         if (near) { this.actLabel = 'ABSORB'; this.prompt(this.tr('HOLD RIGHT CLICK TO ABSORB THE SIDEARM', 'HOLD THE BUTTON TO ABSORB THE SIDEARM')); } else this.prompt('');
-        if (this.hold(dt, near, 1.2)) {
-          this.step = 2; this.stepT = 0; this.h = 0; this.prompt(''); ui.setHold(null);
-          g.effects.hitSparks(this.pistolItem.position, [0.4, 1, 0.9], 20); if (g.effects.flashLight) g.effects.flashLight(this.pistolItem.position, 0x6ffff0, 30, 0.4);
-          g.audio.play('absorb', { vol: 0.8 }); g.audio.play('gel', { vol: 0.7 }); g.audio.play('crystal', { vol: 0.5 });
-          this.pistolItem.visible = false; this.pistolMarker.visible = false;
+        if (this.hold(dt, near, 1.0)) {
+          this.step = 5; this.stepT = 0; this.h = 0; this.prompt(''); ui.setHold(null); this.moveLocked = true; this.pistolMarker.visible = false;
+          this.f.parts = this.pistolItem.userData.parts.map((m) => { const p0 = m.getWorldPosition(new THREE.Vector3()); g.scene.attach(m); return { m, p0, s0: m.scale.clone() }; });
+          g.audio.play('absorb', { vol: 0.8 }); g.audio.play('gel', { vol: 0.6 });
+          this.say('Cold metal. Their kind of weapon.', '', 2.6, true);
+        }
+        break;
+      }
+      case 5: {                    // the sidearm comes apart and is drawn into the arm
+        const tip = vm.right.tip.getWorldPosition(_w);
+        this.reachAt(this.pistolItem.position, 0.55 * ease(this.stepT, 0, 0.5) * (1 - ease(this.stepT, 1.9, 2.5)));
+        this.f.parts.forEach((d, i) => {
+          const k = clamp((this.stepT - 0.45 - i * 0.16) / 1.0, 0, 1), e = ease(k, 0, 1);
+          d.m.position.lerpVectors(d.p0, tip, e); d.m.position.y += Math.sin(e * Math.PI) * 0.55;
+          d.m.rotation.x += dt * (4 + i); d.m.rotation.y += dt * (5 - i * 0.5);
+          d.m.scale.copy(d.s0).multiplyScalar(1 - 0.75 * e);
+          if (k > 0 && k < 1) g.effects.glowP.emit(d.m.position.x, d.m.position.y, d.m.position.z, (Math.random() - 0.5), (Math.random() - 0.5), (Math.random() - 0.5), 0.3, 0.07, 0.4, 1, 0.9, 0, 0.6);
+          if (k >= 1 && !d.done) { d.done = true; g.audio.play('crystal', { vol: 0.35 }); vm.pulseGlow(0.8); vm.bulge = Math.max(vm.bulge, 0.7); g.effects.hitSparks(tip, [0.4, 1, 0.9], 6); }
+        });
+        if (this.stepT > 2.7) {
+          for (const d of this.f.parts) d.m.removeFromParent();
+          this.pistolItem.visible = false; vm.reachW = 0;
+          g.effects.flashLight(tip, 0x6ffff0, 40, 0.5); g.audio.play('gel', { vol: 0.7 });
           this.setReadyArm(); g.weaponAcquired = true; g.weapon.reset(); vm.pulseGlow(1);
           this.say('Their weapon. It is mine now.', '', 3, true);
           this.setObjective('TAKE THE LANDER AND FOLLOW THEM');
           save.setIntroDone(true); progress.setIntroDone(true);
+          this.step = 2; this.stepT = 0; this.moveLocked = false;
         }
         break;
       }
       case 2: {                    // board the lander
-        const hx = wx + 2.6, hz = wz + 2.6, dh = Math.hypot(p.pos.x - hx, p.pos.z - hz);
-        const near = dh < 3.3;
+        const hx = wx + 3.6, hz = wz + 1.4, dh = Math.hypot(p.pos.x - hx, p.pos.z - hz);
+        const near = dh < 3.6;
         if (near) { this.actLabel = 'BOARD'; this.prompt(this.tr('HOLD RIGHT CLICK TO BOARD THE LANDER', 'HOLD THE BUTTON TO BOARD THE LANDER')); } else this.prompt('');
         this.pistolMarker.visible = true; this.pistolMarker.position.set(hx, 0.05, hz); this.pistolMarker.material.opacity = 0.5 + 0.3 * Math.sin(g.time * 4);
         if (this.hold(dt, near, 1.0)) { this.step = 3; this.stepT = 0; this.prompt(''); ui.setHold(null); this.pistolMarker.visible = false; g.audio.play('door', { vol: 0.8 }); this.say('Find them. Whatever it takes.', '', 3, true); }
@@ -467,7 +507,7 @@ export class Intro {
   // Leave the homeworld: hand over to the free-flight scene.
   launch() {
     const g = this.g;
-    this.active = false; this.phase = 'launched'; this.moveLocked = false;
+    this.active = false; this.phase = 'launched'; this.moveLocked = false; g.player.speedMul = 1;
     this.home.show(false); this.home.clearFires();
     if (this.wreck) this.wreck.visible = this.pistolItem.visible = false;
     this.wreckLight.intensity = 0;

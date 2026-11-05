@@ -177,11 +177,14 @@ export class HomeWorld {
     // ---- the human ship, its shadow and its searchlight
     // ---- fires for the attack and its aftermath: a fixed pool of flickering flames, each with its own light (the count never changes)
     this.fires = [];
+    const scorch = canvasTex(128, 128, (g, w, hh) => { const gr = g.createRadialGradient(w / 2, hh / 2, 4, w / 2, hh / 2, w / 2); gr.addColorStop(0, 'rgba(8,4,2,0.92)'); gr.addColorStop(0.55, 'rgba(18,8,4,0.6)'); gr.addColorStop(1, 'rgba(18,8,4,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, hh); });
     { const ft = canvasTex(64, 64, (g, w, hh) => { const gr = g.createRadialGradient(w / 2, hh * 0.6, 2, w / 2, hh * 0.55, w / 2); gr.addColorStop(0, 'rgba(255,240,170,1)'); gr.addColorStop(0.35, 'rgba(255,140,40,0.8)'); gr.addColorStop(1, 'rgba(255,60,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, hh); });
       for (let i = 0; i < 7; i++) {
         const spr = [0, 1, 2].map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, color: 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false })); s.visible = false; this.group.add(s); return s; });
         const light = new THREE.PointLight(0xff7a2a, 0, 14, 2); light.userData.fire = true; this.group.add(light);
-        this.fires.push({ spr, light, on: false, x: 0, z: 0, s: 1, ph: Math.random() * 6, t0: 0 });
+        const decal = new THREE.Mesh(new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: scorch, transparent: true, depthWrite: false, fog: true }));
+        decal.visible = false; decal.renderOrder = 1; this.group.add(decal);
+        this.fires.push({ spr, light, decal, on: false, x: 0, z: 0, s: 1, ph: Math.random() * 6, t0: 0 });
       } }
     this.ship = new THREE.Group();
     const hull = new THREE.MeshStandardMaterial({ color: 0x1c2228, roughness: 0.55, metalness: 0.7 });
@@ -274,9 +277,10 @@ export class HomeWorld {
     const f = this.fires.find((q) => !q.on) || this.fires.reduce((a, b) => (a.t0 < b.t0 ? a : b));
     f.on = true; f.x = x; f.z = z; f.s = s; f.t0 = performance.now();
     f.light.position.set(x, 1.4 * s, z); f.spr.forEach((p) => { p.visible = true; p.position.set(x, 0.9 * s, z); });
+    f.decal.visible = true; f.decal.position.set(x, 0.045 + 0.003 * this.fires.indexOf(f), z); f.decal.scale.setScalar(5.2 * s); f.decal.rotation.y = Math.random() * 6;
     return f;
   }
-  clearFires() { for (const f of this.fires) { f.on = false; f.light.intensity = 0; f.spr.forEach((p) => { p.visible = false; }); } }
+  clearFires() { for (const f of this.fires) { f.on = false; f.light.intensity = 0; f.spr.forEach((p) => { p.visible = false; }); f.decal.visible = false; } }
 
   update(dt, t, camPos) {
     if (!this.shown) return;
