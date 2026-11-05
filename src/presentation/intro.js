@@ -62,7 +62,7 @@ export class Intro {
   }
 
   samplePose() { /* the menu backdrop is a fixed pose */ }
-  canSkip() { return this.active; }
+  canSkip() { return false; }               // the opening is part of the story and cannot be skipped
   buttons() { return { fire: !!this.g.weaponAcquired && !this.active, jump: this.route, dash: this.route }; }
   press() { this.pressed = true; }
   tr(desktop, touch) { return this.g.touchMode ? touch : desktop; }
@@ -166,7 +166,7 @@ export class Intro {
     g.projectiles.clear();
     if (mode === 'ready') { this.finish(true); return; }
     this.active = true;
-    ui.showSkip(true);
+    ui.showSkip(false);
     this.enter('home');
   }
 
@@ -1012,7 +1012,7 @@ export class Intro {
   }
 
   // ---------------------------------------------------------------------------------------------- skip / finish
-  skip() { if (this.active) this.finish(true); }
+  skip() { /* the opening cannot be skipped: the first room has not happened yet in the story */ }
 
   finish(skipped = true) {
     const g = this.g, vm = g.viewmodel;

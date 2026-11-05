@@ -345,7 +345,9 @@ export class Game {
 
   restart(freshRun = false) {
     this.audio.init();
-    if (this.opening.active) this.opening.finish(true);
+    // restarting during the opening replays the opening (or the flight); it never jumps ahead of the story
+    if (this.state === 'flight') { this.flight.stop(); this.paused = false; this.ui.hideMenus(); this.state = 'flight'; this.flight.start(); this.input.lock(); return; }
+    if (this.opening.active) { this.replayFromStart(); return; }
     if (freshRun) this.newRun();
     this.resetEncounter();
     this.paused = false;
