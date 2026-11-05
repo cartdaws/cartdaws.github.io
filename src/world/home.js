@@ -13,6 +13,14 @@ export const ELDER_AT = { x: 1.2, z: -9.5 };
 
 export async function loadHome() {
   const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/home.glb');
+  // the redesigned flora and rock (art/build_flora.py): the same node names and scale, so only the geometry is swapped
+  try {
+    const fl = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/flora.glb');
+    for (const name of ['Spire', 'SpireTip', 'Stalk', 'StalkBulb', 'Rock']) {
+      const src = fl.scene.getObjectByName(name), dst = gltf.scene.getObjectByName(name);
+      if (src && src.geometry && dst) dst.geometry = src.geometry;
+    }
+  } catch (e) { /* the original flora stays */ }
   return gltf.scene;
 }
 
