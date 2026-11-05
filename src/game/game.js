@@ -18,6 +18,7 @@ import { Encounter, EncounterState } from './encounter.js';
 import { ViewModel } from '../presentation/viewmodel.js';
 import { Intro } from '../presentation/intro.js';
 import { Flight } from './flight.js';
+import { Arsenal } from './arsenal.js';
 import { UI } from '../presentation/ui.js';
 import { TouchControls, isTouchDevice, enterImmersive } from '../core/touch.js';
 import { PostFX } from '../presentation/post.js';
@@ -75,6 +76,7 @@ export class Game {
     this.viewmodel = new ViewModel(handAsset);
     this.body = new AlienBody(this.scene, this.world, this.player, armGeos);
     this.weapon = new Shardcaster(this);
+    this.arsenal = new Arsenal(this);
     this.absorber = new Absorber(this);
     this.projectiles = new Projectiles(this);
     this.encounter = new Encounter(this);
@@ -379,6 +381,7 @@ export class Game {
     this.effects.clear();
     this.encounter.restartRoom(); // resets the room being fought and places the player at its checkpoint
     this.weapon.reset();
+    this.arsenal.reset();
     this.absorber.reset();
     this.viewmodel.recoil = this.viewmodel.recoilVel = this.viewmodel.pulse = 0;
     this.weaponAcquired = true;
@@ -652,10 +655,14 @@ export class Game {
       if (player.justDashed) { this.audio.play('dash'); this.addShake(0.06); }
     }
     this.poseCamera();
-    this.weapon.step(dt, input.mouse(0), this.canFire());
+    {
+      const fire = this.canFire();
+      if (this.arsenal.step(dt, input.mouse(0), fire, this.weapon.pressLatch)) this.weapon.pressLatch = false;
+      else this.weapon.step(dt, input.mouse(0), fire);
+    }
     this.level.updateDoors(dt);
     this.projectiles.update(dt);
-    for (const e of this.enemies) { if (e.absorbing || this.enemyFreeze > 0) { e.updateFlash?.(dt); continue; } e.update(dt); }
+    for (const e of this.enemies) { if (e.absorbing || this.enemyFreeze > 0) { e.updateFlash?.(dt); continue; } e.update(e.slowT > 0 ? dt * 0.4 : dt); }
     if (playing && !player.dead && !this.opening.active) this.absorber.update(dt);
     if (playing) this.pickups.update(dt);
     for (const b of this.barrels) b.update(dt);

@@ -244,6 +244,7 @@ export class Absorber {
     g.absorbFov = 0;
     g.viewmodel.reachW = 0;
     e.group.scale.setScalar(e.baseScale);
+    g.arsenal.onAbsorbed(e);
     e.die(true); // counts for the encounter, no explosion
     // every absorbed machine makes the body permanently sturdier
     progress.addMaxHp();
