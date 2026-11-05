@@ -234,6 +234,10 @@ export class Audio {
         this.tone(o, { type: 'sawtooth', f0: 220, f1: 30, dur: 1.2, vol: 0.12, filter: { type: 'lowpass', f: 500 } });
         this.noise(o, { dur: 1.0, vol: 0.15, type: 'lowpass', f0: 900, f1: 60 });
         break;
+      case 'hiss': // gas escaping from a vent
+        this.noise(o, { dur: 1.6, vol: 0.2, type: 'highpass', f0: 3800, f1: 6800, q: 0.8 });
+        this.noise(o, { dur: 1.9, vol: 0.12, type: 'bandpass', f0: 1200, f1: 500, q: 1.2, delay: 0.1 });
+        break;
       case 'groan': // stressed metal
         this.tone(o, { type: 'sawtooth', f0: 90, f1: 62, dur: 1.2, vol: 0.14, attack: 0.3, filter: { type: 'lowpass', f: 400 }, q: 6 });
         this.noise(o, { dur: 1.2, vol: 0.12, type: 'bandpass', f0: 250, f1: 150, q: 5, attack: 0.3 });

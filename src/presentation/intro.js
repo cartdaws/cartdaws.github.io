@@ -49,6 +49,10 @@ export class Intro {
     this.f = {};
     this.h = 0;                // hold progress
     this.granted = false;
+    { const gd = document.createElement('div'); gd.id = 'gas-veil'; document.body.appendChild(gd); this.gasEl = gd;
+      const st = document.createElement('style');
+      st.textContent = '#gas-veil{position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;background:radial-gradient(ellipse at center,rgba(120,200,90,.18) 0%,rgba(90,170,60,.55) 55%,rgba(40,90,30,.92) 100%);mix-blend-mode:normal}';
+      document.head.appendChild(st); }
     this.tentReset();
     this.home = new HomeWorld(game.scene, game.homeAsset, save.creature, game.elderKit);
     this.buildCuffs();
@@ -149,6 +153,7 @@ export class Intro {
   // ---------------------------------------------------------------------------------------------- flow
   begin(mode) {
     const g = this.g, vm = g.viewmodel, ui = g.ui;
+    g.flight.hideMenu();                      // the menu's space backdrop must be put away before anything saves the scene's own sky and fog
     this.f = {}; this.h = 0; this.t = 0; this.pressed = false; this.target = null;
     this.dropT = -1; this.stride = 0; this.lastStep = -1; this.blob = null; this.parts = null; this.pistolView = null;
     this.granted = false;
@@ -234,6 +239,7 @@ export class Intro {
     const g = this.g;
     if (this.route) this.updateRoute(dt);
     if (this.bolts && this.phase !== 'wreck') this.updateBolts(dt);
+    if (this.wakeT !== undefined) { this.wakeT += dt; this.g.ui.fade(1 - ease(this.wakeT, 0.3, 3.2)); if (this.wakeT > 3.4) this.wakeT = undefined; }
     this.updateCuffs();
     if (!this.active) { this.pressed = false; return; }
     this.t += dt; this.stepT += dt;
@@ -247,6 +253,7 @@ export class Intro {
       case 'escape': this.updateEscape(dt, pressed); break;
       case 'pistol': this.updatePistol(dt, pressed); break;
       case 'wreck': this.updateWreck(dt, pressed); break;
+      case 'gas': this.updateGas(dt); break;
       default:
     }
     if (g.touchUI) g.touchUI.setAbsorb(!!this.actLabel, this.actLabel || 'ABSORB');
@@ -631,15 +638,70 @@ export class Intro {
 
   // The lander is drawn into the research vessel's bay: the survivor steps out into the containment bay and the escape begins.
   arrive() {
-    const g = this.g;
-    this.home.show(false);
+    const g = this.g, p = g.player;
+    this.home.show(false); this.home.clearFires();
     this.setReadyArm();
-    document.body.classList.remove('intro');
-    g.ui.clearSubtitle(); g.ui.clearHints(); g.ui.setPrompt('');
-    this.enterRoute(false);
+    document.body.classList.add('intro');
+    g.ui.clearSubtitle(); g.ui.clearHints(); g.ui.setPrompt(''); g.ui.setObjective('');
+    g.viewmodel.root.visible = true; g.weaponAcquired = true;
+    g.level.emergencyOn = false; g.level.cut.setDoorOpen(1.75); g.level.doors.containment.open(true);
+    p.reset(PLAYER_START.x, PLAYER_START.z + 2.5, 0); p.pitch = 0; p.speedMul = 0.55;
+    this.active = true; this.phase = 'gas'; this.t = 0; this.stepT = 0; this.f = {}; this.moveLocked = true; this.hideBody = true;
+    g.cinePose = null; g.ui.fade(1); this.gasK = 0;
   }
 
-  // The right hand reaches toward a world point, only as far as an arm can.
+  // The reception bay: quiet, lit, and empty. You walk in, the vents open and green gas pours out; your body fails and you go down.
+  updateGas(dt) {
+    const g = this.g, p = g.player, ui = g.ui, f = this.f, T = this.t, fx = g.effects;
+    ui.fade(1 - ease(T, 0.2, 1.8) - (ease(T, 10.6, 12.2)) * -1 + 0);                  // in from white-blue; to black at the end
+    if (T < 12.2) ui.fade(T < 10.4 ? 1 - ease(T, 0.2, 1.8) : ease(T, 10.4, 12.0));
+    // act 1: a still, empty bay. The pilot walks forward on its own.
+    if (T > 0.6) this.once('g1', () => this.say('Docked. No guards, no alarms. Where is everyone?', '', 3.6, true));
+    if (T > 1.6 && T < 7.8) { this.moveLocked = false; g.input.keys.clear(); g.input.keys.add('KeyW'); p.speedMul = 0.55 * (1 - 0.7 * smooth(clamp((T - 4.5) / 3.3, 0, 1))); }
+    if (T > 1.6) this.setObjective(T < 4.6 ? 'FIND THE ELDER' : 'SOMETHING IS WRONG');
+    // act 2: the vents: an alarm tone, a hiss, then gas pouring from the ceiling around you
+    if (T > 3.4) this.once('g2', () => { g.audio.play('alert', { vol: 0.45 }); g.audio.play('hiss', { vol: 0.6 }); });
+    if (T > 4.4) this.once('g3', () => { this.say('The air... it burns.', '', 2.8, true); g.audio.play('hiss', { vol: 0.9 }); });
+    this.gasK = smooth(clamp((T - 3.6) / 5.2, 0, 1));
+    f.puff = (f.puff || 0) - dt;
+    if (this.gasK > 0 && f.puff <= 0 && T < 11) {
+      f.puff = 0.035;
+      for (let i = 0; i < 3; i++) {
+        const sx = (Math.random() < 0.5 ? -1 : 1) * (0.8 + Math.random() * 2.6), sz = p.pos.z - 1.5 - Math.random() * 4;
+        if (fx.smokeP) fx.smokeP.emit(p.pos.x + sx, 3.2, sz, -sx * 0.2 + (Math.random() - 0.5) * 0.4, -1.4 - Math.random() * 0.8, (Math.random() - 0.5) * 0.4, 2.8, 0.9 + Math.random() * 0.8, 0.4, 0.85, 0.3, 0, 0.5, 1.6);
+        if (fx.smokeP) fx.smokeP.emit(p.pos.x + (Math.random() - 0.5) * 2.2, 0.2 + Math.random() * 1.4, p.pos.z + (Math.random() - 0.5) * 2.2 - 0.5, 0, 0.1, 0, 3.0, 1.2 + Math.random(), 0.35, 0.8, 0.28, 0, 0.6, 1.4);
+      }
+    }
+    this.gasEl.style.opacity = (this.gasK * 0.85).toFixed(3);
+    // the body fails: coughing, swaying view, shorter steps, then the legs give way
+    if (T > 5.0) { g.flinch = Math.max(g.flinch || 0, 0.25 + 0.5 * this.gasK); g.flinchRoll = Math.sin(T * 1.7) * 2.2; }
+    if (T > 5.6) this.once('g4', () => { g.audio.play('hurt', { vol: 0.5 }); });
+    if (T > 7.0) this.once('g5', () => { g.audio.play('hurt', { vol: 0.7 }); this.say('Can\'t... breathe...', '', 2.4, true); });
+    if (T > 8.2) {
+      // act 3: down: the camera sinks to the floor and the view rolls up toward the ceiling lights
+      if (!f.fall) { f.fall = { y: g.camera.position.y, x: p.pos.x, z: p.pos.z, yaw: p.yaw, pitch: p.pitch }; this.moveLocked = true; g.input.keys.clear(); p.speedMul = 1; g.audio.play('clatter', { vol: 0.6 }); g.addShake(0.4); }
+      const k = ease(T, 8.2, 10.0);
+      const pose = this.gasPose || (this.gasPose = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
+      pose.x = f.fall.x; pose.z = f.fall.z - 0.25 * k; pose.y = lerp(f.fall.y, 0.32, k); pose.yaw = f.fall.yaw + 0.5 * k; pose.pitch = lerp(f.fall.pitch, 0.9, k);
+      g.cinePose = pose; g.flinch = Math.max(0, (g.flinch || 0) - dt);
+    }
+    if (T > 8.6) this.once('g6', () => g.audio.play('heartbeat', { vol: 0.8 }));
+    if (T > 12.4) this.wakeUp();
+  }
+
+  // Black, then slowly back: the same bay, sealed, with the alarm sounding and the lock jammed. The first room of the vessel.
+  wakeUp() {
+    const g = this.g;
+    this.gasEl.style.opacity = 0; g.flinch = 0; g.cinePose = null; this.gasPose = null;
+    this.hideBody = false;
+    g.player.speedMul = 1;
+    this.enterRoute(false);
+    g.ui.fade(1); this.wakeT = 0;
+    g.ui.clearSubtitle();
+    this.say('Cold floor. The gas is gone. They knocked me out and left me to be collected.', '', 4.6, true);
+  }
+
+    // The right hand reaches toward a world point, only as far as an arm can.
   reachAt(worldPoint, w) {
     const vm = this.g.viewmodel;
     vm.reachTarget.copy(this.g.camera.worldToLocal(_l.copy(worldPoint)));
