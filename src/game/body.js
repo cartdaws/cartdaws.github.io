@@ -98,6 +98,7 @@ export class AlienBody {
   // The new body: the Blender creature in place of the old bell and torso (the procedural legs stay)
   attachAlien(opts) {
     this.alien = buildAlien(opts);
+    this.firstPerson = !!opts.firstPerson;           // the player's own body is never drawn from inside it (only legs are seen when looking down)
     this.alien.root.scale.setScalar(0.6); this.alien.root.position.y = -0.5;
     this.group.add(this.alien.root);
     this.torso.visible = false; for (const r of this.ribs) r.visible = false; this.core.visible = false; for (const s of this.sats) s.m.visible = false;
@@ -144,7 +145,7 @@ export class AlienBody {
     this.torsoGel.uniforms.uAlpha.value = 0.22 * down;
     this.ribMat.opacity = 0.2 * down;
     if (this.alien) {
-      this.alien.setOpacity(down);
+      this.alien.setOpacity(this.firstPerson ? ((this.deathK || 0) > 0.05 ? 1 : 0) : down);
       this.alien.root.scale.set(0.6 * breathe, 0.6 / breathe, 0.6 * breathe);
       this.torso.visible = false; this.core.visible = false; for (const r of this.ribs) r.visible = false; for (const s of this.sats) s.m.visible = false;
     } else {

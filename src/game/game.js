@@ -76,7 +76,7 @@ export class Game {
     this.player = new Player(this);
     this.viewmodel = new ViewModel(handAsset);
     this.body = new AlienBody(this.scene, this.world, this.player, armGeos, { tint: 'player' });
-    if (alienReady()) this.body.attachAlien({ tint: 'player' });
+    if (alienReady()) this.body.attachAlien({ tint: 'player', firstPerson: true });
     this.weapon = new Shardcaster(this);
     this.arsenal = new Arsenal(this);
     this.absorber = new Absorber(this);

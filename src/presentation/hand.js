@@ -13,7 +13,8 @@ export async function loadHand() {
     const g2 = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/hand2.glb');
     let mesh = null; g2.scene.traverse((o) => { if (o.isMesh && o.name === 'Hand') mesh = o; });
     const d = mesh && mesh.morphTargetDictionary;
-    if (mesh && d && d.Grip !== undefined && d.Weapon !== undefined && d.Spread !== undefined && d.Swell !== undefined) nodes.Hand = mesh;
+    let sk = null; g2.scene.traverse((o) => { if (o.isMesh && o.name === 'HandSuckers') sk = o; });
+    if (mesh && d && d.Grip !== undefined && d.Weapon !== undefined && d.Spread !== undefined && d.Swell !== undefined) { nodes.Hand = mesh; if (sk && sk.morphTargetDictionary) nodes.HandSuckers = sk; }
   } catch (e) { /* the original hand stays */ }
   return nodes;
 }

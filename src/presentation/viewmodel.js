@@ -22,6 +22,9 @@ class HandArm {
     this.skin.frustumCulled = false;
     this.root.add(this.skin);
     this.dict = this.skin.morphTargetDictionary;
+    // the rows of suckers along the arm and fingers: a second mesh that shares the same four shape keys, so it moves with the arm
+    this.suck = null;
+    if (A.HandSuckers) { this.suck = A.HandSuckers.clone(); this.suck.material = vm.suckerMat; this.suck.renderOrder = 5; this.suck.frustumCulled = false; this.root.add(this.suck); this.dictS = this.suck.morphTargetDictionary; }
 
     const inner = (n, mat, order = 1) => { const m = A[n].clone(); m.material = mat; m.renderOrder = order; m.frustumCulled = false; this.root.add(m); return m; };
     this.cord = inner('Core', vm.coreMat);
@@ -62,7 +65,10 @@ class HandArm {
     }
   }
 
-  setKey(name, v) { const i = this.dict[name]; if (i !== undefined) this.skin.morphTargetInfluences[i] = v; }
+  setKey(name, v) {
+    const i = this.dict[name]; if (i !== undefined) this.skin.morphTargetInfluences[i] = v;
+    if (this.suck) { const j = this.dictS[name]; if (j !== undefined) this.suck.morphTargetInfluences[j] = v; }
+  }
 
   update(dt, ctx) {
     const vm = this.vm, t = vm.time, side = this.side;
@@ -162,7 +168,8 @@ export class ViewModel {
     key.position.set(0.6, 0.9, 0.5);
     this.root.add(key);
 
-    this.skinGel = makeHandGel({ color: 0x0e1c2c, rim: 0x48dccb, alpha: 0.64 });
+    this.skinGel = makeHandGel({ color: 0x0e1c2c, rim: 0x48dccb, alpha: 0.78 });
+    this.suckerMat = new THREE.MeshStandardMaterial({ color: 0x2c3e52, roughness: 0.32, metalness: 0.1, emissive: 0x0a2a2c, emissiveIntensity: 0.6 });
     this.barrelGel = makeHandGel({ color: 0x0f2230, rim: 0x6fe8d8, alpha: 0.55 });
     this.coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8f86 });
     this.maw = new THREE.MeshBasicMaterial({ color: 0x8ff5e6 });
@@ -228,7 +235,7 @@ export class ViewModel {
     this.wasAir = air;
     this.landK = damp(this.landK || 0, 0, 7, dt);
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
-    this.skinGel.uniforms.uAlpha.value = lerp(0.62, 0.16, this.xray);
+    this.skinGel.uniforms.uAlpha.value = lerp(0.78, 0.16, this.xray);
 
     this.swayX = damp(this.swayX, clamp(-ctx.lookX * 0.0012, -0.06, 0.06), 7, dt);
     this.swayY = damp(this.swayY, clamp(ctx.lookY * 0.0012, -0.06, 0.06), 7, dt);
