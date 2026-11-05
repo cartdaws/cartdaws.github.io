@@ -67,14 +67,26 @@ class HandArm {
   update(dt, ctx) {
     const vm = this.vm, t = vm.time, side = this.side;
     const f = this.weapon ? vm.form : 0, rec = this.weapon ? vm.recoil : 0;
-    const curl = this.weapon ? vm.curl : 0.22 + Math.sin(t * 0.9 + this.phase) * 0.04;
+    const mk = vm.moveK, st = vm.stride, ph = side > 0 ? 0 : Math.PI;
+    const idle = 1 - Math.min(1, mk * 1.5);
+    // idle fidget: now and then the free hand flexes its fingers
+    const fid = this.weapon ? 0 : Math.pow(Math.max(0, Math.sin(t * 0.55 + this.phase * 3)), 14) * idle;
+    const curl = this.weapon ? vm.curl : 0.22 + Math.sin(t * 0.9 + this.phase) * 0.04 + 0.3 * mk - 0.2 * fid;
 
     // ---- pose: hold, restrained, or reaching ----
     const pos = _v.copy(this.hold);
     pos.x += vm.swayX * 0.5 + vm.lagX;
     pos.y += vm.swayY * 0.5 + Math.sin(t * 1.5 + this.phase) * 0.004 - vm.dashK * 0.1;
     pos.z += vm.lagZ + vm.dashK * 0.1 + rec * 0.05;
-    _e.set(0.44 + rec * 0.1 + vm.swayY * 0.4 + vm.dashK * 0.1, side * -0.1 + vm.swayX * 0.5 - side * vm.dashK * 0.1, side * -0.08, 'YXZ');
+    // idle: slow breathing rise and fall with a gentle drift
+    pos.y += (Math.sin(t * 1.25 + this.phase) * 0.009 + Math.sin(t * 0.53 + this.phase * 1.7) * 0.004) * idle;
+    pos.x += Math.sin(t * 0.71 + this.phase) * 0.004 * idle;
+    // running: the arms pump alternately and bounce with every step; jumping lifts them, landing dips them
+    pos.y += (0.012 - Math.abs(Math.sin(st)) * 0.034) * mk + vm.airK * 0.035 - vm.landK * 0.06;
+    pos.x += side * Math.sin(st + ph) * 0.018 * mk;
+    pos.z += Math.sin(st + ph) * 0.05 * mk - vm.airK * 0.02;
+    const pumpPitch = Math.sin(st + ph) * 0.13 * mk - vm.airK * 0.14 + vm.landK * 0.12;
+    _e.set(0.44 + rec * 0.1 + vm.swayY * 0.4 + vm.dashK * 0.1 + pumpPitch, side * -0.1 + vm.swayX * 0.5 - side * vm.dashK * 0.1 + side * 0.05 * mk, side * -0.08 + side * Math.sin(st) * 0.05 * mk + side * Math.sin(t * 0.8 + this.phase) * 0.02 * idle, 'YXZ');
     this.root.quaternion.setFromEuler(_e);
     if (vm.restrain > 0) {
       // the clamps are fixed in the world, so the held wrists follow them as the head turns and tilts
@@ -102,7 +114,7 @@ class HandArm {
     // ---- shape: morph targets drive grip, weapon form, recoil flare ----
     this.setKey('Grip', clamp(curl * (1 - f * 0.9), 0, 1));
     this.setKey('Weapon', clamp(f * (1 - 0.55 * rec), 0, 1));
-    this.setKey('Spread', clamp(rec * 1.2, 0, 1));
+    this.setKey('Spread', clamp(rec * 1.2 + fid * 0.55, 0, 1));
     this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35 + (this.weapon ? vm.bulge : 0), 0, 1.4));
 
     this.palmCore.scale.setScalar(1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6);
@@ -175,6 +187,7 @@ export class ViewModel {
     this.pistol = null;
 
     this.recoil = 0; this.recoilVel = 0; this.pulse = 0;
+    this.moveK = 0; this.stride = 0; this.airK = 0; this.landK = 0; this.wasAir = false;
     this.swayX = 0; this.swayY = 0; this.lagX = 0; this.lagZ = 0; this.dashK = 0;
     this.time = 0;
 
@@ -206,6 +219,14 @@ export class ViewModel {
     this.recoilVel += (-190 * this.recoil - 17 * this.recoilVel) * dt;
     this.recoil += this.recoilVel * dt;
     this.pulse = Math.max(0, this.pulse - dt * 9);
+    // locomotion for the arm animation
+    const speed = Math.hypot(ctx.velX || 0, ctx.velZ || 0), air = !!ctx.air;
+    this.moveK = damp(this.moveK || 0, clamp(speed / 7.2, 0, 1.3) * (air ? 0.25 : 1), 8, dt);
+    this.stride = (this.stride || 0) + dt * (1.6 + speed * 1.15) * (air ? 0.2 : 1);
+    this.airK = damp(this.airK || 0, air ? 1 : 0, 7, dt);
+    if (this.wasAir && !air) this.landK = 1;
+    this.wasAir = air;
+    this.landK = damp(this.landK || 0, 0, 7, dt);
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
     this.skinGel.uniforms.uAlpha.value = lerp(0.58, 0.16, this.xray);
 

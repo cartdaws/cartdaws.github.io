@@ -33,13 +33,13 @@ export class AlienBody {
     // joined to the legs instead of organs hanging in mid-air. Heights are measured from the base of the torso.
     const prof = [[0.0, 0.0], [0.22, 0.02], [0.31, 0.16], [0.375, 0.4], [0.395, 0.62], [0.365, 0.85], [0.3, 1.02], [0.2, 1.12], [0.09, 1.17], [0.0, 1.19]];
     this.torsoY = -0.18; // base of the torso, relative to the group (which sits 0.52 above the feet)
-    this.torsoGel = makeGel({ color: 0x0a4a46, rim: 0x7ff0e0, alpha: 0.3 });
+    this.torsoGel = makeGel({ color: 0x0d6560, rim: 0x7fe8da, alpha: 0.3 });
     this.torso = new THREE.Mesh(new THREE.LatheGeometry(prof.map(([r, y]) => new THREE.Vector2(r, y * 0.93)), 44), this.torsoGel);
     this.torso.position.y = this.torsoY;
     this.torso.renderOrder = 3;
     this.group.add(this.torso);
     const radiusAt = (y) => { for (let i = 1; i < prof.length; i++) if (y <= prof[i][1]) { const k = (y - prof[i - 1][1]) / (prof[i][1] - prof[i - 1][1]); return prof[i - 1][0] + (prof[i][0] - prof[i - 1][0]) * k; } return 0.05; };
-    this.ribMat = new THREE.MeshBasicMaterial({ color: 0x59e8d4, transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending });
+    this.ribMat = new THREE.MeshBasicMaterial({ color: 0x7fe8da, transparent: true, opacity: 0.2, depthWrite: false, blending: THREE.AdditiveBlending });
     this.ribMat.userData.noSnap = true;
     this.ribs = [0.3, 0.65, 0.95].map((y) => {
       const r = new THREE.Mesh(new THREE.TorusGeometry(radiusAt(y) + 0.004, 0.006, 6, 40), this.ribMat);
@@ -60,7 +60,7 @@ export class AlienBody {
       this.sats.push({ m, a: i * 1.6, r: 0.13 + i * 0.03, h: 0.3 + i * 0.13 });
     }
 
-    this.legGel = makeTentacleGel({ color: 0x0a4a46, rim: 0x7ff0e0, alpha: 0.5, length: 2.4, r0: 0.11, r1: 0.012 });
+    this.legGel = makeTentacleGel({ color: 0x0d6560, rim: 0x7fe8da, alpha: 0.5, length: 2.4, r0: 0.11, r1: 0.012 });
     this.legs = LEGS.map((d) => {
       const leg = {
         d,
