@@ -8,7 +8,7 @@ import { cloneWarship } from '../game/flight.js';
 
 // The homeworld memory: a small, composed place built from Blender assets (art/build_home.py -> public/models/home.glb).
 // It sits far from the ship (HOME) with its own sky, light and fog, which are swapped in while the memory plays.
-export const HOME = { x: 500, z: 0 };
+export const HOME = { x: 1400, z: 0 };   // far beyond the view distance from the ship, so the ship is never drawn from here (or this from there)
 export const HOME_START = { x: 0, z: 7, yaw: 0.9 };      // local to HOME: the player wakes here, facing away from the one who waits
 export const ELDER_AT = { x: 1.2, z: -9.5 };
 
@@ -108,7 +108,9 @@ export class HomeWorld {
     const stalkGeo = node('Stalk').geometry, bulbGeo = node('StalkBulb').geometry;
     const NK = 700, stalks = mk(stalkGeo, spireMat, NK), bulbs = mk(bulbGeo, new THREE.MeshBasicMaterial({ color: S.hex(0xffffff) }), NK);
     const col = new THREE.Color();
-    for (let c = 0, k = 0; c < 90 && k < NK; c++) {
+    const small = document.body.classList.contains('touch');            // phones get half the undergrowth
+    let stalkN = 0;
+    for (let c = 0, k = 0; c < (small ? 45 : 90) && k < NK; c++) {
       const a = R() * Math.PI * 2, d = 4 + R() * 38, cx = Math.cos(a) * d, cz = Math.sin(a) * d;
       for (let j = 0; j < 7 && k < NK; j++) {
         const x = cx + (R() - 0.5) * 2.2, z = cz + (R() - 0.5) * 2.2;
@@ -116,9 +118,10 @@ export class HomeWorld {
         const s = 0.7 + R() * 1.3;
         e.set((R() - 0.5) * 0.25, R() * 6.28, (R() - 0.5) * 0.25); q.setFromEuler(e);
         m4.compose(v.set(x, 0, z), q, sc.set(s, s, s)); stalks.setMatrixAt(k, m4); bulbs.setMatrixAt(k, m4);
-        bulbs.setColorAt(k, col.set(R() < 0.65 ? S.hex(0x9affea) : S.hex(0xd9a8ff))); k++;
+        bulbs.setColorAt(k, col.set(R() < 0.65 ? S.hex(0x9affea) : S.hex(0xd9a8ff))); k++; stalkN = k;
       }
     }
+    stalks.count = bulbs.count = stalkN;
     const rockMat = new THREE.MeshStandardMaterial({ color: S.hex(0x27363e), roughness: 0.95, emissive: S.hex(0x06141a), emissiveIntensity: 0.8 });
     const rocks = mk(node('Rock').geometry, rockMat, 20);
     for (let i = 0; i < 20; i++) {
@@ -326,9 +329,15 @@ export class HomeWorld {
       const m = part('Crater'); if (!m) continue; m.position.set(x, 0.02, z); m.scale.setScalar(s * 1.3); this.settleRuin.add(m);
     }
     let sd = 99; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
-    for (let i = 0; i < 70; i++) {
-      const m = part('Rubble'); if (!m) break; const a = rr() * 6.28, d = 3 + rr() * 24;
-      m.position.set(Math.cos(a) * d, 0, -9 + Math.sin(a) * d); m.rotation.set(0, rr() * 6.28, 0); m.scale.setScalar(0.5 + rr() * 1.1); this.settleRuin.add(m);
+    const rub = part('Rubble');
+    if (rub) {                                                            // one draw call for all of it
+      const inst = new THREE.InstancedMesh(rub.geometry, rub.material, 70), dummy = new THREE.Object3D();
+      for (let i = 0; i < 70; i++) {
+        const a = rr() * 6.28, d = 3 + rr() * 24;
+        dummy.position.set(Math.cos(a) * d, 0, -9 + Math.sin(a) * d); dummy.rotation.set(0, rr() * 6.28, 0); dummy.scale.setScalar(0.5 + rr() * 1.1); dummy.updateMatrix();
+        inst.setMatrixAt(i, dummy.matrix);
+      }
+      inst.frustumCulled = false; this.settleRuin.add(inst);
     }
   }
   setRuined(r) { if (this.settleIntact) { this.settleIntact.visible = !r; this.settleRuin.visible = !!r; } }

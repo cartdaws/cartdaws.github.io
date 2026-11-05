@@ -9,13 +9,19 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _f = new THREE.Vector3(), _q = new THREE.Quaternion();
 const BARB_KEY = 'intruder-ship-barbs';
 
-function glow(color, size) {
+// One soft-glow texture shared by every sprite. Effects can spawn dozens of sprites a second; a texture each would exhaust a phone's memory within minutes.
+let GLOW_TEX = null;
+function glowTexture() {
+  if (GLOW_TEX) return GLOW_TEX;
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 1, 32, 32, 32);
   gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,0.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+  GLOW_TEX = new THREE.CanvasTexture(c); GLOW_TEX.colorSpace = THREE.SRGBColorSpace;
+  return GLOW_TEX;
+}
+function glow(color, size) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
   s.scale.setScalar(size); return s;
 }
 
@@ -53,6 +59,8 @@ export class FlightCombat {
   constructor(flight) {
     this.f = flight; this.g = flight.g;
     this.group = new THREE.Group(); flight.group.add(this.group);
+    this.pool = []; this.fxMax = flight.g.touchMode ? 110 : 360; this.trailOdds = flight.g.touchMode ? 0.22 : 0.75;
+    this.boltGlow = new Map();
     this.shots = []; this.enemyShots = []; this.enemies = []; this.missiles = []; this.fx = [];
     this.cool = 0; this.barbCool = 0; this.kills = 0; this.wave = 0; this.alertT = 0;
     this.barbs = false; try { this.barbs = localStorage.getItem(BARB_KEY) === '1'; } catch (e) { /* none */ }
@@ -74,7 +82,7 @@ export class FlightCombat {
   reset() {
     for (const o of [...this.shots, ...this.enemyShots, ...this.missiles]) this.group.remove(o.mesh);
     for (const e of this.enemies) this.group.remove(e.mesh);
-    for (const x of this.fx) this.group.remove(x.s);
+    for (const x of this.fx) { x.s.visible = false; this.pool.push(x.s); }
     this.shots.length = this.enemyShots.length = this.enemies.length = this.missiles.length = this.fx.length = 0;
     this.cool = this.barbCool = 0; this.kills = 0; this.wave = 0; this.alertT = 0;
     this.render();
@@ -116,7 +124,7 @@ export class FlightCombat {
     // ---- shots
     for (let i = this.shots.length - 1; i >= 0; i--) {
       const s = this.shots[i]; s.life -= dt; s.mesh.position.addScaledVector(s.vel, dt);
-      if (Math.random() < 0.75) this.burst(s.mesh.position, 0x9fffe8, 1, 0, 2.2, 0.2, -0.5);   // a fading trail behind every bolt
+      if (Math.random() < this.trailOdds) this.burst(s.mesh.position, 0x9fffe8, 1, 0, 2.2, 0.2, -0.5);   // a fading trail behind every bolt
       let dead = s.life <= 0;
       for (const e of this.enemies) if (!dead && e.mesh.position.distanceToSquared(s.mesh.position) < 14) { this.hit(e, 9, s.mesh.position); dead = true; }
       if (dead) { this.group.remove(s.mesh); this.shots.splice(i, 1); }
@@ -154,7 +162,7 @@ export class FlightCombat {
       if (e.cool <= 0 && d < 520 && _b.dot(_a) > 0.75 && !f.docking) {
         e.cool = 1.4 + Math.random() * 1.2;
         for (const sx of [-1, 1]) {
-          const mesh = new THREE.Mesh(this.shotGeo, this.hostMat); mesh.add(glow(0xff5a3a, 6)); mesh.position.copy(e.mesh.position).add(_c.set(sx * 1.9, 0, -1).applyQuaternion(e.mesh.quaternion));
+          const mesh = new THREE.Mesh(this.shotGeo, this.hostMat); mesh.add(this.sharedGlow(0xff5a3a, 6)); mesh.position.copy(e.mesh.position).add(_c.set(sx * 1.9, 0, -1).applyQuaternion(e.mesh.quaternion));
           mesh.lookAt(_c.copy(mesh.position).add(_a)); this.group.add(mesh);
           const lead = _c.copy(f.pos).addScaledVector(_f, d / 330 * f.speed * 0.5).sub(mesh.position).normalize();
           mesh.lookAt(_b.copy(mesh.position).add(lead));
@@ -167,7 +175,7 @@ export class FlightCombat {
     }
 
     // ---- fx
-    for (let i = this.fx.length - 1; i >= 0; i--) { const x = this.fx[i]; x.t += dt; const k = x.t / x.life; x.s.scale.setScalar(x.size * (1 + k * x.grow)); x.s.material.opacity = Math.max(0, 1 - k); if (x.vel) x.s.position.addScaledVector(x.vel, dt); if (k >= 1) { this.group.remove(x.s); x.s.material.dispose(); this.fx.splice(i, 1); } }
+    for (let i = this.fx.length - 1; i >= 0; i--) { const x = this.fx[i]; x.t += dt; const k = x.t / x.life; x.s.scale.setScalar(x.size * (1 + k * x.grow)); x.s.material.opacity = Math.max(0, 1 - k); if (x.vel) x.s.position.addScaledVector(x.vel, dt); if (k >= 1) { x.s.visible = false; this.pool.push(x.s); this.fx.splice(i, 1); } }
 
     this.alertT = Math.max(0, this.alertT - dt);
     this.markers();
@@ -180,7 +188,7 @@ export class FlightCombat {
       const mesh = new THREE.Mesh(this.shotGeo, this.shotMat);
       mesh.position.copy(f.pos).add(_a.set(sx * 3.1, -0.1, -2.2).applyQuaternion(f.quat));
       mesh.quaternion.copy(f.quat); this.group.add(mesh);
-      { const gs = glow(0x7fffe0, 6.5); mesh.add(gs); }
+      mesh.add(this.sharedGlow(0x7fffe0, 6.5));
       this.burst(mesh.position, 0xc8fff4, 1, 0, 7, 0.08, 0.7);                   // muzzle flash at each gun
       this.shots.push({ mesh, vel: _f.clone().multiplyScalar(720 + f.speed), life: 1.5 });
     }
@@ -224,12 +232,22 @@ export class FlightCombat {
     this.f.shake = Math.max(this.f.shake, clamp(1 - p.distanceTo(this.f.pos) / 400, 0, 0.7));
   }
 
+  // a glow attached to a bolt: all bolts of a colour share one material
+  sharedGlow(color, size) {
+    let m = this.boltGlow.get(color);
+    if (!m) { m = glow(color, 1).material; this.boltGlow.set(color, m); }
+    const s = new THREE.Sprite(m); s.scale.setScalar(size); return s;
+  }
+
   // a short-lived additive glow
   burst(pos, color, n = 1, spread = 0, size = 4, life = 0.4, grow = 2) {
     for (let i = 0; i < n; i++) {
-      const s = glow(color, size); s.position.copy(pos);
-      this.group.add(s);
-      this.fx.push({ s, t: 0, life, size, grow, vel: spread ? new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread) : null });
+      if (this.fx.length >= this.fxMax) return;                   // a hard ceiling, so a big fight cannot grind a phone to a halt
+      let s = this.pool.pop();
+      if (s) { s.material.color.set(color); s.material.opacity = 1; s.visible = true; s.scale.setScalar(size); } else { s = glow(color, size); this.group.add(s); }
+      s.position.copy(pos);
+      const vel = spread ? (s.userData.vel || (s.userData.vel = new THREE.Vector3())).set((Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread, (Math.random() - 0.5) * spread) : null;
+      this.fx.push({ s, t: 0, life, size, grow, vel });
     }
   }
 

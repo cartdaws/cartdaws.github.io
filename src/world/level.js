@@ -388,6 +388,6 @@ export function buildLevel(scene, world, kit) {
   ];
   L.barrelSpawns = [{ x: 5.5, z: -19 }, { x: 8.8, z: -21.5 }];
   L.world = world;
-  mergeStatic(scene);
+  L.merged = mergeStatic(scene);
   return L;
 }

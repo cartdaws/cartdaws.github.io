@@ -86,7 +86,7 @@ export class TouchControls {
     document.getElementById('skip').addEventListener('pointerdown', (e) => { e.preventDefault(); onSkip(); });
   }
 
-  setAbsorb(v) { this.absorbBtn.classList.toggle('ready', v); }
+  setAbsorb(v, label = 'ABSORB') { this.absorbBtn.classList.toggle('ready', !!v); if (this.absorbBtn.textContent !== label) this.absorbBtn.textContent = label; }
 
   setVisible(mode, flags = null) {
     this.root.classList.toggle('show', !!mode);

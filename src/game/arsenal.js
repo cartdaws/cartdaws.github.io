@@ -45,10 +45,13 @@ export class Arsenal {
     // slot bar
     const bar = document.createElement('div'); bar.id = 'arsenal-bar';
     document.body.appendChild(bar); this.bar = bar;
+    // on a phone the bar is a row of tappable slots along the top
+    bar.addEventListener('pointerdown', (e) => { const t = e.target.closest('[data-i]'); if (t && game.state === 'playing' && !game.opening.active && !game.paused) { this.select(+t.dataset.i); e.preventDefault(); e.stopPropagation(); } });
     const st = document.createElement('style');
     st.textContent = '#arsenal-bar{position:fixed;right:34px;bottom:96px;z-index:5;display:none;flex-direction:column;gap:3px;align-items:flex-end;font-size:11px;letter-spacing:.2em;pointer-events:none;color:rgba(168,235,226,.8)}'
       + 'body.has-hud #arsenal-bar{display:flex}#arsenal-bar span{display:flex;gap:8px;align-items:center;padding:2px 8px;border:1px solid transparent;opacity:.45}#arsenal-bar span.on{opacity:1;border-color:rgba(168,235,226,.4);background:rgba(6,16,20,.3)}#arsenal-bar span.lock{opacity:.18}#arsenal-bar kbd{font:inherit;padding:0 5px;border:1px solid rgba(168,235,226,.35)}'
-      + 'body.intro #arsenal-bar,body.in-flight #arsenal-bar{display:none!important}';
+      + 'body.intro #arsenal-bar,body.in-flight #arsenal-bar{display:none!important}'
+      + 'body.touch #arsenal-bar{top:8px;left:50%;right:auto;bottom:auto;transform:translateX(-50%);flex-direction:row;gap:4px;z-index:9;pointer-events:auto;font-size:10px;letter-spacing:.12em}body.touch #arsenal-bar kbd{display:none}body.touch #arsenal-bar span{padding:9px 10px;opacity:.6;background:rgba(6,16,20,.3)}body.touch #arsenal-bar span.on{opacity:1}body.touch #arsenal-bar span.lock{display:none}body.touch.one-form #arsenal-bar{display:none}';
     document.head.appendChild(st);
     this.render();
   }
@@ -57,7 +60,8 @@ export class Arsenal {
   save() { try { localStorage.setItem(KEY, JSON.stringify([...this.unlocked])); } catch (e) { /* session only */ } }
 
   render() {
-    this.bar.innerHTML = FORMS.map((f, i) => `<span class="${i === this.index ? 'on' : ''} ${this.unlocked.has(f.id) ? '' : 'lock'}"><kbd>${i + 1}</kbd>${this.unlocked.has(f.id) ? f.name : '- - -'}</span>`).join('');
+    document.body.classList.toggle('one-form', this.unlocked.size < 2);
+    this.bar.innerHTML = FORMS.map((f, i) => `<span data-i="${i}" class="${i === this.index ? 'on' : ''} ${this.unlocked.has(f.id) ? '' : 'lock'}"><kbd>${i + 1}</kbd>${this.unlocked.has(f.id) ? f.name : '- - -'}</span>`).join('');
     const el = document.getElementById('weaponName'); if (el) el.textContent = this.active.name;
     document.body.classList.toggle('has-hud', !this.g.ui.hud.classList.contains('hidden'));
   }

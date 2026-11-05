@@ -30,7 +30,7 @@ def make(name, bm, materials, smooth=True):
     for m in materials: me.materials.append(m)
     if smooth: me.polygons.foreach_set('use_smooth', [True] * len(me.polygons))
     return o
-def dome_bm(r0, h, segs=40, rings=14, power=2.3, bite=None, wobble=0.0):
+def dome_bm(r0, h, segs=28, rings=10, power=2.3, bite=None, wobble=0.0):
     """A dome: rings of superellipse radius shrinking with height; optional 'bite' removes the shell inside a region."""
     bm = bmesh.new(); vs = []
     for i in range(rings + 1):
@@ -72,16 +72,16 @@ R0, H = 2.7, 2.6
 # ---------------------------------------------------------------- Dwelling
 shell = dome_bm(R0, H, bite=lambda c: c.y > 1.2 and abs(c.x) < 0.62 and c.z < 1.55)      # an arched doorway cut into the front
 make('Dwelling', shell, [MOSS])
-d = bpy.data.objects['Dwelling']; so = d.modifiers.new('Solid', 'SOLIDIFY'); so.thickness = 0.12; so.offset = -1; sb = d.modifiers.new('S', 'SUBSURF'); sb.levels = 1; sb.render_levels = 1
+d = bpy.data.objects['Dwelling']; so = d.modifiers.new('Solid', 'SOLIDIFY'); so.thickness = 0.12; so.offset = -1
 bm = bmesh.new()                                                      # ribs over the dome, a rim at the base, a stalk antenna on top
 for k in range(7):
     a = k * math.pi / 7 + 0.15
     pts = [(math.cos(a) * (R0 + 0.04), math.sin(a) * (R0 + 0.04) * 0.92, 0.02), (math.cos(a) * R0 * 0.82, math.sin(a) * R0 * 0.82 * 0.92, H * 0.55), (math.cos(a) * R0 * 0.3, math.sin(a) * R0 * 0.3, H * 0.93), (0, 0, H + 0.02)]
-    tube(bm, pts, lambda t: 0.07 * (1 - 0.5 * t), ring_seg=7, n=18)
-    pts2 = [(-p[0], -p[1], p[2]) for p in pts]; tube(bm, pts2, lambda t: 0.07 * (1 - 0.5 * t), ring_seg=7, n=18)
+    tube(bm, pts, lambda t: 0.07 * (1 - 0.5 * t), ring_seg=5, n=10)
+    pts2 = [(-p[0], -p[1], p[2]) for p in pts]; tube(bm, pts2, lambda t: 0.07 * (1 - 0.5 * t), ring_seg=5, n=10)
 tube(bm, [(0, 0, H), (0.1, 0.05, H + 0.6), (-0.05, 0.1, H + 1.2)], lambda t: 0.05 * (1 - 0.7 * t), ring_seg=7, n=12)
 make('DwellingRibs', bm, [MOSS])
-bm = bmesh.new(); bmesh.ops.create_cone(bm, cap_ends=True, segments=40, radius1=R0 + 0.18, radius2=R0 + 0.1, depth=0.34, matrix=Matrix.Translation((0, 0, 0.12))); make('DwellingBase', bm, [ROCK])
+bm = bmesh.new(); bmesh.ops.create_cone(bm, cap_ends=True, segments=28, radius1=R0 + 0.18, radius2=R0 + 0.1, depth=0.34, matrix=Matrix.Translation((0, 0, 0.12))); make('DwellingBase', bm, [ROCK])
 bm = bmesh.new()
 for k, (a, z) in enumerate([(0.9, 1.3), (2.5, 1.5), (-0.9, 1.35), (3.8, 1.2)]):                  # round glowing windows set into the walls
     r = R0 * (1 - (z / H) ** 2.1) ** 0.5; ball(bm, (math.cos(a) * (r + 0.02), math.sin(a) * (r + 0.02) * 0.92, z), 0.2, sc=(0.3, 0.3, 1), seg=12, rings=6, rot=(math.pi / 2, 0, a - math.pi / 2))
@@ -91,7 +91,7 @@ make('DwellingGlow', bm, [GLOW])
 # ---------------------------------------------------------------- DwellingRuin: the same dome, a third of it left standing, ribs snapped, rubble fanned out
 shell = dome_bm(R0, H, wobble=0.04, bite=lambda c: (c.x + 0.3 * c.y > 0.15 and c.z > 0.5 + 0.5 * math.sin(c.y * 3)) or (c.y > 1.4 and c.z > 0.8))
 make('DwellingRuin', shell, [CHAR])
-d = bpy.data.objects['DwellingRuin']; so = d.modifiers.new('Solid', 'SOLIDIFY'); so.thickness = 0.14; so.offset = -1; sb = d.modifiers.new('S', 'SUBSURF'); sb.levels = 1; sb.render_levels = 1
+d = bpy.data.objects['DwellingRuin']; so = d.modifiers.new('Solid', 'SOLIDIFY'); so.thickness = 0.14; so.offset = -1
 bm = bmesh.new()
 for k in range(5):                                                  # a few snapped ribs still standing, jagged at the break
     a = math.pi * (0.9 + k * 0.25)

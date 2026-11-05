@@ -256,7 +256,7 @@ export class Intro {
       case 'gas': this.updateGas(dt); break;
       default:
     }
-    if (g.touchUI) g.touchUI.setAbsorb(!!this.actLabel, this.actLabel || 'ABSORB');
+    if (g.touchUI) { g.touchUI.setAbsorb(!!this.actLabel, this.actLabel || 'ABSORB'); g.input.absorbTap = false; }   // a held story button must not fire an absorb afterwards
     this.actLabel = null;
   }
 

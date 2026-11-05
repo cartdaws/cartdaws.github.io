@@ -53,35 +53,35 @@ def make(name, bm, material, smooth=True):
 # ---------------------------------------------------------------- Spire: a living tower, ribbed, curving, with splayed roots at the base and a few small side branches near the top
 bm = bmesh.new()
 trunk = [(0, 0, 0), (0.07, 0.03, 1.2), (-0.06, 0.1, 2.6), (0.09, 0.05, 4.0), (0.02, -0.04, 5.2)]
-tube(bm, trunk, lambda t: 0.34 * (1 - t) ** 1.25 + 0.03 + 0.016 * math.sin(t * 46) * (1 - t) + 0.05 * max(0, 0.18 - t) * 6, ring_seg=14, samples=70)
+tube(bm, trunk, lambda t: 0.34 * (1 - t) ** 1.25 + 0.03 + 0.016 * math.sin(t * 46) * (1 - t) + 0.05 * max(0, 0.18 - t) * 6, ring_seg=8, samples=26)
 for k in range(5):                                           # root buttresses spreading across the ground and growing into the trunk
     a = k * 2 * math.pi / 5 + 0.3
     tube(bm, [(math.cos(a) * 0.62, math.sin(a) * 0.62, 0.0), (math.cos(a) * 0.4, math.sin(a) * 0.4, 0.18), (math.cos(a) * 0.2, math.sin(a) * 0.2, 0.6), (0.04, 0.02, 1.1)],
-         lambda t: 0.1 * (1 - t) ** 0.8 + 0.025, ring_seg=8, samples=14, cap_tip=False)
+         lambda t: 0.1 * (1 - t) ** 0.8 + 0.025, ring_seg=6, samples=6, cap_tip=False)
 for h, a, ln in [(3.3, 0.4, 0.8), (3.9, 2.9, 0.65), (4.5, 5.0, 0.5)]:                 # side branches
     ox, oy = 0.06 * math.sin(h), 0.07
     d = Vector((math.cos(a), math.sin(a), 0.55)).normalized()
-    p0 = Vector((ox, oy, h)); tube(bm, [p0, p0 + d * ln * 0.5 + Vector((0, 0, 0.12)), p0 + d * ln + Vector((0, 0, 0.3))], lambda t: 0.05 * (1 - t) + 0.01, ring_seg=7, samples=12)
+    p0 = Vector((ox, oy, h)); tube(bm, [p0, p0 + d * ln * 0.5 + Vector((0, 0, 0.12)), p0 + d * ln + Vector((0, 0, 0.3))], lambda t: 0.05 * (1 - t) + 0.01, ring_seg=5, samples=5)
 make('Spire', bm, MOSS)
-bm = bmesh.new(); ball(bm, (0.02, -0.04, 5.25), 0.1, sc=(1, 1, 1.6), seg=12, rings=8)
+bm = bmesh.new(); ball(bm, (0.02, -0.04, 5.25), 0.1, sc=(1, 1, 1.6), seg=8, rings=6)
 for h, a, ln in [(3.3, 0.4, 0.8), (3.9, 2.9, 0.65), (4.5, 5.0, 0.5)]:
-    d = Vector((math.cos(a), math.sin(a), 0.55)).normalized(); p0 = Vector((0.06 * math.sin(h), 0.07, h)); ball(bm, p0 + d * ln + Vector((0, 0, 0.32)), 0.045, seg=8, rings=6)
+    d = Vector((math.cos(a), math.sin(a), 0.55)).normalized(); p0 = Vector((0.06 * math.sin(h), 0.07, h)); ball(bm, p0 + d * ln + Vector((0, 0, 0.32)), 0.045, seg=5, rings=4)
 make('SpireTip', bm, GLOW)
 
 # ---------------------------------------------------------------- Stalk: a stem with three curling fronds and a glowing bulb ringed by small beads
 bm = bmesh.new()
-tube(bm, [(0, 0, 0), (0.05, 0.02, 0.35), (0.02, 0.06, 0.7), (-0.04, 0.05, 0.95)], lambda t: 0.02 * (1 - t * 0.6), ring_seg=7, samples=22)
+tube(bm, [(0, 0, 0), (0.05, 0.02, 0.35), (0.02, 0.06, 0.7), (-0.04, 0.05, 0.95)], lambda t: 0.02 * (1 - t * 0.6), ring_seg=5, samples=8)
 for k in range(3):
     a = k * 2 * math.pi / 3 + 0.5
-    tube(bm, [(0.02, 0.02, 0.25), (math.cos(a) * 0.14, math.sin(a) * 0.14, 0.4), (math.cos(a) * 0.3, math.sin(a) * 0.3, 0.42), (math.cos(a) * 0.42, math.sin(a) * 0.42, 0.3)], lambda t: 0.012 * (1 - t) + 0.003, ring_seg=5, samples=12)
+    tube(bm, [(0.02, 0.02, 0.25), (math.cos(a) * 0.14, math.sin(a) * 0.14, 0.4), (math.cos(a) * 0.3, math.sin(a) * 0.3, 0.42), (math.cos(a) * 0.42, math.sin(a) * 0.42, 0.3)], lambda t: 0.012 * (1 - t) + 0.003, ring_seg=3, samples=5)
 make('Stalk', bm, MOSS)
-bm = bmesh.new(); ball(bm, (-0.04, 0.05, 1.0), 0.058, sc=(1, 1, 1.15), seg=12, rings=8)
+bm = bmesh.new(); ball(bm, (-0.04, 0.05, 1.0), 0.058, sc=(1, 1, 1.15), seg=8, rings=5)
 for k in range(6):
-    a = k * math.pi / 3; ball(bm, (-0.04 + math.cos(a) * 0.085, 0.05 + math.sin(a) * 0.085, 0.96), 0.016, seg=6, rings=5)
+    a = k * math.pi / 3; ball(bm, (-0.04 + math.cos(a) * 0.085, 0.05 + math.sin(a) * 0.085, 0.96), 0.016, seg=4, rings=3)
 make('StalkBulb', bm, GLOW)
 
 # ---------------------------------------------------------------- Rock: a weathered boulder, flat at the bottom, with fissures and a couple of low ledges
-bm = bmesh.new(); bmesh.ops.create_icosphere(bm, subdivisions=4, radius=0.5)
+bm = bmesh.new(); bmesh.ops.create_icosphere(bm, subdivisions=3, radius=0.5)
 for v in bm.verts:
     p = v.co
     n = (math.sin(p.x * 9 + 1.3) + math.sin(p.y * 7 + 0.4) + math.sin(p.z * 11) + 0.6 * math.sin(p.x * 23 + p.y * 17) + 0.4 * math.sin(p.z * 31 + p.x * 13)) * 0.04

@@ -136,7 +136,7 @@ def blobs(name, items, material, col=None):
     """items: (centre, radii, rot). Many small ellipsoids in one mesh."""
     me = bpy.data.meshes.new(name); bm = bmesh.new()
     for (c, r, rot) in items:
-        bmesh.ops.create_uvsphere(bm, u_segments=10, v_segments=7, radius=1.0, matrix=Matrix.Translation(c) @ Euler(rot).to_matrix().to_4x4() @ Matrix.Diagonal((r[0], r[1], r[2], 1.0)))
+        bmesh.ops.create_uvsphere(bm, u_segments=6, v_segments=4, radius=1.0, matrix=Matrix.Translation(c) @ Euler(rot).to_matrix().to_4x4() @ Matrix.Diagonal((r[0], r[1], r[2], 1.0)))
     bm.to_mesh(me); bm.free(); return put(name, me, material, col=col)
 
 # ---------------------------------------------------------------- mantle: a large soft sac, tilted back, heavy and rounded
@@ -174,7 +174,7 @@ for sx in (-1, 1):
     bm.to_mesh(me); bm.free()
     f = put(f'Fin{sx}', me, M['SkinBody'])
     so = f.modifiers.new('So', 'SOLIDIFY'); so.thickness = 0.02; so.offset = 0.0
-    sb = f.modifiers.new('S', 'SUBSURF'); sb.levels = 2; sb.render_levels = 2
+    sb = f.modifiers.new('S', 'SUBSURF'); sb.levels = 1; sb.render_levels = 1
 
 # ---------------------------------------------------------------- head: a heavy rounded mass hanging forward below the mantle; the mantle sits on it like a hood
 ellipsoid('Head', (0, 0.3, 0.98), (0.34, 0.36, 0.32), M['SkinBody'])

@@ -15,18 +15,20 @@ const PLANET = new THREE.Vector3(-300, -1500, 900); // the homeworld, below and 
 const _m4 = new THREE.Matrix4();
 const q = new THREE.Quaternion(), e = new THREE.Euler(), _v = new THREE.Vector3(), _f = new THREE.Vector3(), _u = new THREE.Vector3(), _r = new THREE.Vector3();
 
+const _glowCache = new Map();
 function glowTex(inner = 'rgba(255,255,255,1)', outer = 'rgba(255,255,255,0)') {
+  if (_glowCache.has(inner + outer)) return _glowCache.get(inner + outer);
   const c = document.createElement('canvas'); c.width = c.height = 64;
   const g = c.getContext('2d'), gr = g.createRadialGradient(32, 32, 1, 32, 32, 32);
   gr.addColorStop(0, inner); gr.addColorStop(0.35, 'rgba(255,255,255,0.5)'); gr.addColorStop(1, outer);
   g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; _glowCache.set(inner + outer, t); return t;
 }
 
 // The sky: a deep field with a Milky Way band and soft nebulae in the game's own teal and violet. Painted once on a canvas.
-function skyTexture() {
-  const W = 4096, H = 2048, c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d');
+function skyTexture(small = false) {
+  const W = 4096, H = 2048, k = small ? 0.5 : 1, c = document.createElement('canvas'); c.width = W * k; c.height = H * k;
+  const g = c.getContext('2d'); g.scale(k, k);        // painted in the same coordinates at either size; a phone gets a quarter of the texture memory
   g.fillStyle = '#03050c'; g.fillRect(0, 0, W, H);
   let sd = 4242; const R = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
   g.globalCompositeOperation = 'lighter';
@@ -209,9 +211,9 @@ export class Flight {
     game.scene.add(this.group);
 
     // the sky sphere and the stars follow the camera so they never get closer
-    this.sky = new THREE.Mesh(new THREE.SphereGeometry(7600, 48, 24), new THREE.MeshBasicMaterial({ map: skyTexture(), side: THREE.BackSide, depthWrite: false, fog: false, toneMapped: false, color: 0x8c96ac }));
+    this.sky = new THREE.Mesh(new THREE.SphereGeometry(7600, 48, 24), new THREE.MeshBasicMaterial({ map: skyTexture(game.touchMode), side: THREE.BackSide, depthWrite: false, fog: false, toneMapped: false, color: 0x8c96ac }));
     this.sky.frustumCulled = false; this.sky.rotation.set(0.4, 1.2, 0.2); this.sky.renderOrder = -10; this.group.add(this.sky);
-    const N = 4200, p = new Float32Array(N * 3), col = new Float32Array(N * 3), size = new Float32Array(N), br = new Float32Array(N);
+    const N = game.touchMode ? 2200 : 4200, p = new Float32Array(N * 3), col = new Float32Array(N * 3), size = new Float32Array(N), br = new Float32Array(N);
     for (let i = 0; i < N; i++) {
       const u = Math.random() * 2 - 1, an = Math.random() * 6.283, r = Math.sqrt(1 - u * u), d = 7000;
       p[i * 3] = Math.cos(an) * r * d; p[i * 3 + 1] = u * d; p[i * 3 + 2] = Math.sin(an) * r * d;
@@ -338,7 +340,7 @@ export class Flight {
       const tex = new THREE.CanvasTexture(cc); tex.colorSpace = THREE.SRGBColorSpace;
       const cols = [0x2aa89a, 0x7850c8, 0x3c78d2, 0xbe50aa, 0x30c0b0];
       this.clouds = new THREE.Group(); this.group.add(this.clouds);
-      for (let i = 0; i < 46; i++) {
+      for (let i = 0; i < (game.touchMode ? 16 : 46); i++) {          // huge transparent sprites are the costliest thing a phone GPU can draw
         const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: cols[i % 5], transparent: true, opacity: 0.05 + Math.random() * 0.09, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
         const z = -250 - Math.random() * 5700, side = Math.random() < 0.5 ? -1 : 1;
         sp.position.set(700 * (z / -5700) * 0.9 + side * (600 + Math.random() * 1800), (Math.random() - 0.5) * 1500, z);
@@ -390,6 +392,7 @@ export class Flight {
     this.camQuat.setFromRotationMatrix(_m4.lookAt(this.camPos, _v.set(6 + Math.sin(t * 0.04) * 1.5, -1.2 + Math.sin(t * 0.09) * 0.5, 0), _u.set(0, 1, 0)));
     this.ship.position.set(0, Math.sin(t * 0.6) * 0.25, 0); this.ship.rotation.set(Math.sin(t * 0.4) * 0.03, 0.18 + Math.sin(t * 0.13) * 0.08, Math.sin(t * 0.5) * 0.05);
     this.stars.position.copy(this.camPos); this.sky.position.copy(this.camPos); this.starMat.uniforms.uTime.value = t;
+    this.starMat.uniforms.uScale.value = this.g.renderer.getPixelRatio();
     this.vessel.userData.ring.rotation.z += dt * 0.05; this.fires.material.opacity = 0.6 + 0.3 * Math.sin(t * 3);
     for (const sp of this.ship.userData.engines) sp.scale.setScalar(1.4 + Math.sin(t * 9) * 0.1);
   }
@@ -435,7 +438,7 @@ export class Flight {
     // engine trails
     this.trailT -= dt;
     if (this.trailT <= 0) {
-      this.trailT = boost ? 0.02 : 0.05;
+      this.trailT = (boost ? 0.02 : 0.05) * (this.g.touchMode ? 2.5 : 1);
       for (const e of this.ship.userData.engines) {
         _v.copy(e.position).applyQuaternion(this.ship.quaternion).add(this.ship.position);
         this.combat.burst(_v, boost ? 0xb8f4ff : 0x8fe8ff, 1, 0, boost ? 0.95 : 0.55, 0.3, -0.6);
@@ -478,6 +481,7 @@ export class Flight {
     const g = this.g;
     this.t += dt;
     this.stars.position.copy(this.camPos); this.sky.position.copy(this.camPos); this.starMat.uniforms.uTime.value = this.t;
+    this.starMat.uniforms.uScale.value = this.g.renderer.getPixelRatio();
     this.belt.rotation.y += dt * 0.004; if (this.moon) this.moon.rotation.y += dt * 0.02;
     const live = input.locked && this.phase !== 'docked' && !this.docking && !this.dying;
 

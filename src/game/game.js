@@ -62,6 +62,8 @@ export class Game {
     this.effects = new Effects(this.scene);
     this.audio = new Audio();
     this.ui = new UI();
+    // phones reclaim graphics memory when they run short; say so and offer a reload instead of leaving a frozen black screen (progress is saved)
+    canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); window.__intruderFail && window.__intruderFail('The phone ran out of graphics memory.', true); });
     this.input = new Input(canvas);
     this.input.fake = location.search.includes('nolock');
     this.touchMode = isTouchDevice();
@@ -285,8 +287,21 @@ export class Game {
     try { localStorage.setItem('intruder-settings', JSON.stringify({ volume: this.audio.volume, sens: this.sens, gfx: this.gfx })); } catch (e) { /* ignore */ }
   }
 
+  // Keep a phone's screen awake while playing, and bring the sound back if the system interrupted it.
+  keepAwake() {
+    if (!this.touchMode) return;
+    const ask = () => { try { navigator.wakeLock?.request?.('screen').catch?.(() => {}); } catch (e) { /* optional */ } };
+    ask();
+    if (!this.awakeHooked) {
+      this.awakeHooked = true;
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) ask(); });
+      document.addEventListener('pointerup', () => { const c = this.audio.ctx; if (c && c.state !== 'running' && !this.paused) c.resume?.().catch?.(() => {}); }, { passive: true });
+    }
+  }
+
   // ---------- flow ----------
   play() {
+    this.keepAwake();
     if (progress.introDone) { this.continueGame(); return; }
     this.audio.init();
     if (this.touchMode) enterImmersive();
@@ -713,15 +728,37 @@ export class Game {
     c.updateMatrixWorld();
   }
 
+  // Static map chunks beyond the view are not drawn at all. Far past what the fog shows, and it also hides the whole facility while you are on the
+  // homeworld or in space. A mesh cannot be seen at a distance the fog has already swallowed, so this changes nothing on screen.
+  cullChunks() {
+    this.chunkT = (this.chunkT || 0) - 1;
+    if (this.chunkT > 0) return;
+    this.chunkT = 10;
+    const p = this.camera.position, view = this.gfx === 'retro' ? 62 : this.touchMode ? 95 : 170;
+    const list = [this.level.merged, this.run && this.run.merged];
+    for (const L of list) {
+      if (!L) continue;
+      for (const m of L) { const s = m.geometry.boundingSphere; m.visible = s.center.distanceTo(p) - s.radius < view; }
+    }
+    // machines in a room you have not reached yet are behind closed doors: no need to draw their many parts until you are close
+    const near = this.encounter.state === 'waiting' ? Math.min(view, 30) : view;
+    for (const e of this.enemies) if (e.alive && e.group) e.group.visible = e.group.position.distanceTo(p) < near;
+  }
+
   // GPUs only allow so many light uniforms per shader. Keep a constant number of point lights switched on: the nearest ones that are actually lit.
   // (A constant count means swapping lights never forces a shader recompile.)
   cullLights() {
     const MAX = this.maxLights;
-    if (!this.lightList) { this.lightList = []; this.scene.traverse((o) => { if (o.isPointLight) this.lightList.push(o); }); }
+    // lights come and go (a new run, the wreck, the boarding), so the list is refreshed regularly rather than built once
+    this.lightT = (this.lightT || 0) - 1;
+    if (!this.lightList || this.lightT <= 0) { this.lightT = 90; this.lightList = []; this.scene.traverse((o) => { if (o.isPointLight) this.lightList.push(o); }); }
     const p = this.camera.position;
-    const score = (l) => (l.userData.keepOn ? -1e9 : (l.intensity > 0.5 ? l.position.distanceToSquared(p) : 1e9 + l.position.distanceToSquared(p)));
-    const sorted = this.lightList.slice().sort((a, b) => score(a) - score(b));
-    for (let i = 0; i < sorted.length; i++) sorted[i].visible = i < MAX;
+    // a light inside a hidden group (the homeworld while on the ship, say) costs nothing and must not use up the budget
+    const live = (l) => { for (let q = l.parent; q; q = q.parent) if (!q.visible) return false; return true; };
+    const dist = (l) => { const e = l.matrixWorld.elements, x = e[12] - p.x, y = e[13] - p.y, z = e[14] - p.z; return x * x + y * y + z * z; };
+    const rows = this.lightList.map((l) => ({ l, live: live(l), s: l.userData.keepOn ? -1e9 : (l.intensity > 0.5 ? dist(l) : 1e9 + dist(l)) }));
+    rows.sort((a, b) => (a.live === b.live ? a.s - b.s : a.live ? -1 : 1));
+    for (let i = 0; i < rows.length; i++) rows[i].l.visible = i < MAX;
   }
 
   render(dt) {
@@ -763,6 +800,7 @@ export class Game {
         r.updateMatrixWorld(true);
       }
     }
+    this.cullChunks();
     this.cullLights();
     this.post.render(dt, this.time);
   }

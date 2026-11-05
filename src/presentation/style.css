@@ -1131,3 +1131,15 @@ body.touch #banner { font-size: 16px; }
 #touch.flight #t-dash::after { content: 'BOOST'; font-size: 12px; }
 #touch.flight #t-absorb { display: block !important; opacity: 1 !important; }
 #touch.flight #t-absorb::after { content: 'BARBS'; font-size: 12px; }
+
+/* phones: controls and readouts must not sit on top of each other */
+#touch.no-fire #t-arms, body.one-form #t-arms { display: none !important; }
+body.touch .fh-keys { display: none; }
+body.touch .fh-r { top: 66px; right: 16px; bottom: auto; }
+body.touch .fh-r b { font-size: 18px; }
+body.touch .fh-l { left: 18px; bottom: 14px; }
+body.touch .fh-l b { font-size: 18px; }
+body.touch .fh-l i { width: 90px; }
+body.touch .fh-w { top: 38px; bottom: auto; font-size: 9px; letter-spacing: .14em; }
+body.touch .fh-alert { top: 40px; }
+#pwa-tip { position: absolute; right: 16px; bottom: 12px; max-width: 46vw; text-align: right; font-size: 10px; letter-spacing: .08em; line-height: 1.5; color: #8fd6e6; opacity: .75; pointer-events: none; }
