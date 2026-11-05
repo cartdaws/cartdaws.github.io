@@ -30,8 +30,9 @@ const STEP = 1 / 60;
 const BASE_FOV = 78;
 
 export class Game {
-  constructor(canvas, armGeos, kit, handAsset, homeAsset) {
+  constructor(canvas, armGeos, kit, handAsset, homeAsset, creatureAsset) {
     this.homeAsset = homeAsset;
+    this.elderKit = { creature: creatureAsset, hand: handAsset };
     this.canvas = canvas;
     this.kit = kit;
     this.arena = ARENA;

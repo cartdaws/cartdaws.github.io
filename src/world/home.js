@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { makeSkin, skinParams } from '../creature/skin.js';
 import { makeShifter } from '../creature/palette.js';
 import { defaults } from '../creature/definition.js';
+import { buildElder } from './elder.js';
 
 // The homeworld memory: a small, composed place built from Blender assets (art/build_home.py -> public/models/home.glb).
 // It sits far from the ship (HOME) with its own sky, light and fog, which are swapped in while the memory plays.
@@ -31,7 +32,7 @@ function canvasTex(w, h, draw, repeat) {
 }
 
 export class HomeWorld {
-  constructor(scene, asset, def = defaults()) {
+  constructor(scene, asset, def = defaults(), kit = null) {
     this.scene = scene;
     const S = SHIFT = makeShifter(def);
     const R = rng(4242);
@@ -127,13 +128,19 @@ export class HomeWorld {
     const gel = makeSkin({ ...skinParams(def, 'body'), pattern: 'none' });
     const core = new THREE.MeshBasicMaterial({ color: new THREE.Color(def.skin.glow).lerp(new THREE.Color(0xffffff), 0.7), transparent: true, opacity: 0.92 });
     const swap = (o) => { o.traverse((m) => { if (m.isMesh) { const nm = (m.material && m.material.name) || ''; m.material = nm === 'GelCore' ? core : gel; m.frustumCulled = false; } }); return o; };
-    this.elder = new THREE.Group();
-    this.elderBody = swap(node('Elder_Body').clone(true));
-    this.elderArm = swap(node('Elder_Arm').clone(true));
-    this.elder.add(this.elderBody, this.elderArm);
+    if (kit && kit.creature && kit.hand) {
+      // an elder of the player's own kind: the same body, skin, legs, arm and hand, with small differences of age
+      const E = buildElder(kit.creature, kit.hand, def);
+      this.elder = E.root; this.elderBody = E.body; this.elderArm = E.arm; this.elderArmL = E.armL; this.elderCore = E.core; this.elderTip = E.tipLocal; this.elderNew = true;
+    } else {
+      this.elder = new THREE.Group();
+      this.elderBody = swap(node('Elder_Body').clone(true));
+      this.elderArm = swap(node('Elder_Arm').clone(true));
+      this.elder.add(this.elderBody, this.elderArm);
+      this.elderCore = core;
+    }
     this.elder.position.set(ELDER_AT.x, 0, ELDER_AT.z);
     this.group.add(this.elder);
-    this.elderCore = core;
     this.eState = { yaw: 0, reach: 0, step: 0, breath: 0, alert: 0, pulse: 0, fear: 0 };
 
     // ---- sky: gradient dome with stars, a ring overhead, two moons
@@ -228,6 +235,7 @@ export class HomeWorld {
     E.breath += dt;
     const br = 1 + Math.sin(E.breath * 1.4) * 0.014;
     this.elderBody.scale.set(1 / Math.sqrt(br), br, 1 / Math.sqrt(br));
+    if (this.elderNew) this.elderBody.scale.multiplyScalar(1);
     this.elderBody.rotation.z = Math.sin(E.breath * 0.6) * 0.012 - E.fear * 0.12;
     this.elderBody.rotation.x = -E.fear * 0.18;                       // flinches back when the shadow comes
     el.position.y = 0;
@@ -235,7 +243,11 @@ export class HomeWorld {
     const r = E.reach;
     this.elderArm.rotation.x = -(1 - r) * 1.15 + Math.sin(E.breath * 1.4 + 1) * 0.015 - E.fear * 0.5;
     this.elderArm.rotation.y = (1 - r) * -0.25;
-    this.elderArm.position.y = 1.78 + Math.sin(E.breath * 1.4) * 0.01;
+    if (this.elderNew) {
+      this.elderArm.position.y = this.elderArm.userData.y0 + Math.sin(E.breath * 1.4) * 0.01;
+      this.elderArmL.rotation.x = -1.3 + Math.sin(E.breath * 1.1) * 0.03 - E.fear * 0.35;
+      this.elderArmL.rotation.z = 0.1;
+    } else this.elderArm.position.y = 1.78 + Math.sin(E.breath * 1.4) * 0.01;
     this.elderCore.opacity = 0.7 + 0.2 * Math.sin(E.breath * 1.8) + E.pulse * 0.3;
     E.pulse = Math.max(0, E.pulse - dt * 1.4);
     return dist;
@@ -243,7 +255,7 @@ export class HomeWorld {
 
   palmWorld(out) {
     this.elder.updateMatrixWorld(true);
-    return this.elderArm.localToWorld(out.set(0, 0.04, -0.98));
+    return this.elderArm.localToWorld(this.elderTip ? out.copy(this.elderTip) : out.set(0, 0.04, -0.98));
   }
 
   update(dt, t, camPos) {

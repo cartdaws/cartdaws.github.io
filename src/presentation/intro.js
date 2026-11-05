@@ -45,7 +45,7 @@ export class Intro {
     this.h = 0;                // hold progress
     this.granted = false;
     this.tentReset();
-    this.home = new HomeWorld(game.scene, game.homeAsset, save.creature);
+    this.home = new HomeWorld(game.scene, game.homeAsset, save.creature, game.elderKit);
     this.buildCuffs();
     this.buildLock();
     this.buildBarrier();
@@ -109,7 +109,7 @@ export class Intro {
   // the homeworld is painted in the creature's palette: rebuilt whenever the confirmed design changes
   rebuildHome() {
     const was = this.home; if (was.shown) was.show(false);
-    was.dispose(); this.home = new HomeWorld(this.g.scene, this.g.homeAsset, save.creature);
+    was.dispose(); this.home = new HomeWorld(this.g.scene, this.g.homeAsset, save.creature, this.g.elderKit);
   }
 
   // everything back to the pre-breach state
