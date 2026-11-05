@@ -162,8 +162,8 @@ export class ViewModel {
     key.position.set(0.6, 0.9, 0.5);
     this.root.add(key);
 
-    this.skinGel = makeHandGel({ color: 0x0d6560, rim: 0x7fe8da, alpha: 0.58 });
-    this.barrelGel = makeHandGel({ color: 0x118078, rim: 0xb8fff4, alpha: 0.5 });
+    this.skinGel = makeHandGel({ color: 0x0e1c2c, rim: 0x48dccb, alpha: 0.64 });
+    this.barrelGel = makeHandGel({ color: 0x0f2230, rim: 0x6fe8d8, alpha: 0.55 });
     this.coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8f86 });
     this.maw = new THREE.MeshBasicMaterial({ color: 0x8ff5e6 });
     this.crystalMat = new THREE.MeshBasicMaterial({ color: 0xb8fff6 });
@@ -228,7 +228,7 @@ export class ViewModel {
     this.wasAir = air;
     this.landK = damp(this.landK || 0, 0, 7, dt);
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
-    this.skinGel.uniforms.uAlpha.value = lerp(0.58, 0.16, this.xray);
+    this.skinGel.uniforms.uAlpha.value = lerp(0.62, 0.16, this.xray);
 
     this.swayX = damp(this.swayX, clamp(-ctx.lookX * 0.0012, -0.06, 0.06), 7, dt);
     this.swayY = damp(this.swayY, clamp(ctx.lookY * 0.0012, -0.06, 0.06), 7, dt);

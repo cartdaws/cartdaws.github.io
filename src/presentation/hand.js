@@ -8,6 +8,13 @@ export async function loadHand() {
   const nodes = {};
   gltf.scene.traverse((o) => { if (o.isMesh) nodes[o.name] = o; });
   for (const n of ['Hand', 'Core', 'PalmCore', 'Gland', 'Barrel', 'Maw', 'Tooth']) if (!nodes[n]) throw new Error('hand.glb is missing ' + n);
+  // the survivor's redesigned arm and hand (art/build_hand2.py): same frame and same four shape keys, so the weapon organs and the code still fit
+  try {
+    const g2 = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/hand2.glb');
+    let mesh = null; g2.scene.traverse((o) => { if (o.isMesh && o.name === 'Hand') mesh = o; });
+    const d = mesh && mesh.morphTargetDictionary;
+    if (mesh && d && d.Grip !== undefined && d.Weapon !== undefined && d.Spread !== undefined && d.Swell !== undefined) nodes.Hand = mesh;
+  } catch (e) { /* the original hand stays */ }
   return nodes;
 }
 
