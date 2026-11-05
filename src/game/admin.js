@@ -18,7 +18,9 @@ const CSS = `
 #admin .row { display: flex; gap: 6px; } #admin .row > * { flex: 1; }
 #admin .msg { min-height: 14px; margin-top: 8px; color: #ffd27a; font-size: 11px; }
 .code-in { position: absolute; left: 18px; bottom: 16px; width: 74px; padding: 4px 6px; font: 11px 'Segoe UI', system-ui, sans-serif; letter-spacing: 0.3em; color: #8fc4d0;
-  background: transparent; border: 0; border-bottom: 1px solid rgba(143, 196, 208, 0.25); opacity: 0.35; text-align: center; outline: none; }
+  background: rgba(10, 30, 36, 0.5); border: 1px solid rgba(143, 196, 208, 0.45); opacity: 0.75; text-align: center; outline: none; }
+body.touch .code-in { width: 96px; padding: 8px 6px; font-size: 13px; }
+.build-tag { position: absolute; right: 18px; top: 12px; font: 10px 'Segoe UI', system-ui, sans-serif; letter-spacing: 0.2em; color: #8fc4d0; opacity: 0.7; }
 .code-in:focus { opacity: 0.9; }
 `;
 
@@ -47,7 +49,7 @@ export class Admin {
       const host = document.getElementById(id);
       if (!host) continue;
       const inp = document.createElement('input');
-      inp.className = 'code-in'; inp.type = 'password'; inp.placeholder = 'CODE'; inp.maxLength = 8; inp.autocomplete = 'off';
+      inp.className = 'code-in'; inp.type = 'password'; inp.inputMode = 'numeric'; inp.placeholder = 'CODE'; inp.maxLength = 8; inp.autocomplete = 'off';
       inp.addEventListener('input', () => { if (inp.value === CODE) { inp.value = ''; this.setUnlocked(true); } });
       inp.addEventListener('keydown', (e) => e.stopPropagation());
       host.appendChild(inp);

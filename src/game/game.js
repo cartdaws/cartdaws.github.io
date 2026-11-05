@@ -205,6 +205,10 @@ export class Game {
   bind() {
     const ui = this.ui, input = this.input;
     $('btn-play').onclick = () => this.play();
+    const tag = document.createElement('div');
+    tag.className = 'build-tag';
+    tag.textContent = `BUILD ${typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'DEV'} UTC`;
+    $('menu-start').appendChild(tag);
     // start menu: CONTINUE skips the introduction once it has been seen; NEW GAME plays it again
     const bnew = $('btn-new');
     if (progress.introDone) { bnew.classList.remove('hidden'); $('btn-play').querySelector('span').textContent = 'CONTINUE'; }
