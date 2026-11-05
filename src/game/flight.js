@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { clamp, damp, lerp, smooth, seg } from '../core/util.js';
 import { FlightCombat } from './flightCombat.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // FREE FLIGHT. After the humans burn the homeworld, the survivor takes the human lander and flies it out of orbit, across open space, to the research
 // vessel where the humans keep their captives. Everything here lives in its own group far from the facility; entering swaps the sky and fog, leaving
@@ -78,7 +79,34 @@ function planetTexture() {
 }
 
 // The human lander: used both as the wreck on the planet and as the player's ship in flight. Length about 7 m, nose along -Z.
+// The authored lander (art/build_lander.py -> public/models/lander.glb). Nose along -Z. If the model is unavailable the procedural stand-in below is used.
+let LANDER = null;
+export async function loadLander() {
+  const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/lander.glb');
+  LANDER = gltf.scene;
+  LANDER.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+}
+function landerFromAsset() {
+  const g = new THREE.Group();
+  const model = LANDER.clone(true); g.add(model);
+  g.userData.screens = []; g.userData.gear = []; g.userData.engines = [];
+  const exhausts = [];
+  model.traverse((o) => {
+    if (!o.isMesh) return;
+    if (o.material && !o.name.startsWith('Screen')) o.material = o.material.clone();
+    if (/^Screen/.test(o.name)) { const c = o.material.emissive ? o.material.emissive.clone() : new THREE.Color(0x6fe8ff); o.material = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.35 }); g.userData.screens.push(o); }
+    if (/^Gear/.test(o.name)) g.userData.gear.push(o);
+    if (/Exhaust/.test(o.name)) exhausts.push(o);
+  });
+  // the engine glow: a soft additive flare on each exhaust, the same device the placeholder used
+  for (const e of exhausts) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(150,230,255,1)'), color: 0x8fe8ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    s.position.copy(e.position).add(new THREE.Vector3(0, 0, 0.35)); s.scale.setScalar(1.6); g.add(s); g.userData.engines.push(s);
+  }
+  return g;
+}
 export function makeLander() {
+  if (LANDER) return landerFromAsset();
   const g = new THREE.Group();
   const hull = new THREE.MeshStandardMaterial({ color: 0x8d979c, roughness: 0.55, metalness: 0.65 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x2b3238, roughness: 0.7, metalness: 0.5 });
@@ -247,6 +275,7 @@ export class Flight {
 
     // the player's ship
     this.ship = makeLander(); this.ship.scale.setScalar(1); this.group.add(this.ship);
+    for (const n of this.ship.userData.gear || []) n.visible = false;      // the gear is up in flight
     this.pos = new THREE.Vector3(); this.quat = new THREE.Quaternion(); this.speed = 0; this.throttle = 0.5;
     this.yawRate = 0; this.pitchRate = 0; this.roll = 0; this.camPos = new THREE.Vector3(); this.camQuat = new THREE.Quaternion();
     this.shake = 0; this.t = 0; this.phase = 'off'; this.docking = null; this.hull = 100;

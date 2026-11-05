@@ -422,7 +422,7 @@ export class Intro {
   buildWreck() {
     const g = this.g;
     if (this.wreck) return;
-    this.wreck = makeLander(); this.wreck.scale.setScalar(1.3);
+    this.wreck = makeLander(); this.wreck.scale.setScalar(1.1);
     this.wreck.traverse((m) => { if (m.isMesh && m.material && m.material.emissive) { m.material = m.material.clone(); m.material.emissive.lerp(new THREE.Color(0x3a5560), 0.7); m.material.emissiveIntensity = 0.9; } });
     this.wreck.position.set(HOME.x + WRECK_AT.x, 1.15, HOME.z + WRECK_AT.z); this.wreck.rotation.set(0.1, 0.55, -0.16);
     this.wreck.userData.engines.forEach((sp) => { sp.visible = false; });
@@ -509,7 +509,7 @@ export class Intro {
         const T = this.stepT, w = this.wreck, B = this.f.b, sc = w.userData.screens || [];
         // the cockpit seat, in world space, and the way the lander is facing
         w.updateMatrixWorld(true);
-        const seat = w.localToWorld(_v.set(0, 0.62, -0.45));
+        const seat = w.localToWorld(_v.set(0, 0.78, -0.9));
         const fwd = _l.set(0, 0, -1).applyQuaternion(w.quaternion);
         const yawL = Math.atan2(-fwd.x, -fwd.z), pitchL = Math.asin(clamp(fwd.y, -1, 1));
         const k = ease(T, 0, 2.5);
