@@ -64,6 +64,12 @@ export class Enemy {
     return false;
   }
 
+  // pushed back by a hit, in the direction the shot travelled
+  hitReact(dx, dz, dmg) {
+    const l = Math.hypot(dx, dz) || 1, k = 1 + dmg / 20;
+    this.vx += (dx / l) * k; this.vz += (dz / l) * k;
+  }
+
   disable() {
     if (this.disabled) return;
     this.disabled = true;

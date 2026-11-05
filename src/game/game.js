@@ -12,6 +12,7 @@ import { Shardcaster } from './shardcaster.js';
 import { Projectiles, raySphere } from './projectiles.js';
 import { RobotBug } from './enemies/robotBug.js';
 import { SentryDrone } from './enemies/sentryDrone.js';
+import { SecurityAndroid } from './enemies/android.js';
 import { Barrel } from './barrels.js';
 import { Encounter, EncounterState } from './encounter.js';
 import { ViewModel } from '../presentation/viewmodel.js';
@@ -178,7 +179,9 @@ export class Game {
   }
 
   makeEnemy(s) {
-    return s.type === 'bug' ? new RobotBug(this, s.x, s.z, s.variant) : new SentryDrone(this, s.x, s.z, s.variant);
+    if (s.type === 'android') return new SecurityAndroid(this, s.x, s.z, s.variant);
+    if (s.type === 'bug') return new RobotBug(this, s.x, s.z, s.variant);
+    return new SentryDrone(this, s.x, s.z, s.variant);
   }
 
   clearEnemies() {
@@ -485,12 +488,21 @@ export class Game {
     const killed = e.takeDamage(this.admin && this.admin.oneHit ? dmg * 100 : dmg, point);
     this.ui.hitMarker(killed);
     this.audio.play(killed ? 'kill' : 'hit', { vol: 1 });
+    if (killed) {
+      // a kill lands hard: a few frames of hit-stop, a jolt and a flash
+      this.hitStop = 0.06;
+      this.addShake(0.16);
+      this.effects.flashLight(point || e.centerPoint(), 0xffa040, 45, 0.18);
+    }
     return killed;
   }
 
   onPlayerHit(enemy, dmg, point) {
-    this.effects.hitSparks(point, enemy.kind === 'drone' ? [1, 0.7, 0.3] : [1, 0.8, 0.3], 9);
-    this.effects.glowP.emit(point.x, point.y, point.z, 0, 0, 0, 0.1, 0.3, 0.7, 1, 1);
+    this.effects.hitSparks(point, [1, 0.8, 0.3], 14);
+    this.effects.glowP.emit(point.x, point.y, point.z, 0, 0, 0, 0.12, 0.45, 0.7, 1, 1);
+    this.effects.flashLight(point, 0x9ff6ff, 14, 0.06);
+    const p = this.player.pos;
+    if (!enemy.disabled && !enemy.absorbing) enemy.hitReact?.(point.x - p.x, point.z - p.z, dmg);
     this.damageEnemy(enemy, dmg, point);
   }
 
@@ -539,6 +551,7 @@ export class Game {
     const raw = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     let ts = this.admin.timeScale;
+    if (this.hitStop > 0) { this.hitStop -= raw; ts *= 0.12; }
     if (this.state === 'dead' && !this.paused) {
       // a hit-stop, then the world slowly catches up while the body falls
       this.deathT += raw;
@@ -669,6 +682,8 @@ export class Game {
         c.rotation.z += Math.sin(this.shakeT * 1.1 + 4) * 0.01 * s;
       }
       if (this.flinch > 0 && !this.cinePose) { c.rotation.x -= this.flinch * 0.14; c.rotation.z += this.flinchRoll * this.flinch * 0.2; }
+      this.kick = damp(this.kick || 0, 0, 16, dt);
+      c.rotation.x += this.kick;
       if (this.state === 'dead') this.deathCamera(c);
       const sev = this.lowHealthSeverity();
       this.post.grade.uniforms.uHurt.value = sev;
