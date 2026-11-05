@@ -56,7 +56,7 @@ export class FlightCombat {
     this.shots = []; this.enemyShots = []; this.enemies = []; this.missiles = []; this.fx = [];
     this.cool = 0; this.barbCool = 0; this.kills = 0; this.wave = 0; this.alertT = 0;
     this.barbs = false; try { this.barbs = localStorage.getItem(BARB_KEY) === '1'; } catch (e) { /* none */ }
-    this.shotGeo = new THREE.CylinderGeometry(0.09, 0.09, 4.5, 6).rotateX(Math.PI / 2);
+    this.shotGeo = new THREE.CylinderGeometry(0.22, 0.22, 11, 8).rotateX(Math.PI / 2);
     this.shotMat = new THREE.MeshBasicMaterial({ color: 0x9fffe8, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.95, fog: false });
     this.hostMat = new THREE.MeshBasicMaterial({ color: 0xff5a3a, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.95, fog: false });
     this.barbGeo = new THREE.ConeGeometry(0.25, 2.2, 6).rotateX(-Math.PI / 2);
@@ -115,6 +115,7 @@ export class FlightCombat {
     // ---- shots
     for (let i = this.shots.length - 1; i >= 0; i--) {
       const s = this.shots[i]; s.life -= dt; s.mesh.position.addScaledVector(s.vel, dt);
+      if (Math.random() < 0.75) this.burst(s.mesh.position, 0x9fffe8, 1, 0, 2.2, 0.2, -0.5);   // a fading trail behind every bolt
       let dead = s.life <= 0;
       for (const e of this.enemies) if (!dead && e.mesh.position.distanceToSquared(s.mesh.position) < 14) { this.hit(e, 9, s.mesh.position); dead = true; }
       if (dead) { this.group.remove(s.mesh); this.shots.splice(i, 1); }
@@ -152,7 +153,7 @@ export class FlightCombat {
       if (e.cool <= 0 && d < 520 && _b.dot(_a) > 0.75 && !f.docking) {
         e.cool = 1.4 + Math.random() * 1.2;
         for (const sx of [-1, 1]) {
-          const mesh = new THREE.Mesh(this.shotGeo, this.hostMat); mesh.position.copy(e.mesh.position).add(_c.set(sx * 1.9, 0, -1).applyQuaternion(e.mesh.quaternion));
+          const mesh = new THREE.Mesh(this.shotGeo, this.hostMat); mesh.add(glow(0xff5a3a, 6)); mesh.position.copy(e.mesh.position).add(_c.set(sx * 1.9, 0, -1).applyQuaternion(e.mesh.quaternion));
           mesh.lookAt(_c.copy(mesh.position).add(_a)); this.group.add(mesh);
           const lead = _c.copy(f.pos).addScaledVector(_f, d / 330 * f.speed * 0.5).sub(mesh.position).normalize();
           mesh.lookAt(_b.copy(mesh.position).add(lead));
@@ -178,6 +179,8 @@ export class FlightCombat {
       const mesh = new THREE.Mesh(this.shotGeo, this.shotMat);
       mesh.position.copy(f.pos).add(_a.set(sx * 3.1, -0.1, -2.2).applyQuaternion(f.quat));
       mesh.quaternion.copy(f.quat); this.group.add(mesh);
+      { const gs = glow(0x7fffe0, 6.5); mesh.add(gs); }
+      this.burst(mesh.position, 0xc8fff4, 1, 0, 7, 0.08, 0.7);                   // muzzle flash at each gun
       this.shots.push({ mesh, vel: _f.clone().multiplyScalar(720 + f.speed), life: 1.5 });
     }
     g.audio.play('shot', { vol: 0.28 }); f.shake = Math.max(f.shake, 0.06);
@@ -197,7 +200,7 @@ export class FlightCombat {
   }
 
   hit(e, dmg, at) {
-    e.hp -= dmg; this.burst(at, 0xffd9a0, 8, 0.4); this.f.g.audio.play('hit', { vol: 0.3 });
+    e.hp -= dmg; this.burst(at, 0xffd9a0, 6, 0.4, 3.2, 0.3, 1.4); this.burst(at, 0xffe8c0, 1, 0, 9, 0.12, 1.2); this.f.hitMark = 0.18; this.f.g.audio.play('hit', { vol: 0.3 });
     if (e.hp <= 0) { this.explode(e); const i = this.enemies.indexOf(e); if (i >= 0) this.enemies.splice(i, 1); this.kills++; this.onKill(); }
   }
 

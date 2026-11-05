@@ -327,6 +327,33 @@ export class Flight {
       + '.fh-keys{position:absolute;left:50%;top:16px;transform:translateX(-50%);display:flex;gap:16px;padding:6px 14px;background:rgba(6,16,20,.16);border:1px solid rgba(168,235,226,.12);font-size:10px;letter-spacing:.2em;white-space:nowrap;opacity:.7}.fh-keys span{display:flex;align-items:center;gap:6px}.fh-keys kbd{font:inherit;padding:1px 5px;border:1px solid rgba(168,235,226,.32);background:rgba(168,235,226,.06);color:rgba(214,250,244,.9);letter-spacing:.1em}@media(max-width:700px){.fh-keys{flex-wrap:wrap;justify-content:center;gap:6px 10px;width:92vw;font-size:9px}}'
       + 'body.in-flight #subtitle{background:rgba(6,16,20,.22)!important;border-color:transparent!important;text-shadow:0 1px 6px rgba(0,0,0,.8)}body.in-flight #objective{opacity:.55}body.in-flight #hint{background:rgba(6,16,20,.2)!important;opacity:.8}';
     document.head.appendChild(st);
+    // nebula clouds drifting beside the route: big soft additive sprites in the game's teal, violet and blue
+    { const cc = document.createElement('canvas'); cc.width = cc.height = 128; const x = cc.getContext('2d');
+      for (let i = 0; i < 26; i++) { const px = 64 + (Math.random() - 0.5) * 70, py = 64 + (Math.random() - 0.5) * 70, r = 18 + Math.random() * 36; const gr = x.createRadialGradient(px, py, 0, px, py, r); gr.addColorStop(0, 'rgba(255,255,255,0.28)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = gr; x.fillRect(0, 0, 128, 128); }
+      const tex = new THREE.CanvasTexture(cc); tex.colorSpace = THREE.SRGBColorSpace;
+      const cols = [0x2aa89a, 0x7850c8, 0x3c78d2, 0xbe50aa, 0x30c0b0];
+      this.clouds = new THREE.Group(); this.group.add(this.clouds);
+      for (let i = 0; i < 46; i++) {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color: cols[i % 5], transparent: true, opacity: 0.05 + Math.random() * 0.09, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+        const z = -250 - Math.random() * 5700, side = Math.random() < 0.5 ? -1 : 1;
+        sp.position.set(700 * (z / -5700) * 0.9 + side * (600 + Math.random() * 1800), (Math.random() - 0.5) * 1500, z);
+        sp.scale.setScalar(600 + Math.random() * 1700); sp.material.rotation = Math.random() * 6.28; this.clouds.add(sp);
+      } }
+    // speed streaks: thin lines streaming past the ship, stronger the faster it goes
+    { this.slGroup = new THREE.Group(); this.group.add(this.slGroup);
+      const NL = 150; this.slN = NL; this.slData = Array.from({ length: NL }, () => ({ x: 0, y: 0, z: 0 }));
+      this.slGeo = new THREE.BufferGeometry(); this.slGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(NL * 6), 3));
+      this.slMat = new THREE.LineBasicMaterial({ color: 0xbfe8ff, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+      const sl = new THREE.LineSegments(this.slGeo, this.slMat); sl.frustumCulled = false; this.slGroup.add(sl);
+      for (const d of this.slData) { const a = Math.random() * 6.28, r = 8 + Math.random() * 55; d.x = Math.cos(a) * r; d.y = Math.sin(a) * r; d.z = -150 + Math.random() * 165; } }
+    this.trailT = 0; this.flash = 0; this.hitMark = 0;
+    { const pip = document.createElement('div'); pip.id = 'fh-pip'; this.hud.appendChild(pip); this.pip = pip;
+      const fl = document.createElement('div'); fl.id = 'fh-flash'; this.hud.appendChild(fl); this.flashEl = fl;
+      const st2 = document.createElement('style');
+      st2.textContent = '#fh-pip{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border:1px solid rgba(168,235,226,.55);border-radius:50%;opacity:.8}#fh-pip:after{content:"";position:absolute;left:50%;top:50%;width:2px;height:2px;margin:-1px;background:rgba(168,235,226,.8)}'
+        + '#fh-flash{position:absolute;inset:0;background:radial-gradient(ellipse at center,rgba(255,60,40,0) 40%,rgba(255,50,30,.5) 100%);opacity:0}'
+        + '.fh-ret.hit{border-color:rgba(255,215,140,.95);transform:scale(1.35);transition:transform .08s}.fh-ret{transition:transform .15s,border-color .15s}';
+      document.head.appendChild(st2); }
     this.combat = new FlightCombat(this);
     this.dying = null;
   }
@@ -387,10 +414,43 @@ export class Flight {
     this.dying = null; this.combat.reset();
   }
 
+  // Per-frame flourishes: streaks, engine trails, smoke from a damaged hull, the gun pip, hit and damage feedback.
+  visuals(dt, boost) {
+    const f = this.f || {};
+    this.slGroup.position.copy(this.pos); this.slGroup.quaternion.copy(this.quat);
+    const sp = this.speed, pa = this.slGeo.attributes.position.array, len = clamp(sp * 0.05, 0, 26);
+    for (let i = 0; i < this.slN; i++) {
+      const d = this.slData[i]; d.z += sp * dt * 0.8;
+      if (d.z > 16) { d.z -= 170; const a = Math.random() * 6.28, r = 8 + Math.random() * 55; d.x = Math.cos(a) * r; d.y = Math.sin(a) * r; }
+      pa[i * 6] = d.x; pa[i * 6 + 1] = d.y; pa[i * 6 + 2] = d.z; pa[i * 6 + 3] = d.x; pa[i * 6 + 4] = d.y; pa[i * 6 + 5] = d.z - len;
+    }
+    this.slGeo.attributes.position.needsUpdate = true;
+    this.slMat.opacity = smooth(clamp((sp - 90) / 280, 0, 1)) * 0.55;
+    // engine trails
+    this.trailT -= dt;
+    if (this.trailT <= 0) {
+      this.trailT = boost ? 0.02 : 0.05;
+      for (const e of this.ship.userData.engines) {
+        _v.copy(e.position).applyQuaternion(this.ship.quaternion).add(this.ship.position);
+        this.combat.burst(_v, boost ? 0xb8f4ff : 0x8fe8ff, 1, 0, boost ? 1.9 : 1.15, 0.38, -0.5);
+      }
+    }
+    // a damaged ship smokes and sparks
+    if (this.hull < 45 && Math.random() < dt * 16) {
+      _u.set((Math.random() - 0.5) * 3, (Math.random() - 0.3) * 1.2, (Math.random() - 0.2) * 3).applyQuaternion(this.quat).add(this.pos);
+      this.combat.burst(_u, Math.random() < 0.5 ? 0xff7a2a : 0x4a5560, 1, 6, 2.2 + Math.random() * 2, 0.7, 1.2);
+    }
+    // the gun pip: where the cannons converge, 260 m ahead of the nose, projected onto the screen
+    _r.set(0, 0, -260).applyQuaternion(this.quat).add(this.pos).add(OFFSET).project(this.g.camera);
+    if (_r.z < 1 && Math.abs(_r.x) < 1 && Math.abs(_r.y) < 1) { this.pip.style.display = 'block'; this.pip.style.left = ((_r.x * 0.5 + 0.5) * window.innerWidth) + 'px'; this.pip.style.top = ((-_r.y * 0.5 + 0.5) * window.innerHeight) + 'px'; } else this.pip.style.display = 'none';
+    this.flash = Math.max(0, this.flash - dt * 2.2); this.flashEl.style.opacity = (this.flash * 0.55).toFixed(3);
+    this.hitMark = Math.max(0, this.hitMark - dt); this.hud.querySelector('.fh-ret').classList.toggle('hit', this.hitMark > 0);
+  }
+
   // Damage to the ship from enemy fire and collisions. At zero the hull fails and the ship is rebuilt at the start of the run.
   damage(n) {
     if (this.dying || this.docking) return;
-    this.hull = Math.max(0, this.hull - n); this.shake = Math.max(this.shake, 0.55); this.g.audio.play('hurt', { vol: 0.6 });
+    this.hull = Math.max(0, this.hull - n); this.shake = Math.max(this.shake, 0.55); this.flash = 0.6; this.g.audio.play('hurt', { vol: 0.6 });
     if (this.hull <= 0) { this.dying = { t: 0 }; this.g.ui.subtitle('Hull breach. Emergency power. Rerouting.', 'SHIP AI', 3); this.g.audio.play('explosion', { vol: 0.8 }); }
   }
 
@@ -417,15 +477,16 @@ export class Flight {
 
     // ---- steering: the mouse points the nose, A and D bank and yaw, W and S set the throttle, Shift boosts, Space brakes
     const sens = (g.sens || 0.0022) * 0.9;
+    const GAIN = 0.4;                                     // overall steering gain (the earlier 1.4 felt twitchy)
     let yawIn = 0, pitchIn = 0, rollIn = 0;
     if (live) {
-      yawIn = -lx * sens * 1.4; pitchIn = -ly * sens * 1.4;
+      yawIn = -lx * sens * GAIN; pitchIn = -ly * sens * GAIN;
       if (input.down('KeyA')) rollIn += 1; if (input.down('KeyD')) rollIn -= 1;
       if (input.down('KeyW')) this.throttle = Math.min(1, this.throttle + dt * 0.5);
       if (input.down('KeyS')) this.throttle = Math.max(0.1, this.throttle - dt * 0.5);
     }
-    this.yawRate = damp(this.yawRate, clamp(yawIn / Math.max(dt, 1e-3), -1.6, 1.6) + rollIn * -0.7, 7, dt);
-    this.pitchRate = damp(this.pitchRate, clamp(pitchIn / Math.max(dt, 1e-3), -1.4, 1.4), 7, dt);
+    this.yawRate = damp(this.yawRate, clamp(yawIn / Math.max(dt, 1e-3), -0.95, 0.95) + rollIn * -0.55, 5, dt);
+    this.pitchRate = damp(this.pitchRate, clamp(pitchIn / Math.max(dt, 1e-3), -0.8, 0.8), 5, dt);
     this.roll = damp(this.roll, rollIn * 0.6 + clamp(this.yawRate * 0.25, -0.5, 0.5), 5, dt);
     if (!this.docking) {
       e.set(this.pitchRate * dt, this.yawRate * dt, 0, 'YXZ'); q.setFromEuler(e);
@@ -463,6 +524,7 @@ export class Flight {
     }
 
     this.combat.update(dt, input, live);
+    this.visuals(dt, boost);
 
     // ---- story beats along the way
     const dist = this.distance();
