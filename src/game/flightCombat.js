@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clamp, damp } from '../core/util.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 // SHIP COMBAT for the free-flight arena.
 //   Left mouse: twin pulse cannons (always available).
@@ -18,7 +19,20 @@ function glow(color, size) {
   s.scale.setScalar(size); return s;
 }
 
+// The authored interceptor (art/build_ships.py -> public/models/interceptor.glb), nose along -Z; the stand-in below is used if it is missing.
+let INTERCEPTOR = null;
+export async function loadInterceptor() {
+  const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/interceptor.glb');
+  INTERCEPTOR = gltf.scene; INTERCEPTOR.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+}
+function interceptorFromAsset() {
+  const g = new THREE.Group(); g.add(INTERCEPTOR.clone(true));
+  const e1 = glow(0xff6a3a, 6); e1.position.set(0, 0.02, 3.1); g.add(e1); g.userData.glow = e1;
+  for (const sx of [-1, 1]) { const n = glow(sx < 0 ? 0xff3a2a : 0x3affa0, 3); n.position.set(sx * 3.2, 0, 2.0); g.add(n); }
+  return g;
+}
 function makeInterceptor() {
+  if (INTERCEPTOR) return interceptorFromAsset();
   const g = new THREE.Group();
   const hull = new THREE.MeshStandardMaterial({ color: 0xc4ccd0, roughness: 0.5, metalness: 0.5, emissive: 0x2a343a });
   const dark = new THREE.MeshStandardMaterial({ color: 0x3a424a, roughness: 0.7, metalness: 0.4, emissive: 0x14181c });

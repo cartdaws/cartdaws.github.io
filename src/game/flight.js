@@ -136,6 +136,11 @@ export function makeLander() {
 
 // The research vessel: a long spine, a rotating habitat ring, lit decks, antennae, and a brightly lit bay mouth on the underside of the bow.
 // The authored research vessel (art/build_vessel.py -> public/models/vessel.glb): fused hull, a separate spinning ring, lit windows, engines.
+let WARSHIP_ASSET = null;
+export async function loadWarship() {
+  const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/warship.glb');
+  WARSHIP_ASSET = gltf.scene; WARSHIP_ASSET.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+}
 let VESSEL_ASSET = null;
 export async function loadVessel() {
   const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/vessel.glb');
@@ -280,6 +285,11 @@ export class Flight {
       for (let i = -3; i <= 3; i++) { const l = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,180,60,1)'), color: 0xffb040, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); l.position.set(i * 30, -10, 0); l.scale.setScalar(10); this.warship.add(l); }
       const eng = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(150,220,255,1)'), color: 0x8fe0ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); eng.position.set(150, 0, 0); eng.scale.setScalar(120); this.warship.add(eng); this.warshipGlow = eng; }
     this.warship.position.set(-500, -150, -200); this.group.add(this.warship);
+    if (WARSHIP_ASSET) {                       // the authored warship replaces the stand-in shapes; its nose points along -X as it leaves orbit
+      for (const c of this.warship.children) c.visible = false;
+      const wm = WARSHIP_ASSET.clone(true); wm.rotation.y = Math.PI / 2; this.warship.add(wm);
+      this.warshipGlow.visible = true; this.warshipGlow.position.set(172, 2, 0);
+    }
 
     // wreckage of the attack: tumbling plates and spars around the launch path and the first stretch of the way
     const geoms = [new THREE.BoxGeometry(1, 0.15, 1), new THREE.BoxGeometry(0.2, 0.2, 1), new THREE.TetrahedronGeometry(0.7), new THREE.IcosahedronGeometry(0.6, 0)];
