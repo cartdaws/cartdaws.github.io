@@ -20,6 +20,46 @@ function glowTex(inner = 'rgba(255,255,255,1)', outer = 'rgba(255,255,255,0)') {
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
+// The sky: a deep field with a Milky Way band and soft nebulae in the game's own teal and violet. Painted once on a canvas.
+function skyTexture() {
+  const W = 4096, H = 2048, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#03050c'; g.fillRect(0, 0, W, H);
+  let sd = 4242; const R = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  g.globalCompositeOperation = 'lighter';
+  // the galactic band: a tilted ribbon of faint light with dust lanes
+  for (let i = 0; i < 700; i++) {
+    const x = R() * W, band = H * 0.5 + Math.sin(x / W * 6.283 * 1.0 + 0.6) * H * 0.16 + (R() - 0.5) * H * 0.22 * (0.4 + R());
+    const r = 80 + R() * 300, a = 0.008 + R() * 0.018;
+    for (const dx of [-W, 0, W]) { const gr = g.createRadialGradient(x + dx, band, 0, x + dx, band, r); gr.addColorStop(0, `rgba(150,170,220,${a})`); gr.addColorStop(1, 'rgba(150,170,220,0)'); g.fillStyle = gr; g.fillRect(x + dx - r, band - r, r * 2, r * 2); }
+  }
+  // coloured nebulae
+  const cols = [[40, 170, 160], [120, 80, 200], [60, 120, 210], [190, 80, 170], [30, 140, 120]];
+  for (let n = 0; n < 9; n++) {
+    const cx = R() * W, cy = H * (0.2 + R() * 0.6), col = cols[n % cols.length];
+    for (let i = 0; i < 46; i++) {
+      const x = cx + (R() - 0.5) * 760, y = cy + (R() - 0.5) * 380, r = 100 + R() * 260, a = 0.006 + R() * 0.016;
+      for (const dx of [-W, 0, W]) { const gr = g.createRadialGradient(x + dx, y, 0, x + dx, y, r); gr.addColorStop(0, `rgba(${col[0]},${col[1]},${col[2]},${a})`); gr.addColorStop(1, `rgba(${col[0]},${col[1]},${col[2]},0)`); g.fillStyle = gr; g.fillRect(x + dx - r, y - r, r * 2, r * 2); }
+    }
+  }
+  // a fine dusting of faint far stars in the band
+  for (let i = 0; i < 11000; i++) { const x = R() * W, band = H * 0.5 + Math.sin(x / W * 6.283 + 0.6) * H * 0.16, y = band + (R() - 0.5) * H * 0.34 * (R() + 0.2); g.fillStyle = `rgba(210,225,255,${0.12 + R() * 0.3})`; g.fillRect(x, y, 1, 1); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function bandTexture(stops, bands = 40, seed = 3) {
+  const W = 512, H = 256, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'); let sd = seed; const R = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let y = 0; y < H; y++) { const k = (Math.sin(y / H * bands + R() * 0.05) * 0.5 + 0.5), i = Math.min(stops.length - 1, Math.floor(k * stops.length)); g.fillStyle = stops[i]; g.fillRect(0, y, W, 1); }
+  for (let i = 0; i < 70; i++) { const x = R() * W, y = R() * H, r = 6 + R() * 26; const gr = g.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,255,255,0.08)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; return t;
+}
+function craterTexture() {
+  const W = 512, H = 256, c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d'); g.fillStyle = '#6a6470'; g.fillRect(0, 0, W, H); let sd = 9; const R = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 160; i++) { const x = R() * W, y = R() * H, r = 3 + R() * 22; const gr = g.createRadialGradient(x, y, r * 0.2, x, y, r); gr.addColorStop(0, 'rgba(40,36,48,0.55)'); gr.addColorStop(0.85, 'rgba(40,36,48,0.2)'); gr.addColorStop(1, 'rgba(200,196,210,0.18)'); g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 6.3); g.fill(); }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
 // The homeworld seen from orbit: oceans and violet continents, a thin atmosphere. Canvas painted, seamless enough at this distance.
 function planetTexture() {
   const W = 1024, H = 512, c = document.createElement('canvas'); c.width = W; c.height = H;
@@ -31,7 +71,7 @@ function planetTexture() {
     for (const dx of [-W, 0, W]) { const gr = g.createRadialGradient(x + dx, y, 2, x + dx, y, r); gr.addColorStop(0, i % 3 ? 'rgba(104,70,160,0.95)' : 'rgba(40,150,130,0.9)'); gr.addColorStop(1, 'rgba(10,60,70,0)'); g.fillStyle = gr; g.beginPath(); g.ellipse(x + dx, y, r, r * 0.6, R() * 3, 0, 6.3); g.fill(); }
   }
   for (let i = 0; i < 70; i++) { const x = R() * W, y = R() * H, r = 30 + R() * 90; const gr = g.createRadialGradient(x, y, 2, x, y, r); gr.addColorStop(0, 'rgba(210,235,245,0.22)'); gr.addColorStop(1, 'rgba(210,235,245,0)'); g.fillStyle = gr; g.fillRect(x - r, y - r, r * 2, r * 2); }
-  // night-side glow of the burning settlements is added in the shader by emissive map
+  for (const top of [true, false]) { const gr = g.createLinearGradient(0, top ? 0 : H, 0, top ? H * 0.16 : H * 0.84); gr.addColorStop(0, 'rgba(205,235,240,1)'); gr.addColorStop(1, 'rgba(205,235,240,0)'); g.fillStyle = gr; g.fillRect(0, top ? 0 : H * 0.84, W, H * 0.16); }
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.wrapS = THREE.RepeatWrapping; return t;
 }
 
@@ -98,17 +138,58 @@ export class Flight {
     this.group = new THREE.Group(); this.group.position.copy(OFFSET); this.group.visible = false;
     game.scene.add(this.group);
 
-    // stars follow the camera so they never get closer
-    const N = 3200, p = new Float32Array(N * 3), col = new Float32Array(N * 3);
+    // the sky sphere and the stars follow the camera so they never get closer
+    this.sky = new THREE.Mesh(new THREE.SphereGeometry(7600, 48, 24), new THREE.MeshBasicMaterial({ map: skyTexture(), side: THREE.BackSide, depthWrite: false, fog: false, toneMapped: false, color: 0x8c96ac }));
+    this.sky.frustumCulled = false; this.sky.rotation.set(0.4, 1.2, 0.2); this.sky.renderOrder = -10; this.group.add(this.sky);
+    const N = 4200, p = new Float32Array(N * 3), col = new Float32Array(N * 3), size = new Float32Array(N), br = new Float32Array(N);
     for (let i = 0; i < N; i++) {
-      const u = Math.random() * 2 - 1, a = Math.random() * 6.283, r = Math.sqrt(1 - u * u), d = 7000;
-      p[i * 3] = Math.cos(a) * r * d; p[i * 3 + 1] = u * d; p[i * 3 + 2] = Math.sin(a) * r * d;
-      const tint = Math.random(); col[i * 3] = 0.7 + 0.3 * tint; col[i * 3 + 1] = 0.8 + 0.2 * (1 - tint); col[i * 3 + 2] = 1;
+      const u = Math.random() * 2 - 1, an = Math.random() * 6.283, r = Math.sqrt(1 - u * u), d = 7000;
+      p[i * 3] = Math.cos(an) * r * d; p[i * 3 + 1] = u * d; p[i * 3 + 2] = Math.sin(an) * r * d;
+      const tint = Math.random(), hot = Math.random() < 0.12;
+      col[i * 3] = hot ? 1 : 0.72 + 0.28 * tint; col[i * 3 + 1] = hot ? 0.85 : 0.82 + 0.18 * (1 - tint); col[i * 3 + 2] = hot ? 0.7 : 1;
+      const m = Math.pow(Math.random(), 4.5);                        // a few bright stars, many faint ones
+      size[i] = 1.1 + m * 4.2; br[i] = 0.22 + m * 0.7;
     }
-    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(p, 3)); sg.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    this.stars = new THREE.Points(sg, new THREE.PointsMaterial({ size: 9, vertexColors: true, sizeAttenuation: false, transparent: true, opacity: 0.95, depthWrite: false, fog: false }));
-    this.stars.frustumCulled = false; this.group.add(this.stars);
-    this.stars.material.size = 2.2;
+    const sg = new THREE.BufferGeometry(); sg.setAttribute('position', new THREE.BufferAttribute(p, 3)); sg.setAttribute('color', new THREE.BufferAttribute(col, 3)); sg.setAttribute('aSize', new THREE.BufferAttribute(size, 1)); sg.setAttribute('aBright', new THREE.BufferAttribute(br, 1));
+    this.starMat = new THREE.ShaderMaterial({
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uScale: { value: game.renderer.getPixelRatio() }, uTime: { value: 0 } },
+      vertexShader: 'attribute float aSize; attribute float aBright; attribute vec3 color; uniform float uScale; uniform float uTime; varying vec3 vC; varying float vB; void main(){ vC = color; vB = aBright * (0.88 + 0.12 * sin(uTime * 1.3 + position.x * 0.013 + position.z * 0.007)); gl_PointSize = aSize * uScale; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: 'varying vec3 vC; varying float vB; void main(){ float d = length(gl_PointCoord - 0.5) * 2.0; float a = pow(clamp(1.0 - d, 0.0, 1.0), 2.2); gl_FragColor = vec4(vC * vB, a * vB); }',
+    });
+    this.stars = new THREE.Points(sg, this.starMat); this.stars.frustumCulled = false; this.group.add(this.stars);
+
+    // drifting dust close to the ship: it streams past and gives the speed its feel
+    const ND = 520; this.dustPos = new Float32Array(ND * 3);
+    for (let i = 0; i < ND; i++) { this.dustPos[i * 3] = (Math.random() - 0.5) * 360; this.dustPos[i * 3 + 1] = (Math.random() - 0.5) * 360; this.dustPos[i * 3 + 2] = (Math.random() - 0.5) * 360; }
+    const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ND * 3), 3));
+    this.dust = new THREE.Points(dg, new THREE.PointsMaterial({ color: 0xb8d8e8, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0.33, depthWrite: false, blending: THREE.AdditiveBlending, map: glowTex() }));
+    this.dust.frustumCulled = false; this.group.add(this.dust);
+
+    // a ringed gas giant far off, a cratered moon near the homeworld
+    const gas = new THREE.Mesh(new THREE.SphereGeometry(520, 48, 32), new THREE.MeshStandardMaterial({ map: bandTexture(['#2a4660', '#375a74', '#5a8898', '#86aeb4', '#445c7a', '#58487a'], 20, 5), roughness: 0.9, emissive: 0x0a1624, emissiveIntensity: 0.5 }));
+    gas.position.set(-3300, 700, -3000); gas.rotation.z = 0.35; this.group.add(gas);
+    const rg = new THREE.RingGeometry(700, 1150, 96, 1), rp = rg.attributes.position, ruv = rg.attributes.uv;
+    for (let i = 0; i < rp.count; i++) { const rr = Math.hypot(rp.getX(i), rp.getY(i)); ruv.setXY(i, (rr - 700) / 450, 0.5); }
+    const rc = document.createElement('canvas'); rc.width = 256; rc.height = 4; { const x = rc.getContext('2d'); for (let i = 0; i < 256; i++) { const k = i / 255, a = (0.12 + 0.5 * Math.abs(Math.sin(k * 23)) * Math.abs(Math.sin(k * 7 + 1))) * Math.sin(k * 3.14); x.fillStyle = `rgba(200,225,235,${a})`; x.fillRect(i, 0, 1, 4); } }
+    const ringMesh = new THREE.Mesh(rg, new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(rc), side: THREE.DoubleSide, transparent: true, depthWrite: false, opacity: 0.8 }));
+    ringMesh.position.copy(gas.position); ringMesh.rotation.set(Math.PI / 2 - 0.3, 0, 0.35); this.group.add(ringMesh);
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(110, 40, 28), new THREE.MeshStandardMaterial({ map: craterTexture(), roughness: 1, metalness: 0 }));
+    moon.position.set(1100, -150, -900); this.group.add(moon); this.moon = moon;
+
+    // an asteroid belt drifting beside the route: rough low-poly boulders, purely scenery
+    const rockGeo = new THREE.IcosahedronGeometry(1, 1), rpos = rockGeo.attributes.position;
+    for (let i = 0; i < rpos.count; i++) { const k = 0.72 + Math.random() * 0.5; rpos.setXYZ(i, rpos.getX(i) * k, rpos.getY(i) * k, rpos.getZ(i) * k); }
+    rockGeo.computeVertexNormals();
+    this.belt = new THREE.InstancedMesh(rockGeo, new THREE.MeshStandardMaterial({ color: 0x5a5f66, roughness: 0.95, metalness: 0.1, flatShading: true }), 340);
+    { const m4 = new THREE.Matrix4(), qq = new THREE.Quaternion(), ee = new THREE.Euler();
+      for (let i = 0; i < 340; i++) {
+        const an = Math.random() * 6.283, rad = 500 + Math.random() * 700, sc = 3 + Math.pow(Math.random(), 3) * 60;
+        const center = new THREE.Vector3(-1300, 200, -2600);
+        const pos = new THREE.Vector3(Math.cos(an) * rad, (Math.random() - 0.5) * 140, Math.sin(an) * rad * 0.55).add(center);
+        ee.set(Math.random() * 6, Math.random() * 6, Math.random() * 6); qq.setFromEuler(ee);
+        m4.compose(pos, qq, new THREE.Vector3(sc, sc * (0.6 + Math.random() * 0.6), sc)); this.belt.setMatrixAt(i, m4);
+      } }
+    this.group.add(this.belt);
 
     // the homeworld, with a thin atmosphere and a night-side glow
     this.planet = new THREE.Mesh(new THREE.SphereGeometry(1200, 64, 40), new THREE.MeshStandardMaterial({ map: planetTexture(), roughness: 0.9, metalness: 0, emissive: 0x0a2a30, emissiveIntensity: 0.6 }));
@@ -167,12 +248,13 @@ export class Flight {
     hud.innerHTML = '<div class="fh-ret"></div><div class="fh-l"><b id="fh-spd">0</b><small>M/S</small><i><u id="fh-thr"></u></i><span id="fh-boost">BOOST</span></div><div class="fh-r"><small>RESEARCH VESSEL</small><b id="fh-dist">--</b><small>KM</small></div><div class="fh-hull"><u id="fh-hull"></u></div><div class="fh-keys"><span><kbd>MOUSE</kbd>STEER</span><span><kbd>W</kbd><kbd>S</kbd>THROTTLE</span><span><kbd>A</kbd><kbd>D</kbd>BANK</span><span><kbd>SHIFT</kbd>BOOST</span><span><kbd>SPACE</kbd>BRAKE</span></div>';
     document.body.appendChild(hud); this.hud = hud;
     const st = document.createElement('style');
-    st.textContent = '#flight-hud{position:fixed;inset:0;pointer-events:none;z-index:6;font-family:inherit;color:#9ff5ea;text-shadow:0 0 8px rgba(80,255,230,.5)}#flight-hud.hidden{display:none}'
-      + '.fh-ret{position:absolute;left:50%;top:50%;width:46px;height:46px;margin:-23px 0 0 -23px;border:1px solid rgba(159,245,234,.55);border-radius:50%}.fh-ret:after{content:"";position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px;background:#9ff5ea;border-radius:50%}'
-      + '.fh-l{position:absolute;left:36px;bottom:40px;display:flex;flex-direction:column;gap:4px}.fh-l b,.fh-r b{font-size:34px;font-weight:600;letter-spacing:.04em}.fh-l small,.fh-r small{font-size:11px;letter-spacing:.3em;opacity:.7}'
-      + '.fh-l i{display:block;width:160px;height:5px;background:rgba(10,30,34,.6);border:1px solid rgba(159,245,234,.45)}.fh-l u{display:block;height:100%;width:50%;background:#9ff5ea}#fh-boost{font-size:11px;letter-spacing:.3em;opacity:.25}#fh-boost.on{opacity:1;color:#ffd27a}'
-      + '.fh-r{position:absolute;right:36px;bottom:40px;text-align:right;display:flex;flex-direction:column;gap:2px}.fh-hull{position:absolute;left:50%;bottom:22px;width:180px;margin-left:-90px;height:4px;background:rgba(10,30,34,.6);border:1px solid rgba(159,245,234,.35)}.fh-hull u{display:block;height:100%;background:#7affc4}';
-    st.textContent += '.fh-keys{position:absolute;left:50%;top:18px;transform:translateX(-50%);display:flex;gap:18px;padding:8px 16px;background:rgba(6,16,20,.55);border:1px solid rgba(159,245,234,.3);font-size:11px;letter-spacing:.22em;white-space:nowrap}.fh-keys span{display:flex;align-items:center;gap:6px;opacity:.9}.fh-keys kbd{font:inherit;padding:2px 6px;border:1px solid rgba(159,245,234,.6);background:rgba(159,245,234,.12);color:#d8fff8;letter-spacing:.12em}@media(max-width:700px){.fh-keys{flex-wrap:wrap;justify-content:center;gap:8px 12px;width:92vw;font-size:9px}}';
+    st.textContent = '#flight-hud{position:fixed;inset:0;pointer-events:none;z-index:6;font-family:inherit;color:rgba(168,235,226,.72)}#flight-hud.hidden{display:none}'
+      + '.fh-ret{position:absolute;left:50%;top:50%;width:40px;height:40px;margin:-20px 0 0 -20px;border:1px solid rgba(168,235,226,.28);border-radius:50%}.fh-ret:after{content:"";position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px;background:rgba(168,235,226,.7);border-radius:50%}'
+      + '.fh-l{position:absolute;left:34px;bottom:34px;display:flex;flex-direction:column;gap:3px;opacity:.78}.fh-l b,.fh-r b{font-size:24px;font-weight:500;letter-spacing:.05em}.fh-l small,.fh-r small{font-size:10px;letter-spacing:.3em;opacity:.6}'
+      + '.fh-l i{display:block;width:140px;height:3px;background:rgba(10,30,34,.25);border:1px solid rgba(168,235,226,.22)}.fh-l u{display:block;height:100%;width:50%;background:rgba(168,235,226,.7)}#fh-boost{font-size:10px;letter-spacing:.3em;opacity:.2}#fh-boost.on{opacity:.9;color:#ffd9a0}'
+      + '.fh-r{position:absolute;right:34px;bottom:34px;text-align:right;display:flex;flex-direction:column;gap:2px;opacity:.78}.fh-hull{position:absolute;left:50%;bottom:22px;width:150px;margin-left:-75px;height:3px;background:rgba(10,30,34,.25);border:1px solid rgba(168,235,226,.2)}.fh-hull u{display:block;height:100%;background:rgba(122,255,196,.6)}'
+      + '.fh-keys{position:absolute;left:50%;top:16px;transform:translateX(-50%);display:flex;gap:16px;padding:6px 14px;background:rgba(6,16,20,.16);border:1px solid rgba(168,235,226,.12);font-size:10px;letter-spacing:.2em;white-space:nowrap;opacity:.7}.fh-keys span{display:flex;align-items:center;gap:6px}.fh-keys kbd{font:inherit;padding:1px 5px;border:1px solid rgba(168,235,226,.32);background:rgba(168,235,226,.06);color:rgba(214,250,244,.9);letter-spacing:.1em}@media(max-width:700px){.fh-keys{flex-wrap:wrap;justify-content:center;gap:6px 10px;width:92vw;font-size:9px}}'
+      + 'body.in-flight #subtitle{background:rgba(6,16,20,.22)!important;border-color:transparent!important;text-shadow:0 1px 6px rgba(0,0,0,.8)}body.in-flight #objective{opacity:.55}body.in-flight #hint{background:rgba(6,16,20,.2)!important;opacity:.8}';
     document.head.appendChild(st);
   }
 
@@ -192,7 +274,7 @@ export class Flight {
     for (const d of this.debris) d.userData.hit = false;
     g.viewmodel.root.visible = false; g.body.setVisible(false);
     g.ui.showHud(true); g.ui.setObjective('FLY TO THE RESEARCH VESSEL'); g.ui.setPrompt('');
-    document.body.classList.add('intro'); // hides the on-foot crosshair, health and weapon readouts
+    document.body.classList.add('intro', 'in-flight'); // hides the on-foot crosshair, health and weapon readouts; softens the shared UI
     this.hud.classList.remove('hidden');
     g.audio.stopSiren?.();
     g.ui.fade(0);
@@ -207,7 +289,7 @@ export class Flight {
     this.group.visible = this.sun.visible = this.fill.visible = false;
     this.active = false; this.phase = 'off';
     g.viewmodel.root.visible = true;
-    document.body.classList.remove('intro');
+    document.body.classList.remove('intro', 'in-flight');
     this.hud.classList.add('hidden');
   }
 
@@ -217,7 +299,8 @@ export class Flight {
     if (!this.active) return;
     const g = this.g;
     this.t += dt;
-    this.stars.position.copy(this.camPos);
+    this.stars.position.copy(this.camPos); this.sky.position.copy(this.camPos); this.starMat.uniforms.uTime.value = this.t;
+    this.belt.rotation.y += dt * 0.004; if (this.moon) this.moon.rotation.y += dt * 0.02;
     const live = input.locked && this.phase !== 'docked' && !this.docking;
 
     // ---- steering: the mouse points the nose, A and D bank and yaw, W and S set the throttle, Shift boosts, Space brakes
@@ -307,6 +390,11 @@ export class Flight {
     this.fires.material.opacity = 0.6 + 0.3 * Math.sin(this.t * 3);
 
     // ---- HUD
+    { const dp = this.dust.geometry.attributes.position.array, base = this.dustPos, cx = this.camPos.x, cy = this.camPos.y, cz = this.camPos.z;
+      for (let i = 0; i < base.length; i += 3) {
+        dp[i] = ((base[i] - cx + 180) % 360 + 360) % 360 - 180 + cx; dp[i + 1] = ((base[i + 1] - cy + 180) % 360 + 360) % 360 - 180 + cy; dp[i + 2] = ((base[i + 2] - cz + 180) % 360 + 360) % 360 - 180 + cz;
+      }
+      this.dust.geometry.attributes.position.needsUpdate = true; this.dust.material.size = 1.2 + this.speed / 120; }
     document.getElementById('fh-spd').textContent = Math.round(this.speed);
     document.getElementById('fh-thr').style.width = Math.round((this.speed / 360) * 100) + '%';
     document.getElementById('fh-dist').textContent = (dist / 1000).toFixed(2);
