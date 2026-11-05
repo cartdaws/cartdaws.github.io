@@ -74,6 +74,7 @@ export class Input {
   down(code) { return this.keys.has(code); }
   was(code) { return this.pressed.has(code); }
   mouse(btn) { return this.buttons.has(btn); }
+  interactDown() { return this.buttons.has(2) || this.down('KeyE') || !!this.touchInteract; }
   clicked(btn) { return this.clicks.has(btn); }
   takeLook() { const r = [this.dx, this.dy]; this.dx = 0; this.dy = 0; return r; }
   endFrame() { this.pressed.clear(); this.clicks.clear(); }

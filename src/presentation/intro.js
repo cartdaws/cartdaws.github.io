@@ -4,6 +4,8 @@ import { PLAYER_START, PISTOL_POS, CELL } from '../world/level.js';
 import { poseHuman, seatHuman } from '../world/humans.js';
 import { HomeWorld, HOME, HOME_START } from '../world/home.js';
 import { save } from '../core/save.js';
+import { progress } from '../game/progress.js';
+import { makeHandGel } from './hand.js';
 
 // ---------------------------------------------------------------------------------------------------------------------
 // THE PLAYABLE OPENING. The player keeps control of looking (and, where it makes sense, walking); short scripted actions
@@ -42,6 +44,7 @@ export class Intro {
     this.f = {};
     this.h = 0;                // hold progress
     this.granted = false;
+    this.tentReset();
     this.home = new HomeWorld(game.scene, game.homeAsset, save.creature);
     this.buildCuffs();
     this.buildLock();
@@ -147,7 +150,7 @@ export class Intro {
     this.endRoute();
     this.resetProps();
     g.absorber.reset(); g.weapon.reset();
-    vm.setPistol(null); vm.tentacles.reset();
+    vm.setPistol(null); this.tentReset();
     vm.form = 0; vm.crystal = 0; vm.frag = 0; vm.curl = 0.2; vm.reachW = 0; vm.restrain = 0; vm.restrainSlack = 0; vm.charge = 0; vm.leftHidden = false; vm.xray = 0; vm.tremor = 0;
     for (const fr of vm.right.frags) fr.k = 0;
     vm.recoil = vm.recoilVel = vm.pulse = 0;
@@ -232,7 +235,7 @@ export class Intro {
     const vm = this.g.viewmodel;
     const on = vm.restrain > 0.3;
     // the clamps close around the creature's own forearms, whatever their thickness
-    this.cuffs.forEach((c, i) => { const arm = i === 0 ? vm.left : vm.right, k = 1 + 0.35 * (arm.keys.ArmThick || 0) * 0.95 - 0.3 * 0.1 * (arm.keys.UpperRatio || 0); c.visible = on && !(this.g.creator && this.g.creator.active); c.scale.set(k, k, 1); });
+    this.cuffs.forEach((c, i) => { const arm = i === 0 ? vm.left : vm.right, k = 1 + 0.35 * ((arm.keys||{}).ArmThick || 0) * 0.95 - 0.3 * 0.1 * ((arm.keys||{}).UpperRatio || 0); c.visible = on; c.scale.set(k, k, 1); });
   }
 
   // ---------------------------------------------------------------------------------------------- 1. HOME
@@ -646,7 +649,7 @@ export class Intro {
       this.pistolQuat = g.camera.quaternion.clone().invert().multiply(L.pistol.getWorldQuaternion(new THREE.Quaternion()));
     }
     vm.leftHidden = true;
-    const gl = vm.tentacles.RA.goal, gone = ease(pa, T.breakApart - 0.3, T.breakApart + 0.5);
+    const gl = this.tentGoal, gone = ease(pa, T.breakApart - 0.3, T.breakApart + 0.5);
     gl.C.copy(this.pistolView ? this.pistolView.position : this.pistolLocal);
     gl.rho = 0.1; gl.phi0 = 0.6;
     gl.extend = ease(pa, T.reach, T.contact) * (1 - gone);
@@ -717,7 +720,8 @@ export class Intro {
     if (pa >= T.settle + 0.6) this.completePistol();
   }
 
-  makeBlobGel() { return this.g.viewmodel.tentacles.gel; }
+  makeBlobGel() { return this.gel || (this.gel = makeHandGel({ color: 0x118078, rim: 0xb8fff4, alpha: 0.62 })); }
+  tentReset() { const vm = this.g.viewmodel; vm.tremor = 0; this.tentGoal = { C: new THREE.Vector3(), rho: 0, phi0: 0, extend: 0, wrap: 0 }; }
 
   makeViewPistol() {
     const L = this.g.level, grp = new THREE.Group(), parts = [];
@@ -731,7 +735,7 @@ export class Intro {
     const g = this.g, vm = g.viewmodel;
     if (this.parts) for (const d of this.parts) d.p.removeFromParent();
     if (this.blob) { vm.root.remove(this.blob); this.blob = null; }
-    vm.setPistol(null); vm.tentacles.reset();
+    vm.setPistol(null); this.tentReset();
     this.parts = null; this.pistolView = null;
     this.setReadyArm();
     g.ui.clearSubtitle(); g.ui.setHold(null);
@@ -779,7 +783,7 @@ export class Intro {
     g.player.reset(keep ? g.player.pos.x : PLAYER_START.x, keep ? g.player.pos.z : PLAYER_START.z, keep ? g.player.yaw : 0);
     g.weaponAcquired = true; this.granted = true;
     g.weapon.reset();
-    save.setIntroDone(true);                           // the checkpoint: the Shardcaster exists
+    save.setIntroDone(true); progress.setIntroDone(true);                           // the checkpoint: the Shardcaster exists
     g.ui.setObjective('SHOOT THE JAMMED LOCK'); this.f = { _obj: 'SHOOT THE JAMMED LOCK' };
     g.ui.showHud(true);
     document.body.classList.remove('intro-cross');
@@ -805,7 +809,7 @@ export class Intro {
     }
     // the first disabled robot: hold the others still, mark it, say what to do
     if (!f.tutDone && g.encounter.state === 'combat') {
-      const weak = g.enemies.find((e) => e.alive && e.weak && !e.absorbing);
+      const weak = g.enemies.find((e) => e.alive && e.absorbable && !e.absorbing);
       if (weak && !f.tutWeak) {
         f.tutWeak = weak; weak.tutMark = true; g.enemyFreeze = 4.5; f.tutT = 0;
         g.ui.clearHints();
@@ -872,7 +876,7 @@ export class Intro {
     const g = this.g, vm = g.viewmodel;
     if (this.parts) for (const d of this.parts) d.p.removeFromParent();
     if (this.blob) { vm.root.remove(this.blob); this.blob = null; }
-    vm.setPistol(null); vm.tentacles.reset();
+    vm.setPistol(null); this.tentReset();
     this.parts = null; this.pistolView = null; this.dropT = -1;
     this.home.show(false);
     this.setReadyArm();

@@ -16,7 +16,7 @@ import { SecurityAndroid } from './enemies/android.js';
 import { Barrel } from './barrels.js';
 import { Encounter, EncounterState } from './encounter.js';
 import { ViewModel } from '../presentation/viewmodel.js';
-import { Opening } from '../presentation/story.js';
+import { Intro } from '../presentation/intro.js';
 import { UI } from '../presentation/ui.js';
 import { TouchControls, isTouchDevice, enterImmersive } from '../core/touch.js';
 import { PostFX } from '../presentation/post.js';
@@ -30,7 +30,8 @@ const STEP = 1 / 60;
 const BASE_FOV = 78;
 
 export class Game {
-  constructor(canvas, armGeos, kit, handAsset) {
+  constructor(canvas, armGeos, kit, handAsset, homeAsset) {
+    this.homeAsset = homeAsset;
     this.canvas = canvas;
     this.kit = kit;
     this.arena = ARENA;
@@ -64,7 +65,7 @@ export class Game {
       this.input.touch = true;
       this.touchUI = new TouchControls(this.input, {
         onPause: () => { if (this.state === 'playing' || this.state === 'opening') this.input.unlock(); },
-        onSkip: () => { if (this.state === 'opening' && !this.paused) this.opening.skip(); },
+        onSkip: () => { if (this.opening.active && !this.paused) this.opening.skip(); },
       });
     }
     this.admin = new Admin(this);
@@ -76,7 +77,7 @@ export class Game {
     this.projectiles = new Projectiles(this);
     this.encounter = new Encounter(this);
     this.pickups = new Pickups(this);
-    this.opening = new Opening(this);
+    this.opening = new Intro(this);
     this.opening.resetProps();
 
     this.enemies = [];
@@ -253,9 +254,9 @@ export class Game {
       else if (!this.paused) this.pause();
     };
     input.onKeyDown = (code) => {
-      if (this.state === 'opening' && !this.paused && (code === 'Space' || code === 'Enter')) this.opening.skip();
+      if (this.opening.active && this.opening.canSkip() && !this.paused && code === 'Enter') this.opening.skip();
     };
-    input.onMouseDown = (btn) => { if (btn === 0 && this.canFire()) this.weapon.latch(); };
+    input.onMouseDown = (btn) => { if (btn === 0 && this.canFire()) this.weapon.latch(); else if (btn === 2 && this.opening.active) this.opening.press(); };
     document.addEventListener('visibilitychange', () => { if (document.hidden && (this.state === 'playing' || this.state === 'opening') && !this.paused) this.pause(); });
   }
 
@@ -282,9 +283,9 @@ export class Game {
     if (this.touchMode) enterImmersive();
     this.ui.hideMenus();
     this.ui.fade(1);
-    this.state = 'opening';
-    this.cinePose = this.opening.pose;
-    this.opening.start();
+    this.state = 'playing';
+    this.cinePose = null;
+    this.opening.begin(progress.introDone ? 'ready' : 'home');
     this.input.lock();
   }
 
@@ -293,9 +294,8 @@ export class Game {
     this.audio.init();
     if (this.touchMode) enterImmersive();
     this.ui.hideMenus();
-    this.state = 'opening';
-    this.cinePose = this.opening.pose;
-    this.opening.start();
+    this.state = 'playing';
+    this.cinePose = null;
     this.restart();
   }
 
@@ -339,7 +339,7 @@ export class Game {
 
   restart(freshRun = false) {
     this.audio.init();
-    if (this.state === 'opening') this.opening.finish(true);
+    if (this.opening.active) this.opening.finish(true);
     if (freshRun) this.newRun();
     this.resetEncounter();
     this.paused = false;
@@ -355,9 +355,9 @@ export class Game {
     this.resetEncounter();
     this.ui.hideMenus();
     this.paused = false;
-    this.cinePose = this.opening.pose;
-    this.state = 'opening';
-    this.opening.start();
+    this.cinePose = null;
+    this.state = 'playing';
+    this.opening.begin('home');
     this.lockRetries = 0;
     this.input.lock();
   }
@@ -378,6 +378,7 @@ export class Game {
     this.deathT = 0; this.deathMenu = false; this.deathPuddle.visible = false; this.body.deathK = 0;
     this.state = 'playing';
     this.cinePose = null;
+    this.opening.onRetry();
     this.ui.clearTransient();
     this.ui.setHealth(this.player.health, this.player.maxHealth);
     this.ui.showHud(true);
@@ -465,6 +466,8 @@ export class Game {
     let best = maxT;
     const wh = this.world.raycast(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, maxT);
     if (wh) best = wh.t;
+    const it = this.opening.target;                    // the maintenance lock: the crosshair sees it like any target
+    if (it && it.alive) { const t = raySphere(origin.x, origin.y, origin.z, dir.x, dir.y, dir.z, it.c.x, it.c.y, it.c.z, it.r, best); if (t >= 0 && t < best) best = t; }
     for (const e of this.enemies) {
       if (!e.alive) continue;
       for (const s of e.hitSpheres) {
@@ -573,6 +576,8 @@ export class Game {
     }
 
     this.opening.update(dt);
+    this.enemyFreeze = Math.max(0, (this.enemyFreeze || 0) - dt);
+    if (this.state === 'menu') { const q = this.opening.pose; q.yaw = 0.22 * Math.sin(this.time * 0.16); q.pitch = 0.02 * Math.sin(this.time * 0.23); q.x = Math.sin(this.time * 0.11) * 0.06; }
 
     const steps = Math.max(1, Math.ceil(dt / STEP));
     const h = dt / steps;
@@ -583,10 +588,10 @@ export class Game {
 
     this.level.update(this.time);
     this.effects.update(dt);
-    this.body.setVisible(!this.cinePose);
+    this.body.setVisible(!this.cinePose && !this.opening.hideBody);
     this.body.update(dt);
     this.ui.update(dt);
-    if (this.touchUI) this.touchUI.setVisible((this.state === 'playing' || this.state === 'opening') && !this.paused);
+    if (this.touchUI) this.touchUI.setVisible(this.paused ? false : this.state === 'playing', this.opening.active ? this.opening.buttons() : null);
     if (this.state === 'playing' || this.state === 'dead') {
       this.ui.setHealth(player.health, player.maxHealth);
       this.ui.setDash(player.dashReady);
@@ -622,7 +627,7 @@ export class Game {
   simulate(dt) {
     const { player, input } = this;
     const playing = this.state === 'playing';
-    const controllable = playing && !player.dead && input.locked;
+    const controllable = playing && !player.dead && input.locked && !this.opening.moveLocked;
     if (this.state !== 'opening' && this.state !== 'menu') {
       player.step(dt, input, controllable);
       if (player.justDashed) { this.audio.play('dash'); this.addShake(0.06); }
@@ -631,8 +636,8 @@ export class Game {
     this.weapon.step(dt, input.mouse(0), this.canFire());
     this.level.updateDoors(dt);
     this.projectiles.update(dt);
-    for (const e of this.enemies) { if (e.absorbing) { e.updateFlash?.(dt); continue; } e.update(dt); }
-    if (playing && !player.dead) this.absorber.update(dt);
+    for (const e of this.enemies) { if (e.absorbing || this.enemyFreeze > 0) { e.updateFlash?.(dt); continue; } e.update(dt); }
+    if (playing && !player.dead && !this.opening.active) this.absorber.update(dt);
     if (playing) this.pickups.update(dt);
     for (const b of this.barrels) b.update(dt);
     if (playing) {

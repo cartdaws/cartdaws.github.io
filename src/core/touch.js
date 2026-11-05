@@ -76,7 +76,7 @@ export class TouchControls {
     hold($('t-dash'), () => input.pressed.add('ShiftLeft'));
     hold($('t-pause'), () => onPause());
     this.absorbBtn = $('t-absorb');
-    hold(this.absorbBtn, () => { input.absorbTap = true; }, () => {});
+    hold(this.absorbBtn, () => { input.absorbTap = true; input.touchInteract = true; }, () => { input.touchInteract = false; });
 
     // stop the browser's own gestures (scroll, zoom, long-press menus) while playing
     for (const ev of ['touchmove', 'gesturestart']) document.addEventListener(ev, (e) => { if (root.classList.contains('show')) e.preventDefault(); }, { passive: false });
@@ -86,7 +86,11 @@ export class TouchControls {
 
   setAbsorb(v) { this.absorbBtn.classList.toggle('ready', v); }
 
-  setVisible(v) { this.root.classList.toggle('show', v); }
+  setVisible(mode, flags = null) {
+    this.root.classList.toggle('show', !!mode);
+    const f = flags || { fire: true, jump: true, dash: true };
+    this.root.classList.toggle('no-fire', !f.fire); this.root.classList.toggle('no-jump', !f.jump); this.root.classList.toggle('no-dash', !f.dash);
+  }
 }
 
 // Fullscreen + landscape where the browser allows it (Android Chrome yes; iOS Safari ignores both).

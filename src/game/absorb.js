@@ -247,6 +247,7 @@ export class Absorber {
     e.die(true); // counts for the encounter, no explosion
     // every absorbed machine makes the body permanently sturdier
     progress.addMaxHp();
+    g.opening.onAbsorbed?.();
     p.maxHealth += 1;
     p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14) + 1);
     g.ui.setHealth(p.health, p.maxHealth);
