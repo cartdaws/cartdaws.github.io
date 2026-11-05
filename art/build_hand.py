@@ -18,18 +18,12 @@ OUT_GLB, OUT_BLEND = argv[0], argv[1]
 bpy.ops.wm.read_factory_settings(use_empty=True)
 random.seed(11)
 
-# Digit sets. (angle about Y from +X toward +Z, length, base radius, tip radius). Each hand variant is one watertight skin with the same morph targets.
-DIGIT_SETS = {
-    's4': [(pi * 0.25, 0.165, 0.021, 0.0075), (pi * 0.75, 0.165, 0.021, 0.0075), (pi * 1.25, 0.135, 0.024, 0.009), (pi * 1.75, 0.135, 0.024, 0.009)],
-    's3': [(pi * 0.5, 0.17, 0.022, 0.008), (pi * 1.1667, 0.16, 0.023, 0.0085), (pi * 1.8333, 0.16, 0.023, 0.0085)],
-    's2': [(pi * 0.0, 0.2, 0.025, 0.009), (pi * 1.0, 0.18, 0.027, 0.0095)],
-    'b4': [(pi * 0.25, 0.115, 0.031, 0.014), (pi * 0.75, 0.115, 0.031, 0.014), (pi * 1.25, 0.1, 0.034, 0.016), (pi * 1.75, 0.1, 0.034, 0.016)],
-    'b3': [(pi * 0.5, 0.125, 0.034, 0.015), (pi * 1.1667, 0.115, 0.036, 0.016), (pi * 1.8333, 0.115, 0.036, 0.016)],
-    'b2': [(pi * 0.0, 0.14, 0.04, 0.017), (pi * 1.0, 0.13, 0.042, 0.018)],
-}
-PALM = {'s': (0.066, 0.056, 0.05, 0.03), 'b': (0.086, 0.07, 0.062, 0.045)}   # palm radii and web size
-DIGITS = DIGIT_SETS['s4']
-mat_gel = bpy.data.materials.new('Gel'); mat_gel.use_nodes = True
+DIGITS = [  # (angle about Y from +X toward +Z, length, base radius, tip radius)
+    (pi * 0.25, 0.165, 0.021, 0.0075),
+    (pi * 0.75, 0.165, 0.021, 0.0075),
+    (pi * 1.25, 0.135, 0.024, 0.009),
+    (pi * 1.75, 0.135, 0.024, 0.009),
+]
 RING = 0.045          # radial offset of digit bases from the axis
 Y0 = 0.075            # y of the digit bases
 PHI0 = 0.30           # resting splay (radians away from the axis)
@@ -48,248 +42,141 @@ def forearm_radius(y):
     return base + belly + wrist
 
 
-def make_variant(name, DIGITS):
-    PHI0_ = PHI0
-    # ---------------------------------------------------------------- union of volumes -> one remeshed skin
-    vol = bmesh.new()
+# ---------------------------------------------------------------- union of volumes -> one remeshed skin
+vol = bmesh.new()
 
 
-    def blob(c, rx, ry, rz, seg=14):
-        res = bmesh.ops.create_uvsphere(vol, u_segments=seg, v_segments=max(6, seg // 2), radius=1.0)
-        for v in res['verts']:
-            v.co = Vector((c[0] + v.co.x * rx, c[1] + v.co.y * ry, c[2] + v.co.z * rz))
+def blob(c, rx, ry, rz, seg=14):
+    res = bmesh.ops.create_uvsphere(vol, u_segments=seg, v_segments=max(6, seg // 2), radius=1.0)
+    for v in res['verts']:
+        v.co = Vector((c[0] + v.co.x * rx, c[1] + v.co.y * ry, c[2] + v.co.z * rz))
 
 
-    y = -1.3
-    while y <= 0.012:                                                       # forearm: slightly flattened oval section
-        r = forearm_radius(y)
-        blob((0, y, 0), r * 1.08, 0.016, r * 0.94, 12)
-        y += 0.012
-    blob((0, 0.05, 0), PALM[name[5]][0], PALM[name[5]][1], PALM[name[5]][2], 18)                              # palm
-    for (a, L, r0, r1) in DIGITS:
-        rh = Vector((cos(a), 0, sin(a)))
-        blob((rh.x * RING * 0.8, Y0 - 0.012, rh.z * RING * 0.8), PALM[name[5]][3], PALM[name[5]][3], PALM[name[5]][3], 12)    # web between palm and digit
-        d0 = Vector((0, cos(PHI0), 0)) + rh * sin(PHI0)
-        c0 = rh * RING + Vector((0, Y0, 0))
-        n = 18
-        for i in range(n + 1):
-            s = i / n
-            r = r0 + (r1 - r0) * (s ** 0.8)
-            c = c0 + d0 * (s * L)
-            blob(c, r, r, r, 10)
-        # knuckle swelling at the first joint
-        blob(c0 + d0 * (0.05), r0 * 1.12, r0 * 1.12, r0 * 1.12, 10)
+y = -1.3
+while y <= 0.012:                                                       # forearm: slightly flattened oval section
+    r = forearm_radius(y)
+    blob((0, y, 0), r * 1.08, 0.016, r * 0.94, 12)
+    y += 0.012
+blob((0, 0.05, 0), 0.066, 0.056, 0.05, 18)                              # palm
+for (a, L, r0, r1) in DIGITS:
+    rh = Vector((cos(a), 0, sin(a)))
+    blob((rh.x * RING * 0.8, Y0 - 0.012, rh.z * RING * 0.8), 0.03, 0.03, 0.03, 12)    # web between palm and digit
+    d0 = Vector((0, cos(PHI0), 0)) + rh * sin(PHI0)
+    c0 = rh * RING + Vector((0, Y0, 0))
+    n = 18
+    for i in range(n + 1):
+        s = i / n
+        r = r0 + (r1 - r0) * (s ** 0.8)
+        c = c0 + d0 * (s * L)
+        blob(c, r, r, r, 10)
+    # knuckle swelling at the first joint
+    blob(c0 + d0 * (0.05), r0 * 1.12, r0 * 1.12, r0 * 1.12, 10)
 
-    me = bpy.data.meshes.new(name)
-    vol.to_mesh(me)
-    vol.free()
-    hand = bpy.data.objects.new(name, me)
-    bpy.context.collection.objects.link(hand)
-    bpy.context.view_layer.objects.active = hand
-    hand.select_set(True)
-    m = hand.modifiers.new('rm', 'REMESH')
-    m.mode = 'VOXEL'
-    m.voxel_size = 0.0052
-    m.adaptivity = 0.0
-    bpy.ops.object.modifier_apply(modifier='rm')
-    for name, kind, kw in (('sm', 'SMOOTH', dict(factor=0.9, iterations=14)), ):
-        mod = hand.modifiers.new(name, kind)
-        mod.factor = kw['factor']
-        mod.iterations = kw['iterations']
-        bpy.ops.object.modifier_apply(modifier=name)
-    dec = hand.modifiers.new('dc', 'DECIMATE')
-    dec.ratio = 0.17
-    bpy.ops.object.modifier_apply(modifier='dc')
-    sm2 = hand.modifiers.new('sm2', 'SMOOTH')
-    sm2.factor = 0.5
-    sm2.iterations = 4
-    bpy.ops.object.modifier_apply(modifier='sm2')
-    for poly in hand.data.polygons:
-        poly.use_smooth = True
-    print('HAND verts', len(hand.data.vertices), 'faces', len(hand.data.polygons))
+me = bpy.data.meshes.new('Hand')
+vol.to_mesh(me)
+vol.free()
+hand = bpy.data.objects.new('Hand', me)
+bpy.context.collection.objects.link(hand)
+bpy.context.view_layer.objects.active = hand
+hand.select_set(True)
+m = hand.modifiers.new('rm', 'REMESH')
+m.mode = 'VOXEL'
+m.voxel_size = 0.0052
+m.adaptivity = 0.0
+bpy.ops.object.modifier_apply(modifier='rm')
+for name, kind, kw in (('sm', 'SMOOTH', dict(factor=0.9, iterations=14)), ):
+    mod = hand.modifiers.new(name, kind)
+    mod.factor = kw['factor']
+    mod.iterations = kw['iterations']
+    bpy.ops.object.modifier_apply(modifier=name)
+dec = hand.modifiers.new('dc', 'DECIMATE')
+dec.ratio = 0.22
+bpy.ops.object.modifier_apply(modifier='dc')
+sm2 = hand.modifiers.new('sm2', 'SMOOTH')
+sm2.factor = 0.5
+sm2.iterations = 4
+bpy.ops.object.modifier_apply(modifier='sm2')
+for poly in hand.data.polygons:
+    poly.use_smooth = True
+print('HAND verts', len(hand.data.vertices), 'faces', len(hand.data.polygons))
 
-    # UVs: simple cylindrical (u around the axis, v along it) so the game shader can drive veins and bands
-    bm = bmesh.new()
-    bm.from_mesh(hand.data)
-    uvl = bm.loops.layers.uv.verify()
-    for f in bm.faces:
-        for loop in f.loops:
-            v = loop.vert.co
-            loop[uvl].uv = ((math.atan2(v.z, v.x) / (2 * pi)) % 1.0, (v.y + 1.3) / 1.6)
-    bm.to_mesh(hand.data)
-    bm.free()
-    hand.data.materials.append(mat_gel)
+# UVs: simple cylindrical (u around the axis, v along it) so the game shader can drive veins and bands
+bm = bmesh.new()
+bm.from_mesh(hand.data)
+uvl = bm.loops.layers.uv.verify()
+for f in bm.faces:
+    for loop in f.loops:
+        v = loop.vert.co
+        loop[uvl].uv = ((math.atan2(v.z, v.x) / (2 * pi)) % 1.0, (v.y + 1.3) / 1.6)
+bm.to_mesh(hand.data)
+bm.free()
+mat_gel = bpy.data.materials.new('Gel'); mat_gel.use_nodes = True
+hand.data.materials.append(mat_gel)
 
-    # ---------------------------------------------------------------- morph targets from a digit bend model
-    verts = [v.co.copy() for v in hand.data.vertices]
-    basis = hand.shape_key_add(name='Basis', from_mix=False)
-
-
-    def bend_pose(thetas, swell=0.0):
-        """Return new vertex positions. thetas: bend (radians) per digit, negative curls towards the axis."""
-        out = []
-        for p in verts:
-            q = p.copy()
-            best = None
-            for k, (a, L, r0, r1) in enumerate(DIGITS):
-                rh = Vector((cos(a), 0, sin(a)))
-                tau = Vector((-sin(a), 0, cos(a)))
-                d0 = Vector((0, cos(PHI0), 0)) + rh * sin(PHI0)
-                n0 = Vector((0, -sin(PHI0), 0)) + rh * cos(PHI0)
-                c0 = rh * RING + Vector((0, Y0, 0))
-                rel = p - c0
-                t = rel.dot(d0)
-                if t < 0:
-                    continue
-                qr, qt = rel.dot(n0), rel.dot(tau)
-                lat = sqrt(qr * qr + qt * qt)
-                if best is None or lat < best[0]:
-                    best = (lat, k, t, qr, qt, c0, rh, tau, a, L)
-            if best is not None and thetas is not None:
-                lat, k, t, qr, qt, c0, rh, tau, a, L = best
-                w = 1.0 - smoothstep(0.024, 0.036, lat)
-                th = thetas[k]
-                if w > 0 and abs(th) > 1e-6:
-                    steps = max(1, int(t / 0.004))
-                    du = t / steps
-                    C = c0.copy()
-                    phi = PHI0
-                    for i in range(steps):
-                        u = (i + 0.5) * du
-                        phi = PHI0 + th * min(u, L) / L
-                        C += (Vector((0, cos(phi), 0)) + rh * sin(phi)) * du
-                    phi = PHI0 + th * min(t, L) / L
-                    nrm = Vector((0, -sin(phi), 0)) + rh * cos(phi)
-                    newp = C + nrm * qr + tau * qt
-                    q = p.lerp(newp, w)
-            if swell > 0 and -0.5 < p.y < -0.02:
-                bump = math.exp(-((p.y + 0.22) / 0.13) ** 2)
-                top = 1.0 + 0.55 * max(0.0, p.z / 0.08)
-                k = 1.0 + swell * 0.4 * bump * top
-                q = Vector((q.x * (1.0 + (k - 1.0) * 0.8), q.y, q.z * k))
-            out.append(q)
-        return out
+# ---------------------------------------------------------------- morph targets from a digit bend model
+verts = [v.co.copy() for v in hand.data.vertices]
+basis = hand.shape_key_add(name='Basis', from_mix=False)
 
 
-    def add_key(name, thetas, swell=0.0):
-        sk = hand.shape_key_add(name=name, from_mix=False)
-        pos = bend_pose(thetas, swell)
-        for i, p in enumerate(pos):
-            sk.data[i].co = p
-        sk.value = 0.0
-
-
-    add_key('Grip', [-1.15 - 0.1 * (k_ // 2) for k_ in range(len(DIGITS))])
-    add_key('Weapon', [-0.55 - 0.07 * (k_ // 2) for k_ in range(len(DIGITS))], swell=0.0)
-    add_key('Spread', [0.6 + 0.05 * (k_ // 2) for k_ in range(len(DIGITS))])
-    add_key('Swell', None, swell=1.0)
-
-
-    # ---- creator keys: proportions, hand size and finger shape. Linear deltas; the game drives them from -1..1 style sliders.
-    def smooth_(a, b_, x):
-        t = max(0.0, min(1.0, (x - a) / (b_ - a)))
-        return t * t * (3 - 2 * t)
-
-    assign = []
+def bend_pose(thetas, swell=0.0):
+    """Return new vertex positions. thetas: bend (radians) per digit, negative curls towards the axis."""
+    out = []
     for p in verts:
+        q = p.copy()
         best = None
-        for k, (a, Ld, r0, r1) in enumerate(DIGITS):
+        for k, (a, L, r0, r1) in enumerate(DIGITS):
             rh = Vector((cos(a), 0, sin(a)))
+            tau = Vector((-sin(a), 0, cos(a)))
             d0 = Vector((0, cos(PHI0), 0)) + rh * sin(PHI0)
+            n0 = Vector((0, -sin(PHI0), 0)) + rh * cos(PHI0)
             c0 = rh * RING + Vector((0, Y0, 0))
             rel = p - c0
             t = rel.dot(d0)
             if t < 0:
                 continue
-            lat_v = rel - d0 * t
-            lat = lat_v.length
+            qr, qt = rel.dot(n0), rel.dot(tau)
+            lat = sqrt(qr * qr + qt * qt)
             if best is None or lat < best[0]:
-                best = (lat, k, t, rh, d0, lat_v)
-        assign.append(best)
+                best = (lat, k, t, qr, qt, c0, rh, tau, a, L)
+        if best is not None and thetas is not None:
+            lat, k, t, qr, qt, c0, rh, tau, a, L = best
+            w = 1.0 - smoothstep(0.024, 0.036, lat)
+            th = thetas[k]
+            if w > 0 and abs(th) > 1e-6:
+                steps = max(1, int(t / 0.004))
+                du = t / steps
+                C = c0.copy()
+                phi = PHI0
+                for i in range(steps):
+                    u = (i + 0.5) * du
+                    phi = PHI0 + th * min(u, L) / L
+                    C += (Vector((0, cos(phi), 0)) + rh * sin(phi)) * du
+                phi = PHI0 + th * min(t, L) / L
+                nrm = Vector((0, -sin(phi), 0)) + rh * cos(phi)
+                newp = C + nrm * qr + tau * qt
+                q = p.lerp(newp, w)
+        if swell > 0 and -0.5 < p.y < -0.02:
+            bump = math.exp(-((p.y + 0.22) / 0.13) ** 2)
+            top = 1.0 + 0.55 * max(0.0, p.z / 0.08)
+            k = 1.0 + swell * 0.4 * bump * top
+            q = Vector((q.x * (1.0 + (k - 1.0) * 0.8), q.y, q.z * k))
+        out.append(q)
+    return out
 
 
-    def add_vec_key(name_, fn):
-        sk = hand.shape_key_add(name=name_, from_mix=False)
-        for i, p in enumerate(verts):
-            sk.data[i].co = fn(i, p)
-        sk.value = 0.0
+def add_key(name, thetas, swell=0.0):
+    sk = hand.shape_key_add(name=name, from_mix=False)
+    pos = bend_pose(thetas, swell)
+    for i, p in enumerate(pos):
+        sk.data[i].co = p
+    sk.value = 0.0
 
 
-    def f_armlen(i, p):
-        w = smooth_(-0.05, -0.4, p.y)
-        return Vector((p.x, p.y + p.y * 0.4 * w, p.z))
+add_key('Grip', [-1.15, -1.15, -1.25, -1.25])
+add_key('Weapon', [-0.55, -0.55, -0.62, -0.62], swell=0.0)
+add_key('Spread', [0.6, 0.6, 0.65, 0.65])
+add_key('Swell', None, swell=1.0)
 
-
-    def f_armthick(i, p):
-        w = smooth_(-0.02, -0.22, p.y)
-        k = 1 + 0.35 * w
-        return Vector((p.x * k, p.y, p.z * k))
-
-
-    def f_upper(i, p):
-        if p.y > -0.03:
-            return p.copy()
-        te = min(1.0, max(0.0, (-p.y - 0.05) / 1.25))
-        k = 1 + 0.3 * (te * 2 - 1) * smooth_(-0.02, -0.2, p.y)
-        return Vector((p.x * k, p.y, p.z * k))
-
-
-    def f_hand(i, p):
-        w = 1 - smooth_(-0.14, 0.0, p.y) if p.y < 0 else 1.0
-        k = 1 + 0.35 * w
-        return p * k if w > 0 else p.copy()
-
-
-    def digit_w(i):
-        a_ = assign[i]
-        if a_ is None:
-            return None
-        lat, k, t, rh, d0, lat_v = a_
-        w = 1.0 - smooth_(0.024, 0.04, lat) if False else 1.0 - smoothstep(0.024, 0.04, lat)
-        return (w, k, t, rh, d0, lat_v)
-
-
-    def f_flen(i, p):
-        d = digit_w(i)
-        if d is None or d[0] <= 0:
-            return p.copy()
-        w, k, t, rh, d0, lv = d
-        return p + d0 * (t * 0.5 * w)
-
-
-    def f_fthick(i, p):
-        d = digit_w(i)
-        if d is None or d[0] <= 0:
-            return p.copy()
-        w, k, t, rh, d0, lv = d
-        return p + lv * (0.5 * w)
-
-
-    def f_fspread(i, p):
-        d = digit_w(i)
-        if d is None or d[0] <= 0:
-            return p.copy()
-        w, k, t, rh, d0, lv = d
-        return p + rh * (0.9 * t * w) * 0.4 + rh * 0.012 * w
-
-
-    add_vec_key('ArmLen', f_armlen)
-    add_vec_key('ArmThick', f_armthick)
-    add_vec_key('UpperRatio', f_upper)
-    add_vec_key('HandSize', f_hand)
-    add_vec_key('FingerLen', f_flen)
-    add_vec_key('FingerThick', f_fthick)
-    add_vec_key('FingerSpread', f_fspread)
-    for k_ in hand.data.shape_keys.key_blocks:
-        k_.slider_min, k_.slider_max = -1.0, 1.0
-    return hand
-
-
-HANDS = {}
-for key in DIGIT_SETS:
-    HANDS[key] = make_variant('Hand_' + key, DIGIT_SETS[key])
-    print('HANDVARIANT', key, len(HANDS[key].data.vertices))
-hand = HANDS['s4']
 
 # ---------------------------------------------------------------- inner structures (kept few and quiet)
 def lofted(name, pts, radius_fn, seg=10):
@@ -406,15 +293,7 @@ bpy.context.collection.objects.link(tooth)
 tooth.data.materials.append(mat_core)
 
 bpy.ops.wm.save_as_mainfile(filepath=OUT_BLEND)
-# Two files: the default hand and weapon organ load with the game; the other hand structures load when a creature uses one (or the creator opens).
-EXTRA = ['Hand_s3', 'Hand_s2', 'Hand_b4', 'Hand_b3', 'Hand_b2']
-OUT_EXTRA = OUT_GLB.replace('hand.glb', 'hands_extra.glb')
-def export(path, names):
-    bpy.ops.object.select_all(action='DESELECT')
-    for o in bpy.data.objects:
-        o.select_set(o.name in names)
-    bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', use_selection=True, export_apply=False, export_yup=True,
-                              export_materials='EXPORT', export_normals=True, export_texcoords=True, export_morph=True, export_morph_normal=True)
-export(OUT_GLB, [o.name for o in bpy.data.objects if o.name not in EXTRA])
-export(OUT_EXTRA, EXTRA)
-print('EXPORTED', OUT_GLB, OUT_EXTRA, 'keys', [k.name for k in hand.data.shape_keys.key_blocks])
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.export_scene.gltf(filepath=OUT_GLB, export_format='GLB', use_selection=True, export_apply=False, export_yup=True,
+                          export_materials='EXPORT', export_normals=True, export_texcoords=True, export_morph=True, export_morph_normal=True)
+print('EXPORTED', OUT_GLB, [o.name for o in bpy.data.objects], 'keys', [k.name for k in hand.data.shape_keys.key_blocks])

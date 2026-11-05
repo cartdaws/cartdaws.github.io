@@ -6,6 +6,8 @@ export class Input {
     this.keys = new Set();
     this.pressed = new Set();
     this.buttons = new Set();
+    this.clicks = new Set(); // buttons that went down this frame
+    this.absorbTap = false;  // touch: the absorb button was tapped
     this.dx = 0;
     this.dy = 0;
     this.locked = false;
@@ -13,7 +15,6 @@ export class Input {
     this.touch = false; // touch device: there is no pointer lock, "locked" simply means the game has control
     this.axisX = 0; this.axisY = 0; // analog move stick
     this.touchAbsorb = false;
-    this.touchInteract = false; // the on-screen interact button is held
     this.fireGuardUntil = 0;
     this.onLockChange = () => {};
     this.onLockError = () => {};
@@ -38,6 +39,7 @@ export class Input {
     document.addEventListener('mousedown', (e) => {
       if (!this.locked || performance.now() < this.fireGuardUntil) return;
       this.buttons.add(e.button);
+      this.clicks.add(e.button);
       this.onMouseDown(e.button);
     });
     document.addEventListener('mouseup', (e) => this.buttons.delete(e.button));
@@ -68,13 +70,11 @@ export class Input {
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
-  clear() { this.touchInteract = false; this.axisX = this.axisY = 0; this.keys.clear(); this.pressed.clear(); this.buttons.clear(); this.dx = 0; this.dy = 0; }
+  clear() { this.axisX = this.axisY = 0; this.keys.clear(); this.pressed.clear(); this.buttons.clear(); this.clicks.clear(); this.absorbTap = false; this.dx = 0; this.dy = 0; }
   down(code) { return this.keys.has(code); }
   was(code) { return this.pressed.has(code); }
-  // Interaction: right mouse button, E, or the on-screen button. Used for the hold-to-act moments of the opening.
-  interactDown() { return this.buttons.has(2) || this.down('KeyE') || this.touchInteract; }
-
   mouse(btn) { return this.buttons.has(btn); }
+  clicked(btn) { return this.clicks.has(btn); }
   takeLook() { const r = [this.dx, this.dy]; this.dx = 0; this.dy = 0; return r; }
-  endFrame() { this.pressed.clear(); }
+  endFrame() { this.pressed.clear(); this.clicks.clear(); }
 }

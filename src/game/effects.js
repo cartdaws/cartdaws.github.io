@@ -80,6 +80,26 @@ class Particles {
   }
 
   clear() { this.life.fill(0); }
+
+  // Steer every live particle toward a point (with a sideways swirl that fades as it closes in); particles that reach it vanish.
+  // Returns how many arrived. Steering (rather than a pure pull) means nothing overshoots or orbits.
+  attract(tx, ty, tz, speed, swirl, dt, reach = 0.14) {
+    let arrived = 0;
+    const steer = Math.min(1, 7 * dt);
+    for (let i = 0; i < this.max; i++) {
+      if (this.life[i] <= 0) continue;
+      const dx = tx - this.pos[i * 3], dy = ty - this.pos[i * 3 + 1], dz = tz - this.pos[i * 3 + 2];
+      const d = Math.hypot(dx, dy, dz) || 1e-4;
+      if (d < reach) { this.life[i] = 0; this.size[i] = 0; arrived++; continue; }
+      const sp = speed * (0.45 + 0.55 * Math.min(1, d));
+      const h = Math.hypot(dx, dz) || 1e-4, sw = swirl * Math.min(1, d * 0.6);
+      const wx = (dx / d) * sp + (-dz / h) * sw, wy = (dy / d) * sp, wz = (dz / d) * sp + (dx / h) * sw;
+      this.vel[i * 3] += (wx - this.vel[i * 3]) * steer;
+      this.vel[i * 3 + 1] += (wy - this.vel[i * 3 + 1]) * steer;
+      this.vel[i * 3 + 2] += (wz - this.vel[i * 3 + 2]) * steer;
+    }
+    return arrived;
+  }
 }
 
 export class Effects {
@@ -87,6 +107,7 @@ export class Effects {
     this.scene = scene;
     this.glowP = new Particles(scene, 1800, true);
     this.smokeP = new Particles(scene, 500, false, 0.5);
+    this.streamP = new Particles(scene, 900, true); // the energy drawn from an absorbed machine into the hand
 
     this.lights = [];
     for (let i = 0; i < 3; i++) {
@@ -140,10 +161,11 @@ export class Effects {
     const s = h / (2 * Math.tan((fov * Math.PI) / 360));
     this.glowP.uniforms.uScale.value = s;
     this.smokeP.uniforms.uScale.value = s;
+    this.streamP.uniforms.uScale.value = s;
   }
 
   clear() {
-    this.glowP.clear(); this.smokeP.clear();
+    this.glowP.clear(); this.smokeP.clear(); this.streamP.clear();
     for (const l of this.lights) { l.light.intensity = 0; l.t = l.dur; }
     for (const r of this.rings) { r.mesh.visible = false; r.t = r.dur; }
     for (const b of this.balls) { b.mesh.visible = false; b.t = b.dur; }
@@ -200,6 +222,7 @@ export class Effects {
     this.ring(pos, normal, 0x7ff0ff, 0.28, 0.22);
     const m = this.marks[this.markIdx];
     this.markIdx = (this.markIdx + 1) % this.marks.length;
+    m.mesh.material.color.set(0x7ff0ff);
     m.mesh.position.copy(pos).addScaledVector(normal, 0.015);
     m.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
     m.mesh.scale.setScalar(0.09);
@@ -214,7 +237,28 @@ export class Effects {
   }
 
   muzzle(pos) {
-    this.flashLight(pos, 0x7ff0ff, 18, 0.07);
+    this.flashLight(pos, 0x6dffb0, 18, 0.07);
+  }
+
+  // Organic impact: the spine bursts into a splash of glowing goo that drips and leaves a splat on the surface.
+  goo(pos, normal) {
+    for (let i = 0; i < 16; i++) {
+      const sp = rand(1.5, 5);
+      this.glowP.emit(pos.x, pos.y, pos.z,
+        normal.x * sp + rand(-2.2, 2.2), normal.y * sp + rand(-0.5, 2.5), normal.z * sp + rand(-2.2, 2.2),
+        rand(0.3, 0.7), rand(0.035, 0.07), 0.4, 1, 0.55, 12, 0.8);
+    }
+    for (let i = 0; i < 4; i++) this.glowP.emit(pos.x, pos.y, pos.z, rand(-0.3, 0.3), rand(-0.6, -0.1), rand(-0.3, 0.3), rand(0.6, 1.1), rand(0.04, 0.06), 0.3, 0.9, 0.45, 9, 2); // drips
+    this.glowP.emit(pos.x, pos.y, pos.z, 0, 0, 0, 0.14, 0.38, 0.6, 1, 0.75);
+    this.ring(pos, normal, 0x6dff9a, 0.24, 0.2);
+    const m = this.marks[this.markIdx];
+    this.markIdx = (this.markIdx + 1) % this.marks.length;
+    m.mesh.material.color.set(0x5dff8a);
+    m.mesh.position.copy(pos).addScaledVector(normal, 0.015);
+    m.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), normal);
+    m.mesh.scale.setScalar(rand(0.1, 0.16));
+    m.mesh.visible = true;
+    m.t = 2.2;
   }
 
   enemyDeath(pos, big) {
@@ -249,6 +293,7 @@ export class Effects {
   update(dt) {
     this.glowP.update(dt);
     this.smokeP.update(dt);
+    this.streamP.update(dt);
     for (const l of this.lights) {
       if (l.t < l.dur) { l.t += dt; const k = Math.max(0, 1 - l.t / l.dur); l.light.intensity = l.peak * k * k; }
       else l.light.intensity = 0;

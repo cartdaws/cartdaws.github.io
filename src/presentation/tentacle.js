@@ -44,7 +44,7 @@ export function makeTentacleGel({ color = 0x0a4a46, rim = 0x7ff0e0, alpha = 0.5,
       }
       void main(){
         vec3 n = normalize(vN), v = normalize(vV);
-        float f = pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 2.2);
+        float f = pow(1.0 - abs(dot(n, v)), 2.2);
         float t = vUv.x;
         float r = mix(uR0, uR1, pow(t, 0.8));
         float cnt = max(5.0, uLen * 26.0);

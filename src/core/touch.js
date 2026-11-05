@@ -3,7 +3,7 @@
 export const isTouchDevice = () => /[?&]touch\b/.test(location.search) || window.matchMedia('(pointer: coarse)').matches;
 
 export class TouchControls {
-  constructor(input, { onPause, onSkip, onWeapons }) {
+  constructor(input, { onPause, onSkip }) {
     this.input = input;
     const root = document.createElement('div');
     root.id = 'touch';
@@ -14,7 +14,6 @@ export class TouchControls {
       <button id="t-jump">JUMP</button>
       <button id="t-dash">DASH</button>
       <button id="t-absorb">ABSORB</button>
-      <button id="t-weapons">ARMS</button>
       <button id="t-pause">II</button>`;
     document.body.appendChild(root);
     this.root = root;
@@ -76,15 +75,8 @@ export class TouchControls {
     hold($('t-jump'), () => input.pressed.add('Space'));
     hold($('t-dash'), () => input.pressed.add('ShiftLeft'));
     hold($('t-pause'), () => onPause());
-    {
-      const wb = $('t-weapons'); let wid = null, wx = 0, wy = 0;
-      wb.addEventListener('pointerdown', (e) => { wid = e.pointerId; wb.setPointerCapture(wid); wx = e.clientX; wy = e.clientY; wb.classList.add('on'); onWeapons && onWeapons(true); e.preventDefault(); e.stopPropagation(); });
-      wb.addEventListener('pointermove', (e) => { if (e.pointerId !== wid) return; input.dx += (e.clientX - wx) * 1.7; input.dy += (e.clientY - wy) * 1.7; wx = e.clientX; wy = e.clientY; });
-      const end = (e) => { if (e.pointerId !== wid) return; wid = null; wb.classList.remove('on'); onWeapons && onWeapons(false); e.stopPropagation(); };
-      wb.addEventListener('pointerup', end); wb.addEventListener('pointercancel', end);
-    }
     this.absorbBtn = $('t-absorb');
-    hold(this.absorbBtn, () => { input.touchInteract = true; input.onMouseDown(2); }, () => { input.touchInteract = false; });
+    hold(this.absorbBtn, () => { input.absorbTap = true; }, () => {});
 
     // stop the browser's own gestures (scroll, zoom, long-press menus) while playing
     for (const ev of ['touchmove', 'gesturestart']) document.addEventListener(ev, (e) => { if (root.classList.contains('show')) e.preventDefault(); }, { passive: false });
@@ -92,16 +84,9 @@ export class TouchControls {
     document.getElementById('skip').addEventListener('pointerdown', (e) => { e.preventDefault(); onSkip(); });
   }
 
-  setAbsorb(v, label = 'ABSORB') { this.absorbBtn.classList.toggle('ready', !!v); if (this.absorbBtn.textContent !== label) this.absorbBtn.textContent = label; }
+  setAbsorb(v) { this.absorbBtn.classList.toggle('ready', v); }
 
-  // mode: 'play' (all controls), 'cine' (pause only, during the cinematic) or false
-  // flags (opening only): which action buttons exist right now, so the screen never offers a control the player cannot use yet
-  setVisible(mode, flags = null) {
-    this.root.classList.toggle('show', !!mode);
-    this.root.classList.toggle('cine', mode === 'cine');
-    const f = flags || { fire: true, jump: true, dash: true };
-    this.root.classList.toggle('no-fire', !f.fire); this.root.classList.toggle('no-jump', !f.jump); this.root.classList.toggle('no-dash', !f.dash);
-  }
+  setVisible(v) { this.root.classList.toggle('show', v); }
 }
 
 // Fullscreen + landscape where the browser allows it (Android Chrome yes; iOS Safari ignores both).

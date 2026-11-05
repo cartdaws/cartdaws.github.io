@@ -1,6 +1,6 @@
 import * as THREE from 'three';
-import { save, BASE_MAX_HP } from '../core/save.js';
 import { clamp, damp } from '../core/util.js';
+import { progress } from './progress.js';
 
 const RADIUS = 0.4;
 const HEIGHT = 1.8;
@@ -18,7 +18,7 @@ export class Player {
     this.pos = new THREE.Vector3();
     this.vx = 0; this.vz = 0; this.vy = 0;
     this.yaw = 0; this.pitch = 0;
-    this.maxHealth = BASE_MAX_HP + save.maxHpBonus; // permanent growth from absorbed enemies
+    this.maxHealth = 100 + progress.maxHpBonus;
     this.reset(0, 0, 0);
   }
 
@@ -61,6 +61,8 @@ export class Player {
     this.jumpBuf = Math.max(0, this.jumpBuf - dt);
     this.dashBuf = Math.max(0, this.dashBuf - dt);
     this.dashCd = Math.max(0, this.dashCd - dt);
+    const A = this.game.admin;
+    if (A && A.infDash) this.dashCd = 0;
 
     let mx = 0, mz = 0;
     if (controllable) {
@@ -73,6 +75,17 @@ export class Player {
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     // forward = (-sin, -cos), right = (cos, -sin)
     const wx = -sin * mz + cos * mx, wz = -cos * mz - sin * mx;
+    const SP = SPEED * (A ? A.speed : 1);
+
+    // admin noclip: free flight straight through everything
+    if (A && A.noclip && controllable) {
+      const up = (input.down('Space') ? 1 : 0) - (input.down('KeyC') || input.down('ControlLeft') ? 1 : 0);
+      const fly = SP * 1.8;
+      this.vx = damp(this.vx, wx * fly, 10, dt); this.vz = damp(this.vz, wz * fly, 10, dt); this.vy = damp(this.vy, up * fly, 10, dt);
+      this.pos.x += this.vx * dt; this.pos.y = Math.max(0, this.pos.y + this.vy * dt); this.pos.z += this.vz * dt;
+      this.grounded = this.pos.y <= 0.01; this.dashing = false;
+      return;
+    }
 
     if (this.dashBuf > 0 && this.dashCd <= 0 && !this.dashing) {
       this.dashBuf = 0;
@@ -90,25 +103,25 @@ export class Player {
       this.dashT -= dt;
       if (this.dashT <= 0) {
         this.dashing = false;
-        this.vx = this.dashDir.x * SPEED * 1.1;
-        this.vz = this.dashDir.y * SPEED * 1.1;
+        this.vx = this.dashDir.x * SP * 1.1;
+        this.vz = this.dashDir.y * SP * 1.1;
       }
     } else {
       const lambda = this.grounded ? (l > 0.01 ? 16 : 13) : 3.2;
-      this.vx = damp(this.vx, wx * SPEED, lambda, dt);
-      this.vz = damp(this.vz, wz * SPEED, lambda, dt);
+      this.vx = damp(this.vx, wx * SP, lambda, dt);
+      this.vz = damp(this.vz, wz * SP, lambda, dt);
     }
 
     // Coyote time and buffered jump.
     this.coyote = this.grounded ? 0.1 : Math.max(0, this.coyote - dt);
     if (this.jumpBuf > 0 && this.coyote > 0 && !this.dashing) {
-      this.vy = JUMP_V;
+      this.vy = JUMP_V * (A ? A.jump : 1);
       this.grounded = false;
       this.coyote = 0;
       this.jumpBuf = 0;
       this.game.audio.play('jump', { vol: 0.8 });
     }
-    if (!this.grounded || this.vy > 0) this.vy -= GRAVITY * dt;
+    if (!this.grounded || this.vy > 0) this.vy -= GRAVITY * (A ? A.grav : 1) * dt;
 
     // Horizontal motion in small increments so thin walls and doors cannot be tunnelled.
     const dx = this.vx * dt, dz = this.vz * dt;

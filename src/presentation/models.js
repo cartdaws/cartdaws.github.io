@@ -8,9 +8,5 @@ export async function loadArmModels() {
   for (const n of ['Gland', 'Lip', 'Spine', 'Crystal', 'Mantle', 'Organ']) {
     if (!geos[n]) throw new Error('organs.glb is missing ' + n);
   }
-  // the player's body (art/build_body.py): compact ridged bell and core
-  const body = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/body.glb');
-  body.scene.traverse((o) => { if (o.isMesh) geos[o.name] = o.geometry; });
-  for (const n of ['BodyBell', 'BodyCore']) if (!geos[n]) throw new Error('body.glb is missing ' + n);
   return geos;
 }

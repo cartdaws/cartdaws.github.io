@@ -9,13 +9,13 @@ export class NavGrid {
     this.dist = new Int16Array(this.w * this.h).fill(-1);
     this.queue = new Int32Array(this.w * this.h);
     this.lastKey = -2;
+    const near = world.boxes.filter((bx) => bx.tag !== 'door' && bx.tag !== 'barrel' && bx.minY <= 1 && bx.maxY > 0.35 && bx.maxX > bounds.minX - 2 && bx.minX < bounds.maxX + 2 && bx.maxZ > bounds.minZ - 2 && bx.minZ < bounds.maxZ + 2);
     for (let j = 0; j < this.h; j++) {
       for (let i = 0; i < this.w; i++) {
         const x = bounds.minX + (i + 0.5) * cell, z = bounds.minZ + (j + 0.5) * cell;
         let blk = x < bounds.minX + radius || x > bounds.maxX - radius || z < bounds.minZ + radius || z > bounds.maxZ - radius;
         if (!blk) {
-          for (const bx of world.boxes) {
-            if (bx.tag === 'door' || bx.tag === 'barrel' || bx.minY > 1 || bx.maxY <= 0.35) continue;
+          for (const bx of near) {
             const cx = Math.max(bx.minX, Math.min(x, bx.maxX)), cz = Math.max(bx.minZ, Math.min(z, bx.maxZ));
             if ((x - cx) ** 2 + (z - cz) ** 2 < radius * radius) { blk = true; break; }
           }
@@ -89,4 +89,50 @@ export class NavGrid {
   }
 
   forceRefresh() { this.lastKey = -2; }
+
+  open(x, z) { return !this.blocked[this.cellOf(x, z)]; }
+
+  // A distance field toward any point (for an agent heading somewhere other than the player).
+  field(tx, tz) {
+    const { w, h, blocked } = this;
+    const dist = new Int16Array(w * h).fill(-1), queue = new Int32Array(w * h);
+    let start = this.cellOf(tx, tz);
+    if (blocked[start]) return null;
+    let qh = 0, qt = 0;
+    dist[start] = 0; queue[qt++] = start;
+    while (qh < qt) {
+      const c = queue[qh++], ci = c % w, cj = (c / w) | 0, d = dist[c] + 1;
+      for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+        if (!di && !dj) continue;
+        const ni = ci + di, nj = cj + dj;
+        if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+        const n = nj * w + ni;
+        if (blocked[n] || dist[n] >= 0) continue;
+        if (di && dj && (blocked[cj * w + ni] || blocked[nj * w + ci])) continue;
+        dist[n] = d; queue[qt++] = n;
+      }
+    }
+    return dist;
+  }
+
+  // steps from (x, z) downhill in a field from field(); false when there is no route
+  dirIn(dist, x, z, out) {
+    const { w, h, blocked } = this;
+    const c = this.cellOf(x, z), ci = c % w, cj = (c / w) | 0;
+    let best = dist[c] < 0 ? 1e9 : dist[c], bi = -1, bj = -1;
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      if (!di && !dj) continue;
+      const ni = ci + di, nj = cj + dj;
+      if (ni < 0 || nj < 0 || ni >= w || nj >= h) continue;
+      const n = nj * w + ni;
+      if (blocked[n] || dist[n] < 0) continue;
+      if (di && dj && (blocked[cj * w + ni] || blocked[nj * w + ci])) continue;
+      if (dist[n] < best) { best = dist[n]; bi = ni; bj = nj; }
+    }
+    if (bi < 0) return false;
+    const tx = this.b.minX + (bi + 0.5) * this.cell, tz = this.b.minZ + (bj + 0.5) * this.cell;
+    const dx = tx - x, dz = tz - z, l = Math.hypot(dx, dz) || 1;
+    out.x = dx / l; out.z = dz / l;
+    return true;
+  }
 }

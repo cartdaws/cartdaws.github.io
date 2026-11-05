@@ -48,9 +48,8 @@
       <nav class="list">
         <button id="btn-play" class="primary"><b>01</b><span>PLAY</span></button>
         <button id="btn-new" class="hidden"><b>02</b><span>NEW GAME <small>play the introduction</small></span></button>
-        <button id="btn-create"><b>03</b><span>CREATURE <small>design your body</small></span></button>
-        <button id="btn-opts"><b>04</b><span>OPTIONS</span></button>
-        <button id="btn-help"><b>05</b><span>CONTROLS</span></button>
+        <button id="btn-opts"><b>03</b><span>OPTIONS</span></button>
+        <button id="btn-help"><b>04</b><span>CONTROLS</span></button>
       </nav>
       <div class="status"><span id="st-hp">VITALITY 100</span><span id="st-cp">NEW SPECIMEN</span></div>
     </div>
@@ -67,7 +66,7 @@
       <h3>CONTROLS</h3>
       <table>
         <tr><td>W A S D</td><td>move</td></tr><tr><td>MOUSE</td><td>look</td></tr><tr><td>SPACE</td><td>jump</td></tr><tr><td>SHIFT</td><td>dash</td></tr>
-        <tr><td>LEFT CLICK</td><td>fire the Shardcaster</td></tr><tr><td>RIGHT CLICK</td><td>absorb / interact (hold)</td></tr><tr><td>ESC</td><td>pause</td></tr>
+        <tr><td>LEFT CLICK</td><td>fire the Shardcaster</td></tr><tr><td>RIGHT CLICK</td><td>absorb a disabled robot</td></tr><tr><td>ESC</td><td>pause</td></tr>
       </table>
       <p class="note">Disable a robot, get close, then absorb it: you heal and grow stronger for good.<br>On a phone: left thumb moves, right thumb looks, buttons are on screen.</p>
       <button class="minor close">BACK</button>
@@ -75,13 +74,10 @@
     <div class="foot">ABSORB &nbsp;·&nbsp; ADAPT &nbsp;·&nbsp; ESCAPE</div>
   </div>
 
-  <div id="creator" class="hidden"></div>
-  <div id="wheel" class="hidden"></div>
-
   <div id="menu-pause" class="menu hidden">
     <h2>PAUSED</h2>
     <button id="btn-resume" class="primary">RESUME</button>
-    <button id="btn-restart">RESTART ENCOUNTER</button>
+    <button id="btn-restart">RESTART FROM CHECKPOINT</button>
     <button id="btn-gfx2">GRAPHICS: REALISTIC</button>
     <div class="settings">
       <label>VOLUME <input id="set-volume" type="range" min="0" max="1" step="0.01" value="0.7" /></label>
@@ -95,8 +91,8 @@
   </div>
 
   <div id="menu-complete" class="menu hidden">
-    <h2>First encounter complete</h2>
-    <button id="btn-replay" class="primary">REPLAY ENCOUNTER</button>
+    <h2>Hangar reached</h2>
+    <button id="btn-replay" class="primary">NEW RUN</button>
     <button id="btn-intro">REPLAY FROM THE START</button>
   </div>
 

@@ -111,15 +111,15 @@ export class Audio {
     const o = this.out(vol, pan);
     const p = rand(0.94, 1.06);
     switch (name) {
-      case 'shot':
-        this.tone(o, { type: 'triangle', f0: 2100 * p, f1: 700 * p, dur: 0.11, vol: 0.28 });
-        this.tone(o, { type: 'sine', f0: 3400 * p, f1: 2600 * p, dur: 0.16, vol: 0.12, delay: 0.01 });
-        this.tone(o, { type: 'sine', f0: 190, f1: 70, dur: 0.12, vol: 0.3 });
-        this.noise(o, { dur: 0.035, vol: 0.18, type: 'highpass', f0: 5000 });
+      case 'shot': // a wet, muscular spit: squelch, throat thump, spray
+        this.noise(o, { dur: 0.09, vol: 0.34, type: 'bandpass', f0: 1900 * p, f1: 420, q: 2.5 });
+        this.tone(o, { type: 'triangle', f0: 460 * p, f1: 170, dur: 0.08, vol: 0.14 });
+        this.tone(o, { type: 'sine', f0: 150, f1: 44, dur: 0.17, vol: 0.46 });
+        this.noise(o, { dur: 0.06, vol: 0.16, type: 'highpass', f0: 3200, delay: 0.015 });
         break;
-      case 'impact':
-        this.noise(o, { dur: 0.09, vol: 0.14, type: 'bandpass', f0: 5200, f1: 2500, q: 2 });
-        this.tone(o, { type: 'sine', f0: 2800 * p, f1: 1800, dur: 0.12, vol: 0.07 });
+      case 'impact': // splat
+        this.noise(o, { dur: 0.11, vol: 0.2, type: 'lowpass', f0: 1600, f1: 280 });
+        this.tone(o, { type: 'sine', f0: 320 * p, f1: 110, dur: 0.1, vol: 0.09 });
         break;
       case 'hit':
         this.tone(o, { type: 'square', f0: 1500, f1: 1200, dur: 0.045, vol: 0.09 });
@@ -243,17 +243,6 @@ export class Audio {
         this.tone(o, { type: 'triangle', f0: 1900, f1: 1100, dur: 0.12, vol: 0.1, delay: 0.17 });
         this.noise(o, { dur: 0.06, vol: 0.3, type: 'highpass', f0: 3000, delay: 0.17 });
         this.noise(o, { dur: 0.05, vol: 0.2, type: 'highpass', f0: 3000, delay: 0.32 });
-        break;
-      case 'heal': // warm, rising: nourishment
-        this.tone(o, { type: 'sine', f0: 220, f1: 330, dur: 0.5, vol: 0.2, filter: { type: 'lowpass', f: 900 } });
-        this.tone(o, { type: 'sine', f0: 330, f1: 495, dur: 0.6, vol: 0.12, filter: { type: 'lowpass', f: 1200 } });
-        break;
-      case 'slurp': // wet, sucking draw through a narrow tube
-        this.noise(o, { dur: 0.32, vol: 0.2, type: 'bandpass', f0: 900, f1: 260, q: 5 });
-        this.tone(o, { type: 'sine', f0: 180, f1: 70, dur: 0.26, vol: 0.14, filter: { type: 'lowpass', f: 420 } });
-        break;
-      case 'hiss': // acid working on metal
-        this.noise(o, { dur: 0.5, vol: 0.12, type: 'highpass', f0: 4200, f1: 6500, q: 0.8 });
         break;
       case 'swallow': // wet pull as gel draws something in
         this.tone(o, { type: 'sine', f0: 210, f1: 70, dur: 0.28, vol: 0.32, filter: { type: 'lowpass', f: 500 } });

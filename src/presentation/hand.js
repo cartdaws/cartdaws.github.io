@@ -7,15 +7,7 @@ export async function loadHand() {
   const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/hand.glb');
   const nodes = {};
   gltf.scene.traverse((o) => { if (o.isMesh) nodes[o.name] = o; });
-  for (const n of ['Hand_s4', 'Core', 'PalmCore', 'Gland', 'Barrel', 'Maw', 'Tooth']) if (!nodes[n]) throw new Error('hand.glb is missing ' + n);
-  nodes.Hand = nodes.Hand_s4;
-  // The other hand structures (art/build_hand.py -> hands_extra.glb) load when a creature uses one or the creator opens.
-  let extra = null;
-  nodes.ensure = (key) => {
-    if (nodes['Hand_' + key]) return Promise.resolve(true);
-    extra = extra || new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/hands_extra.glb').then((g) => { g.scene.traverse((o) => { if (o.isMesh) nodes[o.name] = o; }); return true; }).catch(() => false);
-    return extra;
-  };
+  for (const n of ['Hand', 'Core', 'PalmCore', 'Gland', 'Barrel', 'Maw', 'Tooth']) if (!nodes[n]) throw new Error('hand.glb is missing ' + n);
   return nodes;
 }
 
@@ -33,16 +25,12 @@ export function makeHandGel({ color = 0x0b5a58, rim = 0x8ff5e6, alpha = 0.34 } =
     vertexShader: `
       #include <common>
       #include <morphtarget_pars_vertex>
-      #include <skinning_pars_vertex>
       varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec2 vUv;
       void main(){
         #include <beginnormal_vertex>
         #include <morphnormal_vertex>
-        #include <skinbase_vertex>
-        #include <skinnormal_vertex>
         #include <begin_vertex>
         #include <morphtarget_vertex>
-        #include <skinning_vertex>
         vec4 mv = modelViewMatrix * vec4(transformed, 1.0);
         vN = normalize(normalMatrix * objectNormal);
         vV = normalize(-mv.xyz);
@@ -54,7 +42,7 @@ export function makeHandGel({ color = 0x0b5a58, rim = 0x8ff5e6, alpha = 0.34 } =
       varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec2 vUv;
       void main(){
         vec3 n = normalize(vN), v = normalize(vV);
-        float f = pow(clamp(1.0 - abs(dot(n, v)), 0.0, 1.0), 2.4);
+        float f = pow(1.0 - abs(dot(n, v)), 2.4);
         vec3 L = normalize(vec3(0.35, 0.8, 0.5));
         float lam = max(dot(n, L), 0.0);
         float spec = pow(max(dot(reflect(-v, n), L), 0.0), 36.0);
