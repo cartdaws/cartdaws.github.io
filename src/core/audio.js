@@ -1,4 +1,5 @@
 import { clamp, rand } from './util.js';
+import { Soundscape } from './soundscape.js';
 
 // Fully synthesized sound; the context is only created after the player clicks Play.
 export class Audio {
@@ -22,8 +23,14 @@ export class Audio {
     this.noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
     const d = this.noiseBuf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
-    this.startAmbience();
+    this.scape = new Soundscape(this);
+    if (this.wantScene) this.scape.setScene(this.wantScene);
   }
+
+  // What this place sounds like (soundscape.js). Safe to call before the context exists.
+  scene(name) { this.wantScene = name; if (this.scape) this.scape.setScene(name); }
+  combatMusic(on) { if (this.scape) this.scape.setCombat(on); }
+  tickScene(dt) { if (this.scape) this.scape.update(dt); }
 
   setVolume(v) {
     this.volume = v;
@@ -31,20 +38,6 @@ export class Audio {
   }
   suspend() { if (this.ctx) this.ctx.suspend(); }
   resume() { if (this.ctx) this.ctx.resume(); }
-
-  startAmbience() {
-    const ctx = this.ctx;
-    const g = ctx.createGain();
-    g.gain.value = 0.05;
-    g.connect(this.master);
-    for (const f of [48, 72.5]) {
-      const o = ctx.createOscillator();
-      o.type = 'sine';
-      o.frequency.value = f;
-      o.connect(g);
-      o.start();
-    }
-  }
 
   out(vol, pan) {
     const g = this.ctx.createGain();
@@ -201,6 +194,23 @@ export class Audio {
       case 'announce': // ship AI chime
         this.tone(o, { type: 'sine', f0: 660, f1: 660, dur: 0.35, vol: 0.14 });
         this.tone(o, { type: 'sine', f0: 880, f1: 880, dur: 0.5, vol: 0.14, delay: 0.22 });
+        break;
+      case 'cry':       // the elder, being taken: a falling wail with a shake in it
+        this.tone(o, { type: 'triangle', f0: 620, f1: 240, dur: 1.5, vol: 0.5, attack: 0.08 });
+        this.tone(o, { type: 'sine', f0: 930, f1: 300, dur: 1.2, vol: 0.28, attack: 0.1 });
+        break;
+      case 'flyby':     // a fighter passing low overhead
+        this.noise(o, { dur: 1.3, vol: 0.9, type: 'bandpass', f0: 500, f1: 2500, q: 0.7 });
+        this.noise(o, { dur: 1.4, vol: 0.5, type: 'lowpass', f0: 260, f1: 100, delay: 0.5 });
+        break;
+      case 'botstep':
+        this.noise(o, { dur: 0.04, vol: 0.5, type: 'bandpass', f0: 900, q: 1.5 });
+        this.tone(o, { type: 'square', f0: 110, f1: 70, dur: 0.05, vol: 0.14 });
+        break;
+      case 'bootup':    // a machine coming out of standby
+        this.tone(o, { type: 'sawtooth', f0: 70, f1: 300, dur: 0.75, vol: 0.14, attack: 0.05 });
+        this.tone(o, { type: 'square', f0: 880, dur: 0.05, vol: 0.09, delay: 0.72 });
+        this.tone(o, { type: 'square', f0: 1320, dur: 0.05, vol: 0.09, delay: 0.82 });
         break;
       case 'step':
         this.noise(o, { dur: 0.06, vol: 0.2, type: 'lowpass', f0: 500, f1: 200 });

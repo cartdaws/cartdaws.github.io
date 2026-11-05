@@ -129,11 +129,10 @@ export class Effects {
     this.ringIdx = 0;
 
     this.balls = [];
-    const ballGeo = new THREE.SphereGeometry(1, 20, 14);
+    const softTex = (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 2, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.3, 'rgba(255,255,255,0.8)'); g.addColorStop(0.65, 'rgba(255,255,255,0.22)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })();
     for (let i = 0; i < 5; i++) {
-      const m = new THREE.Mesh(ballGeo, new THREE.MeshBasicMaterial({ color: 0xff8a2a, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-      m.visible = false;
-      scene.add(m);
+      const mat = new THREE.SpriteMaterial({ map: softTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }); mat.userData.noSnap = true;
+      const m = new THREE.Sprite(mat); m.visible = false; scene.add(m);
       this.balls.push({ mesh: m, t: 0, dur: 1, size: 1 });
     }
     this.ballIdx = 0;
@@ -311,7 +310,7 @@ export class Effects {
       b.t += dt;
       const k = b.t / b.dur;
       if (k >= 1) { b.mesh.visible = false; continue; }
-      b.mesh.scale.setScalar(b.size * (0.3 + 0.7 * (1 - Math.pow(1 - k, 3))));
+      b.mesh.scale.setScalar(b.size * 2.8 * (0.3 + 0.7 * (1 - Math.pow(1 - k, 3))));
       b.mesh.material.opacity = (1 - k) * 0.9;
     }
     for (const m of this.marks) {

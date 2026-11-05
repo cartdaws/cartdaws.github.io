@@ -1,4 +1,5 @@
 import { resetMemories } from './memories.js';
+import { ShipLife } from '../world/shipLife.js';
 import * as THREE from 'three';
 import { Input } from '../core/input.js';
 import { Audio } from '../core/audio.js';
@@ -178,6 +179,7 @@ export class Game {
     this.run = generateRun(this);
     const rooms = [workshopRoom(this.level), ...this.run.rooms];
     this.run.all = rooms;
+    (this.shipLife || (this.shipLife = new ShipLife(this))).build(rooms);
     this.level.extraDoors = this.run.doors;
     this.level.alarmLights = this.level.baseAlarm.concat(this.run.alarmLights);
     this.level.flicker = this.level.baseFlicker.concat(this.run.flicker);
@@ -400,6 +402,7 @@ export class Game {
 
   resetEncounter() {
     this.ending = null; this.opening.moveLocked = false;
+    this.audio.scene('ship'); this.audio.combatMusic(false);
     this.projectiles.clear();
     this.effects.clear();
     this.encounter.restartRoom(); // resets the room being fought and places the player at its checkpoint
@@ -434,7 +437,7 @@ export class Game {
     this.deathFx = { land: false };
     this.deathPuddle.visible = false;
     this.absorber.reset();
-    this.audio.play('death');
+    this.audio.play('death'); this.audio.combatMusic(false);
     this.audio.stopSiren();
     this.input.clear();
     this.hitFlash = 1;
@@ -483,15 +486,16 @@ export class Game {
     this.audio.play('unlock', { vol: 0.9 });
     this.ui.setObjective('');
     this.ui.subtitle('Deck nine. Almost there.', '', 2.8, true);
+    this.audio.scene('ending'); this.audio.combatMusic(false);
   }
   updateEnding(dt) {
     const E = this.ending; E.t += dt;
     if (E.t > 3.2 && !E.a) { E.a = 1; this.ui.subtitle('Meridian undocked. All eight aboard. Joining the fleet: forty-one thousand of us, bound for Earth.', 'MEMORY', 5.0); this.audio.play('alert', { vol: 0.5 }); this.addShake(0.2); }
-    if (E.t > 8.4 && !E.c) { E.c = 1; this.ui.subtitle('You are too late, Specimen Nine. Nothing is left aboard for you.', 'HALCYON', 3.6); this.audio.play('pa', { vol: 0.6 }); }
-    if (E.t > 12.2 && !E.b) { E.b = 1; this.ui.subtitle('Nothing but a hangar full of ships.', '', 3.0, true); }
-    if (E.t > 15.4 && !E.d) { E.d = 1; this.ui.subtitle('They burned our world. I will take theirs. Whatever it costs.', '', 3.6, true); }
-    if (E.t > 16.4) this.ui.fade(smooth(clamp((E.t - 16.4) / 2.6, 0, 1)));
-    if (E.t > 19.2) { this.ending = null; this.opening.moveLocked = false; this.ui.fade(0); this.finishChapter(); }
+    if (E.t > 8.4 && !E.c) { E.c = 1; this.ui.subtitle('You are too late, Specimen Nine. Nothing is left aboard for you.', 'HALCYON', 3.2); this.audio.play('pa', { vol: 0.6 }); }
+    this.addShake(0.02 * dt * 60 * 0.15);      // the lift grinding down through the decks
+    if (E.t > 0.4 && !E.r) { E.r = 1; this.audio.play('servo', { vol: 0.7 }); this.audio.play('surge', { vol: 0.35 }); }
+    if (E.t > 10.2) this.ui.fade(smooth(clamp((E.t - 10.2) / 1.6, 0, 1)));
+    if (E.t > 11.9) { this.ending = null; this.flight.playEnding(() => { this.opening.moveLocked = false; this.finishChapter(); }); }
   }
   finishChapter() {
     this.state = 'complete';
@@ -576,6 +580,7 @@ export class Game {
     if (p.dead || this.state !== 'playing') return;
     if (this.admin && this.admin.god) return;
     p.health = Math.max(0, p.health - amount);
+    this.viewmodel.fling = Math.max(this.viewmodel.fling || 0, clamp(amount / 22, 0.22, 0.6));         // the arms come up when something hits you
     this.ui.damageFlash(clamp(amount / 12, 0.7, 1));
     if (from) {
       const dx = from.x - p.pos.x, dz = from.z - p.pos.z;
@@ -623,6 +628,7 @@ export class Game {
 
   frame(dt) {
     const { input, player } = this;
+    this.audio.tickScene(dt);
     const [lx, ly] = input.takeLook();
     this.lookX = lx; this.lookY = ly;
     if (this.flight.menuActive) { if (this.state === 'menu') this.flight.updateMenu(dt); else this.flight.hideMenu(); }
@@ -655,6 +661,7 @@ export class Game {
     if (this.state === 'playing' && this.encounter.won && !this.ending) this.complete();
 
     this.level.update(this.time);
+    if (this.state === 'playing' && !(this.opening.active && this.opening.phase !== 'gas')) { this.shipLife.group.visible = true; this.shipLife.update(dt); } else if (this.shipLife) this.shipLife.group.visible = false;
     this.effects.update(dt);
     this.body.setVisible(!this.cinePose && !this.opening.hideBody && this.state !== 'dead');     // the camera ends up on the floor: your own body would fill the view
     this.body.update(dt);
@@ -719,6 +726,19 @@ export class Game {
   }
 
   // Base camera pose (no shake) from the player or the opening.
+  // The nearest machine awake and close, as a direction from the eye: the arms know it is there.
+  nearestThreat(c) {
+    if (this.state !== 'playing' || this.cinePose) return null;
+    let best = null, bd = 196;
+    for (const e of this.enemies) {
+      if (!e.alive || !e.active || e.disabled) continue;
+      const dx = e.pos.x - c.position.x, dz = e.pos.z - c.position.z, d = dx * dx + dz * dz;
+      if (d < bd) { bd = d; best = e; }
+    }
+    if (!best) return null;
+    return (this._threat || (this._threat = new THREE.Vector3())).copy(best.hitSpheres[0].c).sub(c.position).normalize().applyQuaternion(this._tq = (this._tq || new THREE.Quaternion()).copy(c.quaternion).invert());
+  }
+
   poseCamera() {
     const c = this.camera, p = this.player;
     if (this.cinePose) {
@@ -769,6 +789,13 @@ export class Game {
     const r = this.renderer, c = this.camera, p = this.player;
     if (!this.paused) {
       if (this.state === 'flight' || (this.state === 'menu' && this.flight.menuActive)) this.flight.pose(c); else this.poseCamera();
+      if (!this.cinePose && this.state === 'playing') {
+        const vm = this.viewmodel, mk = vm.moveK || 0, st = vm.stride || 0, tt = this.time;
+        c.position.y += (0.5 - 0.5 * Math.cos(st * 2)) * -0.026 * mk + Math.sin(tt * 1.15) * 0.005 * (1 - Math.min(1, mk));
+        c.position.x += Math.cos(p.yaw) * Math.sin(st) * 0.012 * mk; c.position.z += -Math.sin(p.yaw) * Math.sin(st) * 0.012 * mk;
+        c.rotation.z += Math.sin(st) * 0.0045 * mk + Math.sin(tt * 0.61) * 0.0016;
+        c.rotation.x += Math.sin(tt * 1.15 + 1) * 0.0018 * (1 - Math.min(1, mk));
+      }
       // Restrained trauma-based shake applied only to the rendered view.
       const s = this.trauma * this.trauma;
       if (s > 0.0005) {
@@ -794,6 +821,7 @@ export class Game {
       if (this.state !== 'flight') this.viewmodel.update(dt, {
         lookX: this.lookX, lookY: this.lookY,
         velX: p.vx * cos - p.vz * sin, velZ: -(p.vx * -sin + p.vz * -cos),
+        threat: this.nearestThreat(c), hurt: this.lowHealthSeverity(),
         dashing, air: !this.cinePose && !p.grounded, yaw: this.cinePose ? this.cinePose.yaw : p.yaw, pitch: this.cinePose ? this.cinePose.pitch : p.pitch,
       });
       if (this.state !== 'flight') this.viewmodel.syncToCamera(c);

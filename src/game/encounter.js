@@ -1,3 +1,4 @@
+import { HALCYON_LINES, YOUR_LINES } from './taunts.js';
 export const EncounterState = Object.freeze({ WAITING: 'waiting', SEALING: 'sealing', COMBAT: 'combat', CLEARED: 'cleared' });
 
 const SEAL_WARNING = 2.2;   // door slam + readable alarm before enemies wake
@@ -16,7 +17,7 @@ export class Encounter {
     this.hasKey = false;
     this.lockHintT = 0;
     this.pending = null; // reinforcements waiting to power up
-    this.told = { drums: false };
+    this.told = { drums: false }; this.taunt = 0; this.answer = 0; this.lineAfter = null;
   }
 
   get room() { return this.rooms[this.i]; }
@@ -93,6 +94,7 @@ export class Encounter {
   update(dt) {
     const g = this.game;
     this.updateLocks(dt);
+    if (this.lineAfter) { this.lineAfter.t -= dt; if (this.lineAfter.t <= 0) { if (g.ui.subT <= 0.3) g.ui.subtitle(this.lineAfter.text, '', 2.4, true); this.lineAfter = null; } }
     if (this.lineT > 0) { this.lineT -= dt; if (this.lineT <= 0) g.ui.subtitle('Intruder. It calls me that.', '', 2.6, true); }
     const r = this.room;
     if (!r || this.won) return;
@@ -149,6 +151,7 @@ export class Encounter {
     // the ship AI speaks at the first lockdown only; after that the alarm says enough
     if (r.id === 0 || r.kind === 'finale') g.ui.subtitle(r.id === 0 ? 'Intruder in the Robotics Deck. Sealing the workshop.' : 'Final lockdown. All units to the hangar lift.', 'HALCYON', 2.6);
     if (r.id === 0 && !this.told.intruder) { this.told.intruder = true; this.lineT = 2.9; }
+    else if (this.taunt < HALCYON_LINES.length) g.ui.subtitle(HALCYON_LINES[this.taunt++], 'HALCYON', 3.4);
     if (!this.told.drums && r.barrels.length) { this.told.drums = true; g.ui.hintOnce('drums', 'RED DRUMS EXPLODE', 2.5); }
     g.addShake(0.25);
     for (const e of g.enemies) e.warn?.();
@@ -157,6 +160,7 @@ export class Encounter {
   beginCombat(r) {
     const g = this.game;
     this.state = EncounterState.COMBAT;
+    g.audio.combatMusic(true);
     for (const e of g.enemies) if (e.alive) e.activate();
   }
 
@@ -197,6 +201,8 @@ export class Encounter {
     const g = this.game;
     r.cleared = true;
     this.state = EncounterState.CLEARED;
+    g.audio.combatMusic(false);
+    if (r.id > 0 && r.kind !== 'finale') this.lineAfter = { t: 1.6, text: YOUR_LINES[this.answer++ % YOUR_LINES.length] };
     g.level.alarm = false;
     g.audio.stopSiren();
     const locked = r.doors.out.locked;

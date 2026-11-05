@@ -149,6 +149,7 @@ export class Player {
     const ground = this.game.world.groundHeight(this.pos.x, this.pos.z, this.pos.y, RADIUS);
     if (this.pos.y <= ground + 0.001 && this.vy <= 0) {
       if (!wasGrounded && this.vy < -6) this.game.audio.play('land', { vol: clamp(-this.vy / 14, 0.3, 1) });
+      if (!wasGrounded) this.stepOff = (this.stepOff || 0) - clamp(-this.vy * 0.017, 0, 0.2);      // your weight lands: the view dips and recovers
       if (wasGrounded && ground > y0 + 0.01) this.stepOff -= ground - y0;      // up a step: the feet pop, the view glides
       this.pos.y = ground;
       this.vy = 0;

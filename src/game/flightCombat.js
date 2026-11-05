@@ -37,7 +37,7 @@ function interceptorFromAsset() {
   for (const sx of [-1, 1]) { const n = glow(sx < 0 ? 0xff3a2a : 0x3affa0, 3); n.position.set(sx * 3.2, 0, 2.0); g.add(n); }
   return g;
 }
-function makeInterceptor() {
+export function makeInterceptor() {
   if (INTERCEPTOR) return interceptorFromAsset();
   const g = new THREE.Group();
   const hull = new THREE.MeshStandardMaterial({ color: 0xc4ccd0, roughness: 0.5, metalness: 0.5, emissive: 0x2a343a });

@@ -135,14 +135,15 @@ class HandArm {
     // it drags behind when you turn and look, like something with weight
     this.lagSide = damp(this.lagSide, clamp(-(ctx.lookX || 0) * 0.012, -0.9, 0.9), 4.5, dt);
     this.lagPitch = damp(this.lagPitch, clamp((ctx.lookY || 0) * 0.008, -0.6, 0.6) + vm.landK * 0.5 - vm.airK * 0.35, 4.5, dt);
-    const U = this.U, restCurl = 2.9 + (0.65 * drift + 1.5 * coil - 0.8 * flick) * idle - 1.5 * mk + (this.weapon ? vm.sGrip * 3.6 - vm.sSpread * 1.3 : 0);
+    const tk = vm.threatK || 0, hurt = vm.hurtK || 0;
+    const U = this.U, restCurl = 2.9 - 1.0 * tk + (0.65 * drift + 1.5 * coil - 0.8 * flick) * idle * (1 - 0.6 * tk) - 1.5 * mk + (this.weapon ? vm.sGrip * 3.6 - vm.sSpread * 1.3 : 0);
     let curlV = lerp(restCurl, 0.05, f);
     curlV = lerp(curlV, 0.12, rk);
     curlV = lerp(curlV, 1.4, limp);
     U.uCurl.value = curlV + rec * 0.25 * (1 - f);
-    U.uSide.value = lerp(lerp(-0.2 + (this.weapon ? vm.sSpread * 1.6 : 0) + 0.1 * drift * idle, 0, f), 0, rk) + this.lagSide * side * (1 - 0.8 * f);
-    U.uBend.value = (this.lagPitch - limp * 0.7) * (1 - 0.8 * f);
-    U.uWave.value = lerp(0.62 + 0.2 * mk, 0.08, Math.max(f, rk * 0.9)) * (1 - 0.5 * limp);
+    U.uSide.value = lerp(lerp(-0.2 + (this.weapon ? vm.sSpread * 1.6 : 0) + 0.1 * drift * idle, 0, f), 0, rk) + this.lagSide * side * (1 - 0.8 * f) + (vm.threatX || 0) * side * 0.85 * tk * (1 - f);       // a free tip leans toward whatever is nearest
+    U.uBend.value = (this.lagPitch - limp * 0.7 + (vm.threatY || 0) * 0.5 * tk) * (1 - 0.8 * f);
+    U.uWave.value = lerp(0.62 + 0.2 * mk + 0.5 * tk + 0.7 * hurt, 0.08 + 0.2 * hurt, Math.max(f, rk * 0.9)) * (1 - 0.5 * limp);
     U.uLen.value = lerp(lerp(0.84, 0.77, f), 1.22, rk) * (1 + 0.1 * bump) * (1 - 0.04 * rec);
     U.uThick.value = 0.84 + 0.36 * f + 0.012 * Math.sin(t * 1.25 + p0) + vm.pulse * 0.05 + vm.charge * 0.2 + (this.weapon ? vm.bulge * 0.4 + vm.sSwell * 0.42 : 0);
     U.uMouth.value = f * f * f * (1 - rk) * (1 - 0.7 * limp);
@@ -293,6 +294,7 @@ export class ViewModel {
       if (this.armT < 1 && this.armSpan > 0.1) { this.pump = lerp(0.52, 0.95, ak); this.pumpGain = 0.32; }     // a bulge of muscle rolls up the arm as it changes
     }
 
+    { const th = ctx.threat; this.threatK = damp(this.threatK || 0, th ? 1 : 0, 2.2, dt); if (th) { this.threatX = damp(this.threatX || 0, th.x, 4, dt); this.threatY = damp(this.threatY || 0, th.y, 4, dt); } this.hurtK = damp(this.hurtK || 0, ctx.hurt || 0, 3, dt); }
     this.swayX = damp(this.swayX, clamp(-ctx.lookX * 0.0012, -0.06, 0.06), 7, dt);
     this.swayY = damp(this.swayY, clamp(ctx.lookY * 0.0012, -0.06, 0.06), 7, dt);
     this.lagX = damp(this.lagX, -ctx.velX * 0.003, 6, dt);

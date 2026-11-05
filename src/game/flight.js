@@ -416,7 +416,7 @@ export class Flight {
     g.ui.showHud(true); g.ui.setObjective('FLY TO THE HALCYON'); g.ui.setPrompt('');
     document.body.classList.add('intro', 'in-flight'); // hides the on-foot crosshair, health and weapon readouts; softens the shared UI
     this.hud.classList.remove('hidden');
-    g.audio.stopSiren?.();
+    g.audio.stopSiren?.(); g.audio.scene('space');
     g.ui.fade(0);
     g.ui.subtitle('That great ship. It has the elder, and how many more?', '', 3.4, true);
     this.f = {};
@@ -476,8 +476,69 @@ export class Flight {
 
   distance() { return this.pos.distanceTo(DOCK); }
 
+  // The end of the chapter, from outside: the warship leaving with your people, and then, out of the bay behind it, a stolen ship.
+  playEnding(done) {
+    const g = this.g, s = g.scene, c = g.camera;
+    this.saved = { bg: s.background, fog: s.fog, far: c.far, exp: g.renderer.toneMappingExposure };
+    s.background = new THREE.Color(0x02040a); s.fog = null;
+    c.far = 16000; c.updateProjectionMatrix();
+    this.group.visible = this.sun.visible = this.fill.visible = true;
+    this.active = true; this.phase = 'cut'; this.t = 0; this.docking = null; this.combat.reset(); this.dust.visible = false;
+    g.state = 'flight'; g.cinePose = null; g.trauma = 0; g.ui.showHud(false); g.ui.clearTransient?.();
+    g.viewmodel.root.visible = false; g.body.setVisible(false);
+    document.body.classList.add('intro', 'in-flight');
+    this.hud.classList.add('hidden');
+    this.warship.visible = true; this.warship.position.copy(BAY).add(_v.set(-150, 10, -420)); this.warshipT = 0;
+    this.ship.visible = true; this.ship.position.copy(BAY).add(_v.set(0, 2, 6)); this.ship.quaternion.identity();
+    this.cut = { T: 0, done, look: new THREE.Vector3().copy(BAY), shipV: 0 };
+    g.audio.scene('ending');
+  }
+
+  updateCut(dt) {
+    const g = this.g, C = this.cut, T = (C.T += dt), ui = g.ui;
+    this.t += dt;
+    ui.fade(Math.max(1 - clamp(T / 1.4, 0, 1), clamp((T - 12.4) / 1.8, 0, 1)));
+    // the warship goes first, and keeps gaining
+    this.warship.position.z -= Math.min(150, 40 + T * T * 8) * dt; this.warship.position.y += 3 * dt;
+    if (this.warshipGlow) { this.warshipGlow.visible = true; this.warshipGlow.scale.setScalar(150 + 60 * Math.sin(T * 5)); }
+    this.vessel.userData.ring.rotation.z += dt * 0.05;
+    if (T > 0.8 && !C.a) { C.a = 1; ui.subtitle('You are too late, Specimen Nine. Nothing is left aboard for you.', 'HALCYON', 3.4); g.audio.play('pa', { vol: 0.5 }); }
+    // then, out of the bay
+    const launch = clamp((T - 5.2) / 7, 0, 1);
+    if (T > 5.0 && !C.b) { C.b = 1; ui.subtitle('Nothing but a hangar full of ships.', '', 3.2, true); g.audio.play('door', { vol: 0.8 }); }
+    if (T > 5.4) {
+      C.shipV = Math.min(205, C.shipV + dt * (16 + 90 * launch));
+      this.ship.position.z -= C.shipV * dt; this.ship.position.y -= dt * 6 * (1 - launch);
+      for (const sp of this.ship.userData.engines) { sp.visible = true; sp.scale.setScalar((T > 8.3 ? 2.1 : 2 + launch * 9) + Math.sin(T * 40) * 0.2); }
+    }
+    if (T > 5.8 && !C.c) { C.c = 1; g.audio.play('flyby', { vol: 0.8 }); g.audio.play('surge', { vol: 0.4 }); }
+    if (T > 8.8 && !C.d) { C.d = 1; ui.subtitle('They burned our world. I will take theirs. Whatever it costs.', '', 3.6, true); }
+    // first the whole ship, the warship pulling away from its bow; then a cut to under the bay as the lander drops out and passes over you, and you turn to watch it go after them
+    if (T < 5.2) {
+      this.camPos.copy(VESSEL).add(_v.set(760 - T * 7, -170 + T, -640 + T * 5));
+      _f.copy(VESSEL).add(_u.set(0, -10, -360)).lerp(this.warship.position, 0.22);
+      C.look.copy(_f);
+    } else if (T < 8.3) {
+      this.camPos.copy(BAY).add(_v.set(24, -40, -112 + (T - 5.2) * 1.6));
+      _f.copy(this.ship.position).add(_u.set(0, 1, 0));
+      if (!C.cutDone) { C.cutDone = 1; C.look.copy(_f); }
+      C.look.lerp(_f, 1 - Math.exp(-5 * dt));
+    } else {
+      // right behind it, the great ship ahead of you: this is the rest of the game
+      const k = clamp((T - 8.3) / 6, 0, 1);
+      this.camPos.copy(this.ship.position).add(_v.set(3.4 + Math.sin(T * 0.7) * 0.5, 3.0 + Math.sin(T * 1.1) * 0.25, 15 - k * 2));
+      _f.copy(this.warship.position).lerp(this.ship.position, 0.04);
+      C.look.copy(_f);
+      if (this.warshipGlow) this.warshipGlow.scale.setScalar(70 + 18 * Math.sin(T * 6));
+    }
+    _r.copy(C.look).sub(this.camPos).normalize();
+    this.camQuat.setFromRotationMatrix(this._m4 = (this._m4 || new THREE.Matrix4()).lookAt(_v.set(0, 0, 0), _r, _u.set(0, 1, 0)));
+    if (T > 14.4) { const fin = C.done; this.cut = null; this.dust.visible = true; this.stop(); fin(); }
+  }
+
   update(dt, input, lx, ly) {
     if (!this.active) return;
+    if (this.cut) { this.updateCut(dt); return; }
     const g = this.g;
     this.t += dt;
     this.stars.position.copy(this.camPos); this.sky.position.copy(this.camPos); this.starMat.uniforms.uTime.value = this.t;

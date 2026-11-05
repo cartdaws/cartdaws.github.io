@@ -10,6 +10,7 @@ import { cloneWarship } from '../game/flight.js';
 // It sits far from the ship (HOME) with its own sky, light and fog, which are swapped in while the memory plays.
 export const HOME = { x: 1400, z: 0 };   // far beyond the view distance from the ship, so the ship is never drawn from here (or this from there)
 export const HOME_START = { x: 0, z: 7, yaw: 0.9 };      // local to HOME: the player wakes here, facing away from the one who waits
+import { HomeLife, addWind } from './homeLife.js';
 export const ELDER_AT = { x: 1.2, z: -9.5 };
 export const WRECK_AT = { x: -10, z: -19 };            // the downed human lander, local to the homeworld
 export const PISTOL_AT = { x: -6.2, z: -15.4 };        // the dead pilot's sidearm
@@ -130,6 +131,8 @@ export class HomeWorld {
       }
     }
     stalks.count = bulbs.count = stalkN;
+    addWind(spireMat, 0.0035); addWind(this.tipMat, 0.0035); addWind(bulbs.material, 0.07);
+    this.life = new HomeLife(this.group);
     const rockMat = new THREE.MeshStandardMaterial({ color: S.hex(0x27363e), roughness: 0.95, emissive: S.hex(0x06141a), emissiveIntensity: 0.8 });
     const rocks = mk(node('Rock').geometry, rockMat, 20);
     for (let i = 0; i < 20; i++) {
@@ -360,7 +363,7 @@ export class HomeWorld {
     for (let it = 0; it < 2; it++) { ring(this.colliders); ring(this.ruined ? this.collidersRuin : this.collidersIntact); if (extra) ring(extra); }
     pos.x = HOME.x + x; pos.z = HOME.z + z;
   }
-  setRuined(r) { this.ruined = !!r; if (this.settleIntact) { this.settleIntact.visible = !r; this.settleRuin.visible = !!r; } }
+  setRuined(r) { this.ruined = !!r; this.life.setRuined(r); if (this.settleIntact) { this.settleIntact.visible = !r; this.settleRuin.visible = !!r; } }
 
   // Light a fire at a local position; the pool recycles the oldest.
   addFire(x, z, s = 1) {
@@ -374,6 +377,7 @@ export class HomeWorld {
 
   update(dt, t, camPos) {
     if (!this.shown) return;
+    this.life.update(dt, camPos.x - HOME.x, camPos.z - HOME.z, this.colliders);
     for (const f of this.fires) {
       if (!f.on) continue;
       const fl = 0.75 + 0.25 * Math.sin(t * 13 + f.ph) + 0.15 * Math.sin(t * 31 + f.ph * 2);

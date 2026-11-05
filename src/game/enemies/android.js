@@ -148,6 +148,8 @@ export class SecurityAndroid extends Enemy {
 
   centerPoint() { return this.hitSpheres[0].c.clone(); }
 
+  warn() { if (!this.warning) { this.game.sfxAt('bootup', this.pos, 0.55); this.game.effects.hitSparks(this.hitSpheres[0].c, [1, 0.6, 0.3], 8); } super.warn(); }
+
   activate() {
     super.activate();
     this.state = 'move';
@@ -275,14 +277,21 @@ export class SecurityAndroid extends Enemy {
   // walk cycle, aiming arms and hit flinch
   pose(dt, move) {
     const m = clamp(move / 3, 0, 1);
+    const stride0 = Math.floor(this.walk / Math.PI);
     this.walk += dt * (2 + move * 2.4);
+    if (m > 0.25 && Math.floor(this.walk / Math.PI) !== stride0) this.game.sfxAt('botstep', this.pos, 0.3);
+    // standing by: slumped, head down, until the alarm wakes it; then it straightens from the feet up
+    this.bootK = damp(this.bootK ?? 0, this.warning || this.active ? 1 : 0, 2.6, dt);
+    this.lifeT = (this.lifeT || 0) + dt;
+    const asleep = 1 - this.bootK, seedPh = (this.pos.x * 3.1 + this.pos.z * 1.7) % 6.28;
     for (const l of this.legs) {
       const ph = this.walk + (l.s > 0 ? Math.PI : 0);
       l.hp.rotation.x = Math.sin(ph) * 0.55 * m;
       l.kn.rotation.x = Math.max(0, Math.sin(ph + 1.4)) * 0.8 * m;
       l.ft.rotation.x = -l.kn.rotation.x * 0.3;
     }
-    this.hips.position.y = 0.95 - Math.abs(Math.sin(this.walk)) * 0.03 * m;
+    this.hips.position.y = 0.95 - Math.abs(Math.sin(this.walk)) * 0.03 * m - 0.09 * asleep + (1 - m) * Math.sin(this.lifeT * 1.3 + seedPh) * 0.006;
+    if (asleep > 0.01) for (const l of this.legs) { l.hp.rotation.x -= 0.32 * asleep; l.kn.rotation.x += 0.6 * asleep; l.ft.rotation.x -= 0.26 * asleep; }
     const p = this.game.player.pos, c = this.hitSpheres[0].c;
     const pitch = Math.atan2(p.y + 1.2 - c.y, Math.hypot(p.x - c.x, p.z - c.z) || 1);
     for (const a of this.arms) {
@@ -297,8 +306,11 @@ export class SecurityAndroid extends Enemy {
         a.el.rotation.x = lerp(-0.25, -0.8, this.aimK);
       }
     }
-    this.torso.rotation.x = -0.35 * this.flinch + 0.04 * m;
-    this.head.rotation.x = -0.25 * this.flinch;
+    this.torso.rotation.x = -0.35 * this.flinch + 0.04 * m + 0.42 * asleep;
+    this.head.rotation.x = -0.25 * this.flinch + 0.5 * asleep;
+    // awake and not firing, it keeps looking about
+    this.head.rotation.y = (1 - this.aimK) * this.bootK * (Math.sin(this.lifeT * 0.83 + seedPh) * 0.55 + Math.sin(this.lifeT * 2.1 + seedPh) * 0.1);
+    if (asleep > 0.01) for (const a of this.arms) { a.sh.rotation.x += 0.2 * asleep; a.el.rotation.x -= 0.15 * asleep; }
     this.torso.rotation.y = Math.sin(this.walk * 0.5) * 0.05 * m;
   }
 

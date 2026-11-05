@@ -43,14 +43,14 @@ It is also why the humans want your species alive: soldiers who can learn any we
 ## Chapter One: The Halcyon
 
 1. **The valley.** Quiet now. The others walked out one by one and never came back. You walk to the elder and your palms meet.
-2. **The attack.** The Meridian comes down, burns the settlement and lifts the elder out in a beam. You are knocked flat.
-3. **The ruins.** They took everyone. One of their landers crashed. *So they can fall.* You touch the dead pilot's sidearm and your arm becomes the Shardcaster. From it you learn their word for themselves: human.
+2. **The attack.** The Meridian comes down, fighters strafe the valley and everything alive in it panics. A beam lifts the elder out, thrashing, while you run after it, reaching. A crippled lander falls out of the sky at you, and the blast knocks you flat.
+3. **The ruins.** You come round on the ground. They took everyone. The lander that hit you is lying there. *So they can fall.* Its pilot is dead on the ground, the first human you have ever seen. You touch the sidearm and your arm becomes the Shardcaster. From it you learn their word for themselves: human.
 4. **The lander.** You board. The computer says the pilot is not responding and it is flying home to the Halcyon. *Then take me there.*
 5. **The flight.** The Halcyon challenges Lander Four, then sends fighters. You salvage homing barbs from the wrecks. Close in, it notices the pilot has no pulse and something else is flying. It calls off the fighters: *let it dock.* It wants you alive.
 6. **The gas.** No guards, no alarms. Bay Three seals and fills with anesthetic. The last thing you hear: *Specimen Nine secured. Awaiting collection.*
 7. **The mark.** You wake sooner than they planned. Nine. So eight went before you. On the bulkhead door is a smear you recognise: the elder's hand, dragged across it. You touch it and hear the elder: they took every valley, thousands of us are held apart in their ships, they are taking me to the hangar on deck nine. Touch everything. Keep everything. Find us. *I will. And then they will pay for every valley.*
-8. **The deck.** You shoot the jammed lock and fight through the Robotics Deck to the hangar. Every machine you absorb gives up a memory, and those tell you what happened here and how big the harvest was. In a sample store you find a piece of someone you knew and take it with you (the Lash).
-9. **Too late.** The hangar lift reads out: the Meridian has undocked with all eight, joining a fleet with forty-one thousand of you, bound for Earth. The Halcyon tells you nothing is left aboard for you. *Nothing but a hangar full of ships. They burned our world. I will take theirs. Whatever it costs.*
+8. **The deck.** You shoot the jammed lock and fight through the Robotics Deck to the hangar. The machines stand dormant until the alarm wakes them. The Halcyon talks to you as you go, always politely, and you answer in as few words as you can. Every machine you absorb gives up a memory, and those tell you what happened here and how big the harvest was. In a sample store you find a piece of someone you knew and take it with you (the Lash).
+9. **Too late.** The hangar lift reads out: the Meridian has undocked with all eight, joining a fleet with forty-one thousand of you, bound for Earth. The Halcyon tells you nothing is left aboard for you. *Nothing but a hangar full of ships.* From outside: the warship pulls away from the Halcyon, and a stolen ship drops out of the bay and goes after it. *They burned our world. I will take theirs. Whatever it costs.*
 
 ## Machine memories, in order
 

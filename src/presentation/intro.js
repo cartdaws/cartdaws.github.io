@@ -4,6 +4,9 @@ import { PLAYER_START, PISTOL_POS, CELL } from '../world/level.js';
 import { poseHuman, seatHuman } from '../world/humans.js';
 import { HomeWorld, HOME, HOME_START, WRECK_AT, PISTOL_AT } from '../world/home.js';
 import { addCockpit, SEAT_EYE, YOKE_GRIP } from '../game/cockpit.js';
+import { makeInterceptor } from '../game/flightCombat.js';
+import { makeLander as makeCrashingLander } from '../game/flight.js';
+import { makeHuman } from '../world/humans.js';
 const _sq = new THREE.Quaternion(), _st = new THREE.Quaternion(), _sx = new THREE.Vector3(1, 0, 0), _sv = new THREE.Vector3(), _se = new THREE.Euler();
 import { save } from '../core/save.js';
 import { progress } from '../game/progress.js';
@@ -203,9 +206,12 @@ export class Intro {
 
   enter(phase) {
     const g = this.g, p = g.player, vm = g.viewmodel, ui = g.ui;
+    if (this.f && this.f.fly) for (const q of this.f.fly) q.m.removeFromParent();
+    if (this.f && this.f.crash) this.f.crash.m.removeFromParent();
     this.phase = phase; this.t = 0; this.step = 0; this.stepT = 0; this.h = 0; this.f = {};
     ui.setHold(null);
     if (phase === 'home') {
+      g.audio.scene('home');
       this.home.setRuined(false); this.home.show(true); p.speedMul = 1; this.home.dome.material.color.set(0xffffff);
       this.hideBody = false; this.moveLocked = true; this.lookAcc = 0; this.walkAcc = 0;
       p.reset(HOME.x + HOME_START.x, HOME.z + HOME_START.z, HOME_START.yaw);
@@ -228,6 +234,7 @@ export class Intro {
       this.baseYaw = 0; this.lookAcc = 0;
       ui.fade(1);
     } else if (phase === 'wreck') {
+      g.audio.scene('ruin');
       this.buildWreck();
       const H = this.home; H.setRuined(true);
       this.wreck.visible = this.pistolItem.visible = true; this.wreck.position.y = 1.15;
@@ -240,6 +247,9 @@ export class Intro {
       this.hideBody = false; this.moveLocked = false;
       H.hemi.intensity = 0.95; H.sun.intensity = 0.3;
       p.reset(HOME.x + 6, HOME.z + 5, 0.55); p.pitch = 0.0;
+      this.wakeT = 0; this.moveLocked = true; g.viewmodel.limp = 1; g.audio.play('hurt', { vol: 0.5 });
+      if (!this.pilot) { this.pilot = makeHuman('officer'); this.home.group.add(this.pilot); this.pilot.position.set(PISTOL_AT.x + 0.6, 0.17, PISTOL_AT.z + 0.1); this.pilot.rotation.order = 'YXZ'; this.pilot.rotation.set(-Math.PI / 2 + 0.05, 2.25, 0); const U = this.pilot.userData; U.armR.rotation.x = 0.5; U.armR.rotation.z = -0.8; U.armL.rotation.x = 0.2; U.armL.rotation.z = 0.5; U.legL.rotation.x = 0.1; U.legR.rotation.x = -0.15; }
+      this.pilot.visible = true;
       // the ruined settlement: fires and scorched ground, a burning wreck beside the lander
       H.clearFires();
       for (const [fx, fz, fs] of [[-4, -3, 1.3], [8, -6, 1.1], [-12, -11, 1.5], [2, -14, 1.2], [-6, -24, 1.0], [-14, -17, 1.3], [5, -22, 1.1]]) H.addFire(fx, fz, fs);
@@ -383,12 +393,15 @@ export class Intro {
     const g = this.g, p = g.player, H = this.home, E = H.eState, ui = g.ui, f = this.f, vm = g.viewmodel;
     const ct = f.capT += dt;
     this.moveLocked = ct > 3.2;
+    if (ct < 0.1) g.audio.scene('attack');
+    H.life.panic = Math.min(1, ct / 2.5);
+    this.updateAttackLife(dt, ct, null, p);
     let ex = HOME.x + H.elder.position.x, ez = HOME.z + H.elder.position.z;
     p.speedMul = 1;
     // the elder backs away from you as the light finds it, so the beam lifts it well clear of the view
     if (ct > 1.3 && ct < 5.8) { const away = _v.set(ex - p.pos.x, 0, ez - p.pos.z); if (away.length() < 11.5) { away.normalize(); H.elder.position.x += away.x * 2.1 * dt; H.elder.position.z += away.z * 2.1 * dt; ex = HOME.x + H.elder.position.x; ez = HOME.z + H.elder.position.z; } }
     // look assist: ease the view toward the elder, then up with it
-    if (ct > 2.4) {
+    if (ct > 2.4 && ct < 8.0) {
       const wantYaw = Math.atan2(-(ex - p.pos.x), -(ez - p.pos.z)), dd = Math.hypot(ex - p.pos.x, ez - p.pos.z);
       const wantPitch = clamp(Math.atan2((H.eState.rise || 0) * 0.55 + 1.2 - 1.55, Math.max(2, dd)), -0.1, 0.9);
       p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * Math.min(1, dt * 1.6);
@@ -436,11 +449,66 @@ export class Intro {
       this.once('t1', () => { g.audio.play('surge', { vol: 0.6 }); g.audio.play('lockdown', { vol: 0.5 }); this.say('Elder!', '', 2.0, true); });
       if (ct > 8.2) this.once('t2', () => g.audio.play('groan', { vol: 0.9 }));
     }
-    // an impact throws you down: black, then the aftermath
+    // you run after it, reaching, and it is no use
+    if (ct > 6.3 && ct < 10.0) {
+      this.moveLocked = false; g.input.keys.clear(); g.input.keys.add('KeyW'); p.speedMul = 0.5;
+      this.reachAt(_l.set(ex, (H.eState.rise || 0) + 1, ez), 0.45 * ease(ct, 6.3, 7.1));
+    } else if (ct >= 10.0) { g.input.keys.clear(); this.moveLocked = true; p.speedMul = 1; vm.reachW = 0; }
+    // carried off, it fights: both arms thrash
+    if (ct > 6.0) { const th = ease(ct, 6.0, 6.8); H.elderArm.rotation.x += Math.sin(g.time * 7.3) * 0.55 * th; H.elderArmL.rotation.x += Math.sin(g.time * 8.9 + 1) * 0.55 * th; H.elderArm.rotation.z = Math.sin(g.time * 5.1) * 0.35 * th; H.elderArmL.rotation.z = Math.sin(g.time * 6.1 + 2) * 0.35 * th; }
+    if (ct > 6.5) this.once('c1', () => g.audio.play('cry', { vol: 0.9 }));
+    if (ct > 8.3) this.once('c2', () => g.audio.play('cry', { vol: 0.55 }));
+    // a crippled lander comes down, right at you: that is what throws you, and what you wake up beside
     if (ct > 10.0) ui.fade(ease(ct, 10.0, 11.4));
-    if (ct > 10.2) this.once('big', () => { g.addShake(0.9); g.audio.play('explosion', { vol: 1 }); vm.pulseGlow(0.6); vm.fling = 1; });
+    if (ct > 10.2) this.once('big', () => { g.addShake(1); g.audio.play('explosion', { vol: 1 }); g.audio.play('crack', { vol: 0.8 }); vm.pulseGlow(0.6); vm.fling = 1; g.flinch = 1; g.flinchRoll = 1.2; });
     if (ct > 10.5) vm.limp = ease(ct, 10.5, 11.5);
     if (ct > 11.8) this.enter('wreck');
+  }
+
+  // What else is going on while the ship takes the elder: fighters strafing the valley, and one of their landers hit and falling.
+  updateAttackLife(dt, ct, _unused, p) {
+    const g = this.g, f = this.f, H = this.home, fx = g.effects;
+    f.fly = f.fly || [];
+    const launch = (t0, x0, z0, x1, z1, y) => { if (ct > t0 && !f['fl' + t0]) { f['fl' + t0] = true; const m = makeInterceptor(); m.scale.setScalar(2.1); g.scene.add(m); f.fly.push({ m, t: 0, a: new THREE.Vector3(p.pos.x + x0, y, p.pos.z + z0), b: new THREE.Vector3(p.pos.x + x1, y - 7, p.pos.z + z1), fired: 0 }); g.audio.play('flyby', { vol: 0.9, pan: Math.sign(x1 - x0) * 0.4 }); } };
+    launch(1.6, -160, -26, 170, -8, 34); launch(2.9, 170, -22, -170, -36, 28); launch(3.5, 160, -38, -170, -20, 38); launch(5.0, -170, -14, 170, -42, 26); launch(7.2, 170, -30, -170, -12, 30);
+    for (let i = f.fly.length - 1; i >= 0; i--) {
+      const q = f.fly[i]; q.t += dt / 2.1; q.m.position.lerpVectors(q.a, q.b, q.t);
+      _v.subVectors(q.b, q.a); q.m.lookAt(_w.copy(q.m.position).add(_v)); q.m.rotateZ(Math.sin(q.t * 3) * 0.35);
+      if (q.fired < 3 && q.t > 0.3 + q.fired * 0.14) { q.fired++; this.strafe(q.m.position, q.b.x > q.a.x ? 1 : -1); }
+      if (q.t >= 1) { q.m.removeFromParent(); f.fly.splice(i, 1); }
+    }
+    // the lander, burning, comes down
+    const wx = HOME.x + WRECK_AT.x, wz = HOME.z + WRECK_AT.z;
+    if (ct > 8.0 && !f.crash) { f.crash = { m: makeCrashingLander(), a: new THREE.Vector3(wx - 70, 72, wz - 62) }; f.crash.m.scale.setScalar(1.1); g.scene.add(f.crash.m); g.audio.play('flyby', { vol: 0.8, pan: -0.3 }); }
+    if (f.crash && f.crash.m.parent) {
+      const k = clamp((ct - 8.0) / 2.2, 0, 1), e = k * k, m = f.crash.m, a = f.crash.a;
+      m.position.set(lerp(a.x, wx, e), lerp(a.y, 1.15, e), lerp(a.z, wz, e));
+      m.rotation.set(0.55 - 0.45 * k, 0.55 + Math.sin(ct * 2.4) * 0.3, Math.sin(ct * 3.1) * 0.5 * (1 - k * 0.7));
+      for (let i = 0; i < 4; i++) {
+        if (fx.smokeP) fx.smokeP.emit(m.position.x + Math.random() - 0.5, m.position.y + Math.random() - 0.5, m.position.z + Math.random() - 0.5, 0, 1.2, 0, 2.2, 1.6 + Math.random() * 1.8, 0.09, 0.08, 0.08, 0, 0.4, 1.4);
+        fx.glowP.emit(m.position.x, m.position.y, m.position.z, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7, (Math.random() - 0.5) * 7, 0.45, 0.28, 1, 0.5, 0.14, 0, 0.6);
+      }
+      if (k >= 1 && !f.crash.hit) {
+        f.crash.hit = true;
+        if (fx.explosion) fx.explosion(m.position.clone().setY(1), 9);
+        if (fx.flashLight) fx.flashLight(m.position.clone().setY(3), 0xffa050, 400, 0.9);
+        H.addFire(WRECK_AT.x + 2, WRECK_AT.z + 2, 1.9);
+      }
+    }
+    // your view goes to it as it falls
+    if (f.crash && ct < 10.25) { const mp = f.crash.m.position, wantYaw = Math.atan2(-(mp.x - p.pos.x), -(mp.z - p.pos.z)), wantPitch = clamp(Math.atan2(mp.y - p.eye, Math.hypot(mp.x - p.pos.x, mp.z - p.pos.z)), -0.3, 0.9), k = Math.min(1, dt * 4.5); p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * k; p.pitch += (wantPitch - p.pitch) * k; }
+  }
+
+  // Fighters firing into the settlement as they pass: a line of small blasts walking across the ground.
+  strafe(from, dir) {
+    const g = this.g, p = g.player;
+    const x = p.pos.x + (Math.random() - 0.5) * 34, z = p.pos.z - 8 - Math.random() * 22;
+    if (Math.hypot(x - p.pos.x, z - p.pos.z) < 5) return;
+    const to = _v.set(x, 0.2, z), beam = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, from.distanceTo(to), 5), new THREE.MeshBasicMaterial({ color: 0xffb060, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    beam.position.copy(from).add(to).multiplyScalar(0.5); beam.quaternion.setFromUnitVectors(_c3.set(0, 1, 0), _c4.copy(to).sub(from).normalize());
+    g.scene.add(beam); this.bolts = this.bolts || []; this.bolts.push({ beam, t: 0 });
+    if (g.effects.explosion) g.effects.explosion(to.clone(), 1.6);
+    g.audio.play('explosion', { vol: 0.35 }); g.addShake(0.06);
   }
 
   // One bolt: a red streak from the ship, then a blast, a flash, a fire and a shove.
@@ -457,6 +525,7 @@ export class Intro {
     H.addFire(x - HOME.x, z - HOME.z, 0.9 + Math.random() * 0.8);
     const d = Math.hypot(x - p.pos.x, z - p.pos.z);
     g.addShake(clamp(1.2 / (1 + d * 0.25), 0.05, 0.5));
+    if (d < 14) { g.viewmodel.fling = Math.max(g.viewmodel.fling || 0, 0.42 * (1 - d / 14) + 0.12); g.flinch = Math.max(g.flinch || 0, 0.25 * (1 - d / 14)); g.flinchRoll = Math.random() < 0.5 ? -1 : 1; }      // you flinch from every close hit
     g.audio.play('explosion', { vol: clamp(1.1 - d * 0.03, 0.25, 1) });
   }
 
@@ -488,7 +557,6 @@ export class Intro {
   updateWreck(dt, pressed) {
     const g = this.g, p = g.player, H = this.home, ui = g.ui, vm = g.viewmodel, f = this.f, t = this.t;
     this.updateBolts(dt);
-    if (t < 4) vm.limp = 1 - ease(t, 0.8, 3.6);
     // the settlement stays smouldering: smoke rises from every fire
     f.smoke = (f.smoke || 0) - dt;
     if (f.smoke <= 0) { f.smoke = 0.12; for (const fi of H.fires) if (fi.on && g.effects.smokeP) g.effects.smokeP.emit(HOME.x + fi.x + (Math.random() - 0.5), 1 + Math.random(), HOME.z + fi.z + (Math.random() - 0.5), (Math.random() - 0.5) * 0.4 + 0.3, 1.3 + Math.random() * 0.8, (Math.random() - 0.5) * 0.4, 3.5, 0.9 * fi.s, 0.12, 0.1, 0.1, 0, 0.6, 1.4); }
@@ -502,7 +570,8 @@ export class Intro {
     this.pistolMarker.position.set(px, 0.05, pz);
     switch (this.step) {
       case 0:                      // wake in the ruins
-        this.moveLocked = false; ui.fade(1 - ease(t, 0.3, 2.6));
+        if (this.wakeT === undefined) this.moveLocked = false;
+        ui.fade(1 - ease(t, 0.3, 2.6));
         { const wantYaw = Math.atan2(-(wx - p.pos.x), -(wz - p.pos.z)); if (t < 5) { p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * Math.min(1, dt * 0.9); p.pitch += (0.02 - p.pitch) * Math.min(1, dt * 1.5); } }
         if (!f.w1 && t > 1.0) { f.w1 = true; this.say('They took the elder. They took everyone.', '', 3.4, true); }
         if (!f.w1b && t > 4.6) { f.w1b = true; this.say('One of their ships fell. So they can fall.', '', 3.2, true); }
@@ -683,6 +752,7 @@ export class Intro {
   // The lander is drawn into the research vessel's bay: the survivor steps out into the containment bay and the escape begins.
   arrive() {
     const g = this.g, p = g.player;
+    g.audio.scene('ship');
     g.viewmodel.limp = 0;
     p.extraSolid = null;
     this.home.show(false); this.home.clearFires();
