@@ -17,6 +17,7 @@ import { Barrel } from './barrels.js';
 import { Encounter, EncounterState } from './encounter.js';
 import { ViewModel } from '../presentation/viewmodel.js';
 import { Intro } from '../presentation/intro.js';
+import { Flight } from './flight.js';
 import { UI } from '../presentation/ui.js';
 import { TouchControls, isTouchDevice, enterImmersive } from '../core/touch.js';
 import { PostFX } from '../presentation/post.js';
@@ -65,7 +66,7 @@ export class Game {
     if (this.touchMode) {
       this.input.touch = true;
       this.touchUI = new TouchControls(this.input, {
-        onPause: () => { if (this.state === 'playing' || this.state === 'opening') this.input.unlock(); },
+        onPause: () => { if (this.state === 'playing' || this.state === 'opening' || this.state === 'flight') this.input.unlock(); },
         onSkip: () => { if (this.opening.active && !this.paused) this.opening.skip(); },
       });
     }
@@ -78,6 +79,7 @@ export class Game {
     this.projectiles = new Projectiles(this);
     this.encounter = new Encounter(this);
     this.pickups = new Pickups(this);
+    this.flight = new Flight(this);
     this.opening = new Intro(this);
     this.opening.resetProps();
 
@@ -247,7 +249,7 @@ export class Game {
       if (locked) {
         this.lockRetries = 0;
         if (this.paused) this.unpause();
-      } else if (this.state === 'opening' || this.state === 'playing') this.pause();
+      } else if (this.state === 'opening' || this.state === 'playing' || this.state === 'flight') this.pause();
     };
     input.onLockError = () => {
       if (this.state === 'menu' || this.state === 'dead' || this.state === 'complete') return;
@@ -258,7 +260,7 @@ export class Game {
       if (this.opening.active && this.opening.canSkip() && !this.paused && code === 'Enter') this.opening.skip();
     };
     input.onMouseDown = (btn) => { if (btn === 0 && this.canFire()) this.weapon.latch(); else if (btn === 2 && this.opening.active) this.opening.press(); };
-    document.addEventListener('visibilitychange', () => { if (document.hidden && (this.state === 'playing' || this.state === 'opening') && !this.paused) this.pause(); });
+    document.addEventListener('visibilitychange', () => { if (document.hidden && (this.state === 'playing' || this.state === 'opening' || this.state === 'flight') && !this.paused) this.pause(); });
   }
 
   toggleGfx() {
@@ -346,6 +348,15 @@ export class Game {
     this.paused = false;
     this.ui.hideMenus();
     this.lockRetries = 0;
+    this.input.lock();
+  }
+
+  // The flight is over: the lander is drawn into the vessel's bay and the survivor steps out into the containment bay.
+  arriveAtVessel() {
+    this.flight.stop();
+    this.state = 'playing';
+    this.cinePose = null;
+    this.opening.arrive();
     this.input.lock();
   }
 
@@ -570,6 +581,13 @@ export class Game {
     const { input, player } = this;
     const [lx, ly] = input.takeLook();
     this.lookX = lx; this.lookY = ly;
+    if (this.state === 'flight') {
+      this.flight.update(dt, input, this.lookX, this.lookY);
+      this.effects.update(dt);
+      this.ui.update(dt);
+      input.endFrame();
+      return;
+    }
     const live = this.state === 'playing' && !player.dead;
     if (live && input.locked) {
       player.look(lx, ly, this.sens);
@@ -675,7 +693,7 @@ export class Game {
   render(dt) {
     const r = this.renderer, c = this.camera, p = this.player;
     if (!this.paused) {
-      this.poseCamera();
+      if (this.state === 'flight') this.flight.pose(c); else this.poseCamera();
       // Restrained trauma-based shake applied only to the rendered view.
       const s = this.trauma * this.trauma;
       if (s > 0.0005) {
@@ -698,12 +716,12 @@ export class Game {
       if (Math.abs(c.fov - this.fov) > 0.01) { c.fov = this.fov; c.updateProjectionMatrix(); this.effects.setScale(r.domElement.height, c.fov); }
       c.updateMatrixWorld();
       const sin = Math.sin(p.yaw), cos = Math.cos(p.yaw);
-      this.viewmodel.update(dt, {
+      if (this.state !== 'flight') this.viewmodel.update(dt, {
         lookX: this.lookX, lookY: this.lookY,
         velX: p.vx * cos - p.vz * sin, velZ: -(p.vx * -sin + p.vz * -cos),
         dashing, air: !this.cinePose && !p.grounded, yaw: this.cinePose ? this.cinePose.yaw : p.yaw, pitch: this.cinePose ? this.cinePose.pitch : p.pitch,
       });
-      this.viewmodel.syncToCamera(c);
+      if (this.state !== 'flight') this.viewmodel.syncToCamera(c);
       if (this.state === 'dead') {
         // the arms go limp and drop with the body
         const k = smooth(clamp(this.deathT / 0.7, 0, 1)), r = this.viewmodel.root;

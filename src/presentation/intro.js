@@ -6,6 +6,8 @@ import { HomeWorld, HOME, HOME_START } from '../world/home.js';
 import { save } from '../core/save.js';
 import { progress } from '../game/progress.js';
 import { makeHandGel } from './hand.js';
+import { makeLander } from '../game/flight.js';
+const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _c3 = new THREE.Vector3(), _c4 = new THREE.Vector3();
 
 // ---------------------------------------------------------------------------------------------------------------------
 // THE PLAYABLE OPENING. The player keeps control of looking (and, where it makes sense, walking); short scripted actions
@@ -25,6 +27,8 @@ const SEAM = new THREE.Vector3(CX, 1.85, CZ - 0.98);        // the cracking pane
 const GLASS = new THREE.Vector3(CX + 0.12, 1.4, CZ - 0.98);
 const LOCK_POS = new THREE.Vector3(2.5, 1.25, -0.1);          // the jammed maintenance lock beside the bulkhead
 const BARRIER_Z = -5.0;
+const WRECK_AT = { x: -10, z: -19 };                        // the downed human lander, local to the homeworld
+const PISTOL_AT = { x: -6.2, z: -15.4 };                    // the dead pilot's sidearm
 const ease = (t, a, b) => smooth(seg(t, a, b));
 const stage = (t, a, b, c, d) => ease(t, a, b) * (1 - ease(t, c, d));
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _l = new THREE.Vector3(), _q = new THREE.Quaternion(), _wq = new THREE.Quaternion();
@@ -192,6 +196,17 @@ export class Intro {
       g.level.emergencyOn = true;
       this.baseYaw = 0; this.lookAcc = 0;
       ui.fade(1);
+    } else if (phase === 'wreck') {
+      this.buildWreck();
+      const H = this.home;
+      this.wreck.visible = this.pistolItem.visible = true; this.wreck.position.y = 1.15;
+      H.ship.position.set(-9999, 48, 0); H.shadow.visible = false; H.spot.visible = false; H.cone.visible = false;
+      H.eState.rise = 0; H.eState.gone = true; H.elder.visible = false; if (H.elderKit) H.elderKit.ab.setVisible(false);
+      H.hemi.intensity = 0.55; H.sun.intensity = 0.25; H.fog.color.set(0x3a1a14);
+      this.hideBody = false; this.moveLocked = false;
+      p.reset(HOME.x + 5, HOME.z + 3, 0.576); p.pitch = -0.1;
+      this.setObjective('');
+      ui.fade(1);
     } else if (phase === 'escape') {
       this.moveLocked = true;
     }
@@ -213,6 +228,7 @@ export class Intro {
   update(dt) {
     const g = this.g;
     if (this.route) this.updateRoute(dt);
+    if (this.bolts && this.phase !== 'wreck') this.updateBolts(dt);
     this.updateCuffs();
     if (!this.active) { this.pressed = false; return; }
     this.t += dt; this.stepT += dt;
@@ -225,6 +241,7 @@ export class Intro {
       case 'cell': this.updateCell(dt, pressed); break;
       case 'escape': this.updateEscape(dt, pressed); break;
       case 'pistol': this.updatePistol(dt, pressed); break;
+      case 'wreck': this.updateWreck(dt, pressed); break;
       default:
     }
     if (g.touchUI) g.touchUI.setAbsorb(!!this.actLabel, this.actLabel || 'ABSORB');
@@ -298,50 +315,175 @@ export class Intro {
         { const want = Math.max(0, de - 1.0); if (this.f.step0 === undefined) this.f.step0 = H.elder.position.clone(); const k = Math.min(1, this.stepT / 0.9); _v.set(p.pos.x - ex, 0, p.pos.z - ez).normalize(); H.elder.position.set(this.f.step0.x + _v.x * want * 0.6 * k, 0, this.f.step0.z + _v.z * want * 0.6 * k); }
         if (this.stepT > 2.0) { this.step = 6; this.stepT = 0; this.moveLocked = false; this.f.capT = 0; g.audio.play('groan', { vol: 0.7 }); vm.reachW = 0; }
         break;
-      case 6: {                      // the shadow, the searchlight, the collar
-        const ct = this.f.capT += dt;
-        const sx = lerp(-230, 90, ct / 7.0);
-        H.ship.position.set(p.pos.x - HOME.x + sx, 48, p.pos.z - HOME.z - 2);
-        H.shadow.visible = true; H.shadow.position.set(H.ship.position.x, 0.06, H.ship.position.z);
-        H.shadow.material.opacity = 0.9 * ease(ct, 0.3, 1.5);
-        H.hemi.intensity = lerp(1.15, 0.5, ease(ct, 1.2, 4)); H.sun.intensity = lerp(0.9, 0.25, ease(ct, 1.2, 4));
-        this.home.fog.color.lerpColors(new THREE.Color(0x1d3a56), new THREE.Color(0x3a1a22), ease(ct, 1.5, 4));
-        E.fear = ease(ct, 0.9, 1.8); E.reach = Math.max(0, E.reach - dt * 1.2);
-        if (ct > 1.4) { const back = 1.6 * dt * ease(ct, 1.4, 2.4); _v.set(ex - p.pos.x, 0, ez - p.pos.z).normalize(); H.elder.position.x += _v.x * back; H.elder.position.z += _v.z * back; }
-        // searchlight
-        const shipW = _w.set(H.ship.position.x + HOME.x, 46, H.ship.position.z + HOME.z);
-        if (ct > 1.8) {
-          H.spot.visible = true; H.spot.intensity = 700 * ease(ct, 1.8, 2.6);
-          H.spot.position.copy(shipW);
-          this.f.aim = this.f.aim || p.pos.clone().add(_v.set(8, 0, 0));
-          this.f.aim.lerp(_l.set(p.pos.x, 0, p.pos.z), 1 - Math.exp(-(1.2 + ct * 0.4) * dt));
-          H.spot.target.position.copy(this.f.aim);
-          H.cone.visible = true; H.cone.material.opacity = 0.05 * ease(ct, 1.8, 2.8);
-          H.cone.position.copy(shipW);
-          const dir = _v.subVectors(this.f.aim, shipW); const len = dir.length();
-          H.cone.scale.set(1, len, 1); H.cone.quaternion.setFromUnitVectors(_l.set(0, -1, 0), dir.normalize());
-        }
-        this.once('s1', () => g.audio.play('groan', { vol: 0.8 }));
-        if (ct > 1.8) this.once('s2', () => { g.audio.play('alert', { vol: 0.5 }); this.say('No...', '', 1.8, true); });
-        // the collar: the searchlight finds you and the device comes down. You can still look, but not run.
-        if (ct > 3.6) {
-          this.moveLocked = true;
-          H.collar.visible = true;
-          const k = ease(ct, 3.6, 4.7);
-          H.collar.position.set(p.pos.x - HOME.x, lerp(5.5, 1.1, k), p.pos.z - HOME.z);
-          H.clamps.forEach((c) => { c.pivot.rotation.x = (1 - ease(ct, 4.4, 5.0)) * 0.9; });
-          this.once('c1', () => g.audio.play('lockdown', { vol: 0.5 }));
-          vm.restrain = ease(ct, 4.6, 5.2); vm.restrainSlack = 0;
-        }
-        if (ct > 4.6 && !this.f.clamp) { this.f.clamp = true; g.audio.play('door', { vol: 0.9 }); g.audio.play('clatter', { vol: 0.5 }); }
-        // the hum carries across the cut: fade out, then in the chamber
-        if (ct > 5.6) ui.fade(ease(ct, 5.6, 6.5));
-        if (ct > 6.6) this.enter('cell');
-        break;
-      }
+      case 6: this.updateAttack(dt); break;
       default:
     }
     p.pitch = clamp(p.pitch, -1.5, 1.2);
+  }
+
+  // ---------------------------------------------------------------------------------------------- the attack
+  // The human ship arrives, bombards the settlement and takes the elder up in a tractor beam, leaving the survivor alone on a burning world.
+  updateAttack(dt) {
+    const g = this.g, p = g.player, H = this.home, E = H.eState, ui = g.ui, f = this.f, vm = g.viewmodel;
+    const ct = f.capT += dt;
+    this.moveLocked = ct > 3.2;
+    const ex = HOME.x + H.elder.position.x, ez = HOME.z + H.elder.position.z;
+    // the shadow of the ship slides across the settlement and settles overhead
+    const sx = lerp(-230, 30, ease(ct, 0, 8.5));
+    H.ship.position.set(p.pos.x - HOME.x + sx, 48, p.pos.z - HOME.z - 2);
+    H.shadow.visible = true; H.shadow.position.set(H.ship.position.x, 0.06, H.ship.position.z);
+    H.shadow.material.opacity = 0.9 * ease(ct, 0.3, 1.5);
+    H.hemi.intensity = lerp(1.15, 0.45, ease(ct, 1.2, 4)); H.sun.intensity = lerp(0.9, 0.2, ease(ct, 1.2, 4));
+    H.fog.color.lerpColors(_c1.set(0x1d3a56), _c2.set(0x3a1a14), ease(ct, 1.5, 7));
+    E.fear = Math.max(E.fear, ease(ct, 0.9, 1.8)); E.reach = Math.max(0, E.reach - dt * 1.2);
+    this.once('s1', () => g.audio.play('groan', { vol: 0.8 }));
+    if (ct > 1.8) this.once('s2', () => { g.audio.play('alert', { vol: 0.5 }); this.say('No...', '', 1.8, true); });
+    // the bombardment: bolts of red light fall from the ship onto the settlement around you, each leaving a fire
+    if (ct > 2.6 && ct < 9.4) {
+      f.nextBolt = (f.nextBolt ?? 0) - dt;
+      if (f.nextBolt <= 0) {
+        f.nextBolt = lerp(0.55, 0.22, ease(ct, 2.6, 8)) * (0.7 + Math.random() * 0.6);
+        const an = Math.random() * 6.28, d = 7 + Math.random() * 20, bx = p.pos.x + Math.cos(an) * d, bz = p.pos.z + Math.sin(an) * d;
+        if (Math.hypot(bx - ex, bz - ez) > 3.5) this.bolt(bx, bz);
+      }
+    }
+    // the elder is seized: the searchlight becomes a tractor beam and carries it up into the ship
+    if (ct > 5.6) {
+      const k = ease(ct, 6.0, 10.2);
+      E.rise = k * 24; E.fear = 1; E.reach = 0;
+      const shipW = _w.set(H.ship.position.x + HOME.x, 46, H.ship.position.z + HOME.z);
+      const fade = 1 - ease(ct, 10.4, 11.4);
+      H.spot.visible = true; H.spot.intensity = 900 * ease(ct, 5.6, 6.4) * fade;
+      H.spot.position.copy(shipW);
+      H.spot.target.position.set(ex, E.rise * 0.5, ez);
+      H.cone.visible = true; H.cone.material.opacity = 0.09 * ease(ct, 5.6, 6.4) * fade;
+      H.cone.position.copy(shipW);
+      const dir = _v.subVectors(_l.set(ex, 0, ez), shipW); const len = dir.length();
+      H.cone.scale.set(1.8, len, 1.8); H.cone.quaternion.setFromUnitVectors(_l.set(0, -1, 0), dir.normalize());
+      this.once('t1', () => { g.audio.play('surge', { vol: 0.6 }); g.audio.play('lockdown', { vol: 0.5 }); this.say('Elder!', '', 2.0, true); });
+      if (ct > 8.2) this.once('t2', () => g.audio.play('groan', { vol: 0.9 }));
+    }
+    // an impact throws you down: black, then the aftermath
+    if (ct > 10.0) ui.fade(ease(ct, 10.0, 11.4));
+    if (ct > 10.2) this.once('big', () => { g.addShake(0.9); g.audio.play('explosion', { vol: 1 }); vm.pulseGlow(0.6); });
+    if (ct > 11.8) this.enter('wreck');
+  }
+
+  // One bolt: a red streak from the ship, then a blast, a flash, a fire and a shove.
+  bolt(x, z) {
+    const g = this.g, H = this.home, p = g.player;
+    const from = _l.set(H.ship.position.x + HOME.x + (Math.random() - 0.5) * 30, 46, H.ship.position.z + HOME.z);
+    const to = _v.set(x, 0.3, z);
+    const len = from.distanceTo(to), mid = _w.copy(from).add(to).multiplyScalar(0.5);
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, len, 6), new THREE.MeshBasicMaterial({ color: 0xff4a2a, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    beam.position.copy(mid); beam.quaternion.setFromUnitVectors(_c3.set(0, 1, 0), _c4.copy(to).sub(from).normalize());
+    g.scene.add(beam); this.bolts = this.bolts || []; this.bolts.push({ beam, t: 0 });
+    if (g.effects.explosion) g.effects.explosion(to.clone(), 3 + Math.random() * 2);
+    if (g.effects.flashLight) g.effects.flashLight(to.clone().setY(2), 0xff7a3a, 60, 0.35);
+    H.addFire(x - HOME.x, z - HOME.z, 0.9 + Math.random() * 0.8);
+    const d = Math.hypot(x - p.pos.x, z - p.pos.z);
+    g.addShake(clamp(1.2 / (1 + d * 0.25), 0.05, 0.5));
+    g.audio.play('explosion', { vol: clamp(1.1 - d * 0.03, 0.25, 1) });
+  }
+
+  updateBolts(dt) {
+    if (!this.bolts) return;
+    for (let i = this.bolts.length - 1; i >= 0; i--) {
+      const b = this.bolts[i]; b.t += dt; b.beam.material.opacity = Math.max(0, 1 - b.t * 6);
+      if (b.t > 0.25) { b.beam.removeFromParent(); b.beam.geometry.dispose(); b.beam.material.dispose(); this.bolts.splice(i, 1); }
+    }
+  }
+
+  // ---------------------------------------------------------------------------------------------- the wreck
+  // After the attack: smouldering ruins, a downed human lander, the dead pilot's sidearm. Absorb it, then take the lander and leave.
+  buildWreck() {
+    const g = this.g;
+    if (this.wreck) return;
+    this.wreck = makeLander(); this.wreck.scale.setScalar(1.7);
+    this.wreck.position.set(HOME.x + WRECK_AT.x, 1.15, HOME.z + WRECK_AT.z); this.wreck.rotation.set(0.1, 0.55, -0.16);
+    this.wreck.userData.engines.forEach((sp) => { sp.visible = false; });
+    this.wreckLight = new THREE.PointLight(0x6fd9e8, 0, 9, 2); this.wreckLight.position.set(HOME.x + WRECK_AT.x, 2.2, HOME.z + WRECK_AT.z + 1); this.wreckLight.userData.keepOn = true;
+    this.pistolItem = this.makeViewPistol(); this.pistolItem.position.set(HOME.x + PISTOL_AT.x, 0.12, HOME.z + PISTOL_AT.z); this.pistolItem.scale.setScalar(1.5); this.pistolItem.rotation.set(0, 0.9, 0);
+    for (const m of this.pistolItem.userData.parts) m.frustumCulled = false;
+    g.scene.add(this.wreck, this.wreckLight, this.pistolItem);
+    this.wreck.visible = this.pistolItem.visible = false;
+  }
+
+  updateWreck(dt, pressed) {
+    const g = this.g, p = g.player, H = this.home, ui = g.ui, vm = g.viewmodel, f = this.f, t = this.t;
+    this.updateBolts(dt);
+    // the settlement stays smouldering: smoke rises from every fire
+    f.smoke = (f.smoke || 0) - dt;
+    if (f.smoke <= 0) { f.smoke = 0.12; for (const fi of H.fires) if (fi.on && g.effects.smokeP) g.effects.smokeP.emit(HOME.x + fi.x + (Math.random() - 0.5), 1 + Math.random(), HOME.z + fi.z + (Math.random() - 0.5), (Math.random() - 0.5) * 0.4 + 0.3, 1.3 + Math.random() * 0.8, (Math.random() - 0.5) * 0.4, 3.5, 0.9 * fi.s, 0.12, 0.1, 0.1, 0, 0.6, 1.4); }
+    // keep the survivor in the ruined settlement
+    const cx = HOME.x, cz = HOME.z - 8, dx = p.pos.x - cx, dz = p.pos.z - cz, dd = Math.hypot(dx, dz);
+    if (dd > 30) { p.pos.x = cx + dx / dd * 30; p.pos.z = cz + dz / dd * 30; }
+    const wx = HOME.x + WRECK_AT.x, wz = HOME.z + WRECK_AT.z, px = HOME.x + PISTOL_AT.x, pz = HOME.z + PISTOL_AT.z;
+    const dw = Math.hypot(p.pos.x - wx, p.pos.z - wz), dpst = Math.hypot(p.pos.x - px, p.pos.z - pz);
+    if (dw < 3.4) { p.pos.x = wx + (p.pos.x - wx) / dw * 3.4; p.pos.z = wz + (p.pos.z - wz) / dw * 3.4; }   // the lander is solid
+    this.wreckLight.intensity = (this.step >= 2 ? 3.5 : 1.2) * (0.8 + 0.2 * Math.sin(g.time * 5));
+    this.pistolMarker.position.set(px, 0.05, pz);
+    switch (this.step) {
+      case 0:                      // wake in the ruins
+        this.moveLocked = false; ui.fade(1 - ease(t, 0.3, 2.4));
+        if (!f.w1 && t > 0.8) { f.w1 = true; this.say('They took the elder. All of them.', '', 3.4, true); }
+        if (t > 3.2) { this.step = 1; this.stepT = 0; this.setObjective('SEARCH THE WRECKED HUMAN LANDER'); }
+        break;
+      case 1: {                    // the sidearm
+        const near = this.pistolItem.visible && dpst < 2.6;
+        this.pistolMarker.visible = true; this.pistolMarker.material.opacity = 0.5 + 0.3 * Math.sin(g.time * 4);
+        if (dw < 14 && !f.w2) { f.w2 = true; this.say('A human craft. Burning. The pilot is still in it.', '', 3.2, true); }
+        if (near) { this.actLabel = 'ABSORB'; this.prompt(this.tr('HOLD RIGHT CLICK TO ABSORB THE SIDEARM', 'HOLD THE BUTTON TO ABSORB THE SIDEARM')); } else this.prompt('');
+        if (this.hold(dt, near, 1.2)) {
+          this.step = 2; this.stepT = 0; this.h = 0; this.prompt(''); ui.setHold(null);
+          g.effects.hitSparks(this.pistolItem.position, [0.4, 1, 0.9], 20); if (g.effects.flashLight) g.effects.flashLight(this.pistolItem.position, 0x6ffff0, 30, 0.4);
+          g.audio.play('absorb', { vol: 0.8 }); g.audio.play('gel', { vol: 0.7 }); g.audio.play('crystal', { vol: 0.5 });
+          this.pistolItem.visible = false; this.pistolMarker.visible = false;
+          this.setReadyArm(); g.weaponAcquired = true; g.weapon.reset(); vm.pulseGlow(1);
+          this.say('Their weapon. It is mine now.', '', 3, true);
+          this.setObjective('TAKE THE LANDER AND FOLLOW THEM');
+          save.setIntroDone(true); progress.setIntroDone(true);
+        }
+        break;
+      }
+      case 2: {                    // board the lander
+        const hx = wx + 2.6, hz = wz + 2.6, dh = Math.hypot(p.pos.x - hx, p.pos.z - hz);
+        const near = dh < 3.3;
+        if (near) { this.actLabel = 'BOARD'; this.prompt(this.tr('HOLD RIGHT CLICK TO BOARD THE LANDER', 'HOLD THE BUTTON TO BOARD THE LANDER')); } else this.prompt('');
+        this.pistolMarker.visible = true; this.pistolMarker.position.set(hx, 0.05, hz); this.pistolMarker.material.opacity = 0.5 + 0.3 * Math.sin(g.time * 4);
+        if (this.hold(dt, near, 1.0)) { this.step = 3; this.stepT = 0; this.prompt(''); ui.setHold(null); this.pistolMarker.visible = false; g.audio.play('door', { vol: 0.8 }); this.say('Find them. Whatever it takes.', '', 3, true); }
+        break;
+      }
+      case 3:                      // the lander lifts off
+        this.moveLocked = true;
+        ui.fade(ease(this.stepT, 1.4, 3.0));
+        this.wreck.position.y += dt * 3 * this.stepT;
+        if (this.stepT > 3.2) this.launch();
+        break;
+      default:
+    }
+  }
+
+  // Leave the homeworld: hand over to the free-flight scene.
+  launch() {
+    const g = this.g;
+    this.active = false; this.phase = 'launched'; this.moveLocked = false;
+    this.home.show(false); this.home.clearFires();
+    if (this.wreck) this.wreck.visible = this.pistolItem.visible = false;
+    this.wreckLight.intensity = 0;
+    g.ui.showSkip(false); g.ui.setHold(null); g.ui.clearSubtitle();
+    g.state = 'flight'; g.cinePose = null;
+    g.flight.start();
+  }
+
+  // The lander is drawn into the research vessel's bay: the survivor steps out into the containment bay and the escape begins.
+  arrive() {
+    const g = this.g;
+    this.home.show(false);
+    this.setReadyArm();
+    document.body.classList.remove('intro');
+    g.ui.clearSubtitle(); g.ui.clearHints(); g.ui.setPrompt('');
+    this.enterRoute(false);
   }
 
   // The right hand reaches toward a world point, only as far as an arm can.

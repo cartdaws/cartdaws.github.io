@@ -175,6 +175,14 @@ export class HomeWorld {
     this.tipBase = new THREE.Color(S.hex(0xb8ffe6));
 
     // ---- the human ship, its shadow and its searchlight
+    // ---- fires for the attack and its aftermath: a fixed pool of flickering flames, each with its own light (the count never changes)
+    this.fires = [];
+    { const ft = canvasTex(64, 64, (g, w, hh) => { const gr = g.createRadialGradient(w / 2, hh * 0.6, 2, w / 2, hh * 0.55, w / 2); gr.addColorStop(0, 'rgba(255,240,170,1)'); gr.addColorStop(0.35, 'rgba(255,140,40,0.8)'); gr.addColorStop(1, 'rgba(255,60,0,0)'); g.fillStyle = gr; g.fillRect(0, 0, w, hh); });
+      for (let i = 0; i < 7; i++) {
+        const spr = [0, 1, 2].map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: ft, color: 0xffffff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false })); s.visible = false; this.group.add(s); return s; });
+        const light = new THREE.PointLight(0xff7a2a, 0, 14, 2); light.userData.fire = true; this.group.add(light);
+        this.fires.push({ spr, light, on: false, x: 0, z: 0, s: 1, ph: Math.random() * 6, t0: 0 });
+      } }
     this.ship = new THREE.Group();
     const hull = new THREE.MeshStandardMaterial({ color: 0x1c2228, roughness: 0.55, metalness: 0.7 });
     const body = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 12), hull); body.scale.set(34, 3.5, 9); this.ship.add(body);
@@ -261,8 +269,23 @@ export class HomeWorld {
     return this.elderArm.localToWorld(this.elderTip ? out.copy(this.elderTip) : out.set(0, 0.04, -0.98));
   }
 
+  // Light a fire at a local position; the pool recycles the oldest.
+  addFire(x, z, s = 1) {
+    const f = this.fires.find((q) => !q.on) || this.fires.reduce((a, b) => (a.t0 < b.t0 ? a : b));
+    f.on = true; f.x = x; f.z = z; f.s = s; f.t0 = performance.now();
+    f.light.position.set(x, 1.4 * s, z); f.spr.forEach((p) => { p.visible = true; p.position.set(x, 0.9 * s, z); });
+    return f;
+  }
+  clearFires() { for (const f of this.fires) { f.on = false; f.light.intensity = 0; f.spr.forEach((p) => { p.visible = false; }); } }
+
   update(dt, t, camPos) {
     if (!this.shown) return;
+    for (const f of this.fires) {
+      if (!f.on) continue;
+      const fl = 0.75 + 0.25 * Math.sin(t * 13 + f.ph) + 0.15 * Math.sin(t * 31 + f.ph * 2);
+      f.light.intensity = 26 * f.s * fl;
+      f.spr.forEach((p, i) => { const k = (0.8 + i * 0.5) * f.s * (1.5 + 0.35 * Math.sin(t * (9 + i * 4) + f.ph + i)); p.scale.set(k * 0.9, k * 1.5, 1); p.position.y = (0.7 + i * 0.5) * f.s * fl; p.material.opacity = 0.9 - i * 0.22; });
+    }
     this.sky.position.copy(camPos);
     { const a = this.spores.geometry.attributes.position, b = this.sporeBase; for (let i = 0; i < a.count; i++) { a.array[i * 3] = b[i * 3] + Math.sin(t * 0.3 + i) * 0.6; a.array[i * 3 + 1] = b[i * 3 + 1] + ((t * 0.12 + i * 0.37) % 1) * 0.8 + Math.sin(t * 0.7 + i * 2) * 0.15; a.array[i * 3 + 2] = b[i * 3 + 2] + Math.cos(t * 0.25 + i) * 0.6; } a.needsUpdate = true; }
     this.tipMat.color.setScalar(0.8 + 0.2 * Math.sin(t * 1.3)).multiply(this.tipBase).addScalar(0.15);
