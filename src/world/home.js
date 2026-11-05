@@ -11,6 +11,12 @@ import { cloneWarship } from '../game/flight.js';
 export const HOME = { x: 1400, z: 0 };   // far beyond the view distance from the ship, so the ship is never drawn from here (or this from there)
 export const HOME_START = { x: 0, z: 7, yaw: 0.9 };      // local to HOME: the player wakes here, facing away from the one who waits
 export const ELDER_AT = { x: 1.2, z: -9.5 };
+export const WRECK_AT = { x: -10, z: -19 };            // the downed human lander, local to the homeworld
+export const PISTOL_AT = { x: -6.2, z: -15.4 };        // the dead pilot's sidearm
+const HOUSES = [[-9, -5], [10, -8], [-16, -9], [6, -19], [-4, -27], [15, -20]];
+const FALLEN = [[3, -4, 0.7], [-1, -21, 5.4], [11, -14, 4.0], [-12, -2, 5.2]];
+// Scenery keeps out of what stands here: a tree must never grow through a house, the wreck or the sidearm.
+const keepClear = (x, z, r = 0) => HOUSES.some(([a, b]) => Math.hypot(x - a, z - b) < 3.6 + r) || Math.hypot(x - WRECK_AT.x, z - WRECK_AT.z) < 8.5 + r || Math.hypot(x - PISTOL_AT.x, z - PISTOL_AT.z) < 2.5 + r || FALLEN.some(([a, b, t]) => { for (let k = 0.5; k < 5.5; k += 1) if (Math.hypot(x - (a + Math.cos(t) * k * 1.1), z - (b - Math.sin(t) * k * 1.1)) < 1 + r) return true; return false; });
 
 export async function loadHome() {
   const gltf = await new GLTFLoader().loadAsync(import.meta.env.BASE_URL + 'models/home.glb');
@@ -96,12 +102,14 @@ export class HomeWorld {
     const mk = (geo, mat, n) => { const m = new THREE.InstancedMesh(geo, mat, n); m.frustumCulled = false; this.group.add(m); return m; };
     const spireMat = new THREE.MeshStandardMaterial({ color: S.hex(0x1f6a64), roughness: 0.5, emissive: S.hex(0x0b3b3a), emissiveIntensity: 0.9 });
     this.tipMat = new THREE.MeshBasicMaterial({ color: S.hex(0xb8ffe6), fog: true });
+    this.colliders = []; this.collidersIntact = []; this.collidersRuin = [];   // circles, local to the homeworld: what you bump into when walking here
     const NS = 60, spires = mk(node('Spire').geometry, spireMat, NS), tips = mk(node('SpireTip').geometry, this.tipMat, NS);
     const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
     for (let i = 0, k = 0; k < NS && i < 400; i++) {
       const a = R() * Math.PI * 2, d = 9 + R() * 50, x = Math.cos(a) * d, z = Math.sin(a) * d;
-      if (path(x, z) || Math.hypot(x - ELDER_AT.x, z - ELDER_AT.z) < 4) continue;
+      if (path(x, z) || Math.hypot(x - ELDER_AT.x, z - ELDER_AT.z) < 4 || keepClear(x, z)) continue;
       const s = 0.9 + R() * 1.4;
+      this.colliders.push({ x, z, r: 0.42 * s });
       e.set((R() - 0.5) * 0.12, R() * 6.28, (R() - 0.5) * 0.12); q.setFromEuler(e);
       m4.compose(v.set(x, 0, z), q, sc.set(s, s, s)); spires.setMatrixAt(k, m4); tips.setMatrixAt(k, m4); k++;
     }
@@ -114,7 +122,7 @@ export class HomeWorld {
       const a = R() * Math.PI * 2, d = 4 + R() * 38, cx = Math.cos(a) * d, cz = Math.sin(a) * d;
       for (let j = 0; j < 7 && k < NK; j++) {
         const x = cx + (R() - 0.5) * 2.2, z = cz + (R() - 0.5) * 2.2;
-        if (path(x, z) && R() < 0.8) continue;
+        if ((path(x, z) && R() < 0.8) || keepClear(x, z)) continue;
         const s = 0.7 + R() * 1.3;
         e.set((R() - 0.5) * 0.25, R() * 6.28, (R() - 0.5) * 0.25); q.setFromEuler(e);
         m4.compose(v.set(x, 0, z), q, sc.set(s, s, s)); stalks.setMatrixAt(k, m4); bulbs.setMatrixAt(k, m4);
@@ -127,7 +135,10 @@ export class HomeWorld {
     for (let i = 0; i < 20; i++) {
       const a = R() * Math.PI * 2, d = 6 + R() * 45, x = Math.cos(a) * d, z = Math.sin(a) * d;
       const s = 0.8 + R() * 2.2; e.set(0, R() * 6.28, 0); q.setFromEuler(e);
-      m4.compose(v.set(path(x, z) ? x + 6 : x, 0, z), q, sc.set(s, s * (0.6 + R() * 0.6), s)); rocks.setMatrixAt(i, m4);
+      let rx = path(x, z) ? x + 6 : x, rz = z;
+      for (let tries = 0; tries < 8 && keepClear(rx, rz, 0.6 * s); tries++) { rx += 5; rz += 3; }      // never in a house, the wreck or the sidearm
+      m4.compose(v.set(rx, 0, rz), q, sc.set(s, s * (0.6 + R() * 0.6), s)); rocks.setMatrixAt(i, m4);
+      this.colliders.push({ x: rx, z: rz, r: 0.5 * s });
     }
     this.flora = [spires, tips, stalks, bulbs, rocks];
 
@@ -312,18 +323,20 @@ export class HomeWorld {
       Glow: new THREE.MeshBasicMaterial({ color: hx(0x9affea) }),
     };
     const part = (name) => { const o = src.getObjectByName(name); if (!o || !o.isMesh) return null; const m = new THREE.Mesh(o.geometry, mats[(o.material && o.material.name) || 'Moss'] || mats.Moss); m.frustumCulled = false; return m; };
-    const HOUSES = [[-9, -5], [10, -8], [-16, -9], [6, -19], [-4, -27], [15, -20]];
     const face = (x, z) => Math.atan2(-(1.2 - x), -(-9.5 - z));            // doors face the hollow where the elder waits
     for (const [x, z] of HOUSES) {
       const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = face(x, z); g.scale.setScalar(0.9 + ((x * 7 + z * 3) % 5) * 0.04);
       for (const n of ['Dwelling', 'DwellingRibs', 'DwellingBase', 'DwellingGlow']) { const m = part(n); if (m) g.add(m); }
       this.settleIntact.add(g);
+      this.collidersIntact.push({ x, z, r: 2.75 * g.scale.x });
       const r = new THREE.Group(); r.position.set(x, 0, z); r.rotation.y = face(x, z) + 0.5; r.scale.copy(g.scale);
       for (const n of ['DwellingRuin', 'RuinRubble']) { const m = part(n); if (m) r.add(m); }
       this.settleRuin.add(r);
+      this.collidersRuin.push({ x, z, r: 2.6 * g.scale.x });
     }
-    for (const [x, z, a] of [[3, -4, 0.7], [-8, -22, 2.2], [11, -14, 4.0], [-12, -2, 5.2]]) {
+    for (const [x, z, a] of FALLEN) {
       const m = part('FallenSpire'); if (!m) continue; m.position.set(x, 0, z); m.rotation.y = a; m.scale.setScalar(1.1); this.settleRuin.add(m);
+      for (let k = 0.3; k < 5.4; k += 0.75) this.collidersRuin.push({ x: x + Math.cos(a) * k * 1.1, z: z - Math.sin(a) * k * 1.1, r: 0.42 - 0.05 * k });
     }
     for (const [x, z, s] of [[-4, -3, 1.0], [8, -6, 0.9], [-12, -11, 1.1], [2, -14, 0.9], [-6, -24, 0.8], [-14, -17, 1.0], [5, -22, 0.9]]) {
       const m = part('Crater'); if (!m) continue; m.position.set(x, 0.02, z); m.scale.setScalar(s * 1.3); this.settleRuin.add(m);
@@ -340,7 +353,14 @@ export class HomeWorld {
       inst.frustumCulled = false; this.settleRuin.add(inst);
     }
   }
-  setRuined(r) { if (this.settleIntact) { this.settleIntact.visible = !r; this.settleRuin.visible = !!r; } }
+  // Slide a walker out of whatever stands here. Circles, so nothing snags, and they follow the state of the settlement.
+  pushOut(pos, radius = 0.4, extra = null) {
+    let x = pos.x - HOME.x, z = pos.z - HOME.z;
+    const ring = (list) => { for (const c of list) { const dx = x - c.x, dz = z - c.z, R = c.r + radius, d2 = dx * dx + dz * dz; if (d2 >= R * R) continue; const d = Math.sqrt(d2) || 1e-4; x = c.x + (dx / d) * R; z = c.z + (dz / d) * R; } };
+    for (let it = 0; it < 2; it++) { ring(this.colliders); ring(this.ruined ? this.collidersRuin : this.collidersIntact); if (extra) ring(extra); }
+    pos.x = HOME.x + x; pos.z = HOME.z + z;
+  }
+  setRuined(r) { this.ruined = !!r; if (this.settleIntact) { this.settleIntact.visible = !r; this.settleRuin.visible = !!r; } }
 
   // Light a fire at a local position; the pool recycles the oldest.
   addFire(x, z, s = 1) {

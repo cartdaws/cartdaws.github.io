@@ -130,6 +130,7 @@ export class Player {
       this.pos.x += dx / n;
       this.pos.z += dz / n;
       this.game.world.resolveCircle(this.pos, RADIUS, HEIGHT);
+      if (this.extraSolid) this.extraSolid(this.pos);      // solids outside the box world: the homeworld's houses, trees and rocks
     }
 
     // Vertical motion and ground.

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { lerp, smooth, seg, clamp, damp, easeOut } from '../core/util.js';
 import { PLAYER_START, PISTOL_POS, CELL } from '../world/level.js';
 import { poseHuman, seatHuman } from '../world/humans.js';
-import { HomeWorld, HOME, HOME_START } from '../world/home.js';
+import { HomeWorld, HOME, HOME_START, WRECK_AT, PISTOL_AT } from '../world/home.js';
 import { save } from '../core/save.js';
 import { progress } from '../game/progress.js';
 import { makeHandGel } from './hand.js';
@@ -28,8 +28,6 @@ const SEAM = new THREE.Vector3(CX, 1.85, CZ - 0.98);        // the cracking pane
 const GLASS = new THREE.Vector3(CX + 0.12, 1.4, CZ - 0.98);
 const LOCK_POS = new THREE.Vector3(2.5, 1.25, -0.1);          // the jammed maintenance lock beside the bulkhead
 const BARRIER_Z = -5.0;
-const WRECK_AT = { x: -10, z: -19 };                        // the downed human lander, local to the homeworld
-const PISTOL_AT = { x: -6.2, z: -15.4 };                    // the dead pilot's sidearm
 const ease = (t, a, b) => smooth(seg(t, a, b));
 const stage = (t, a, b, c, d) => ease(t, a, b) * (1 - ease(t, c, d));
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _l = new THREE.Vector3(), _q = new THREE.Quaternion(), _wq = new THREE.Quaternion();
@@ -206,6 +204,9 @@ export class Intro {
       this.buildWreck();
       const H = this.home; H.setRuined(true);
       this.wreck.visible = this.pistolItem.visible = true; this.wreck.position.y = 1.15;
+      this.wreck.updateMatrixWorld(true);
+      this.wreckCircles = [];          // along the hull and both wings, in homeworld coordinates
+      for (const [lx, lz, lr] of [[0, -3.2, 0.5], [0, -2, 0.85], [0, -0.7, 1.0], [0, 0.7, 1.0], [0, 2, 1.0], [0, 3.2, 0.8], [1.8, 1.2, 1.1], [-1.8, 1.2, 1.1], [3, 2.1, 0.8], [-3, 2.1, 0.8], [4.1, 2.7, 0.5], [-4.1, 2.7, 0.5]]) { const q = this.wreck.localToWorld(new THREE.Vector3(lx, 0, lz)); this.wreckCircles.push({ x: q.x - HOME.x, z: q.z - HOME.z, r: lr * 1.1 }); }
       H.ship.position.set(-9999, 48, 0); H.shadow.visible = false; H.spot.visible = false; H.cone.visible = false;
       H.eState.rise = 0; H.eState.gone = true; H.elder.visible = false; if (H.elderKit) H.elderKit.ab.setVisible(false);
       H.hemi.intensity = 0.55; H.sun.intensity = 0.25; H.fog.color.set(0x3a1a14);
@@ -279,6 +280,7 @@ export class Intro {
     const ex = HOME.x + H.elder.position.x, ez = HOME.z + H.elder.position.z;
     const de = Math.hypot(p.pos.x - ex, p.pos.z - ez);
     if (de < 1.15 && this.step < 7) { p.pos.x = ex + (p.pos.x - ex) / de * 1.15; p.pos.z = ez + (p.pos.z - ez) / de * 1.15; }
+    p.extraSolid = (q) => H.pushOut(q);                    // houses, trees and rocks are solid
     this.lookAcc += Math.abs(Math.atan2(Math.sin(p.yaw - this.lastYaw), Math.cos(p.yaw - this.lastYaw))) + Math.abs(p.pitch - this.lastPitch);
     this.lastYaw = p.yaw; this.lastPitch = p.pitch;
     const dist = H.updateElder(dt, g.time, p.pos);
@@ -452,7 +454,7 @@ export class Intro {
     if (dd > 30) { p.pos.x = cx + dx / dd * 30; p.pos.z = cz + dz / dd * 30; }
     const wx = HOME.x + WRECK_AT.x, wz = HOME.z + WRECK_AT.z, px = HOME.x + PISTOL_AT.x, pz = HOME.z + PISTOL_AT.z;
     const dw = Math.hypot(p.pos.x - wx, p.pos.z - wz), dpst = Math.hypot(p.pos.x - px, p.pos.z - pz);
-    if (dw < 2.6) { p.pos.x = wx + (p.pos.x - wx) / dw * 2.6; p.pos.z = wz + (p.pos.z - wz) / dw * 2.6; }   // the lander is solid
+    p.extraSolid = (this.step < 6 && this.step !== 3) ? (q) => H.pushOut(q, 0.4, this.wreckCircles) : null;       // houses, trees, rocks and the lander itself are solid
     this.wreckLight.intensity = (this.step >= 2 ? 22 : 9) * (0.85 + 0.15 * Math.sin(g.time * 5));
     this.pistolMarker.position.set(px, 0.05, pz);
     switch (this.step) {
@@ -639,13 +641,14 @@ export class Intro {
   // The lander is drawn into the research vessel's bay: the survivor steps out into the containment bay and the escape begins.
   arrive() {
     const g = this.g, p = g.player;
+    p.extraSolid = null;
     this.home.show(false); this.home.clearFires();
     this.setReadyArm();
     document.body.classList.add('intro');
     g.ui.clearSubtitle(); g.ui.clearHints(); g.ui.setPrompt(''); g.ui.setObjective('');
     g.viewmodel.root.visible = true; g.weaponAcquired = true;
     g.level.emergencyOn = false; g.level.cut.setDoorOpen(1.75); g.level.doors.containment.open(true);
-    p.reset(PLAYER_START.x, PLAYER_START.z + 2.5, 0); p.pitch = 0; p.speedMul = 0.55;
+    p.reset(PLAYER_START.x, PLAYER_START.z + 2.5, 0); p.pitch = 0; p.speedMul = 0.26;
     this.active = true; this.phase = 'gas'; this.t = 0; this.stepT = 0; this.f = {}; this.moveLocked = true; this.hideBody = true;
     g.cinePose = null; g.ui.fade(1); this.gasK = 0;
   }
@@ -657,7 +660,8 @@ export class Intro {
     if (T < 12.2) ui.fade(T < 10.4 ? 1 - ease(T, 0.2, 1.8) : ease(T, 10.4, 12.0));
     // act 1: a still, empty bay. The pilot walks forward on its own.
     if (T > 0.6) this.once('g1', () => this.say('Docked. No guards, no alarms. Where is everyone?', '', 3.6, true));
-    if (T > 1.6 && T < 7.8) { this.moveLocked = false; g.input.keys.clear(); g.input.keys.add('KeyW'); p.speedMul = 0.55 * (1 - 0.7 * smooth(clamp((T - 4.5) / 3.3, 0, 1))); }
+    // you walk in from the airlock and stop in the open middle of the bay. The bulkhead ahead seals while you are out, so you must never get past it.
+    if (T > 1.6 && T < 7.8 && p.pos.z > 3.0) { this.moveLocked = false; g.input.keys.clear(); g.input.keys.add('KeyW'); p.speedMul = 0.26; } else if (T > 1.6) { g.input.keys.clear(); this.moveLocked = true; }
     if (T > 1.6) this.setObjective(T < 4.6 ? 'FIND THE ELDER' : 'SOMETHING IS WRONG');
     // act 2: the vents: an alarm tone, a hiss, then gas pouring from the ceiling around you
     if (T > 3.4) this.once('g2', () => { g.audio.play('alert', { vol: 0.45 }); g.audio.play('hiss', { vol: 0.6 }); });
@@ -1110,6 +1114,7 @@ export class Intro {
   // The state shared by "finished the pistol" and "skipped": cell broken, pistol assimilated, bulkhead jammed shut.
   enterRoute(skipped) {
     const g = this.g, L = g.level, c = L.cut;
+    g.player.extraSolid = null;
     this.active = false; this.route = true; this.phase = 'route';
     this.moveLocked = false; this.hideBody = false;
     document.body.classList.remove('intro');

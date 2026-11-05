@@ -19,7 +19,41 @@ new Game(document.getElementById('game'), geos, kit, hand, home);
 window.__intruderDone?.();
 
 // Installable and playable offline once loaded (network first, so a new build always wins when online).
-if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {});
+if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  navigator.serviceWorker.register(import.meta.env.BASE_URL + 'sw.js').catch(() => {});
+  saveForOffline();     // this line runs after everything above has loaded, so the page's load event is already over
+}
+
+// One visit is enough to play with no signal: save every file on the device, then say so on the start menu.
+// The worker alone cannot do this, because it only starts watching after the first page has already loaded.
+async function saveForOffline() {
+  if (!('caches' in window)) return;
+  const say = (t) => { const el = document.querySelector('.build-tag'); if (el) { el.dataset.base = el.dataset.base || el.textContent; el.textContent = el.dataset.base + '  ·  ' + t; } };
+  try {
+    const list = await (await fetch('precache.json', { cache: 'no-store' })).json();
+    const cache = await caches.open('intruder-v1');
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem('intruder-saved') || '{}'); } catch { /* private mode */ }
+    let done = 0;
+    for (const f of list) {
+      const url = new URL(f.u, document.baseURI).href;
+      if (saved[f.u] !== f.h || !(await cache.match(url, { ignoreVary: true }))) {
+        const res = await fetch(url, { cache: 'reload' });
+        if (!res.ok) throw new Error(f.u);
+        await cache.put(url, res);
+        saved[f.u] = f.h;
+        try { localStorage.setItem('intruder-saved', JSON.stringify(saved)); } catch { /* private mode */ }
+      }
+      say('SAVING FOR OFFLINE ' + Math.round(++done / list.length * 100) + '%');
+    }
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+    try { localStorage.setItem('intruder-saved-all', '1'); } catch { /* private mode */ }
+    say('READY OFFLINE');
+  } catch {
+    // no network right now: fine if an earlier visit finished saving
+    let all = false; try { all = !!localStorage.getItem('intruder-saved-all'); } catch { /* private mode */ }
+    say(all ? 'READY OFFLINE' : 'NOT SAVED YET  ·  NEEDS SIGNAL');
+  }
+}
 
 // A browser's own bars eat a phone's screen: say how to get the fullscreen version.
 {

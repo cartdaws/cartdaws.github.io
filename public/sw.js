@@ -16,5 +16,5 @@ self.addEventListener('fetch', (e) => {
       });
     }
     return res;
-  }).catch(() => caches.match(r).then((hit) => hit || Response.error())));
+  }).catch(() => caches.match(r, { ignoreSearch: true, ignoreVary: true }).then((hit) => hit || (r.mode === 'navigate' ? caches.match('./', { ignoreVary: true }) : null)).then((hit) => hit || Response.error())));
 });

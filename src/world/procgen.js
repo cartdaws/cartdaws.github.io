@@ -234,7 +234,8 @@ function furnish(B, r, placer, L) {
     placer.add(x - f.w / 2, x + f.w / 2, z - f.d / 2, z + f.d / 2);
     return f;
   };
-  const cosmetic = (name, x, z, rot = 0) => kit.place(B.group, name, { x, z, rotY: rot });
+  // the kit has no collider for a chair: a small box, so you bump into it like everything else in the room
+  const chair = (x, z, rot = 0) => { kit.place(B.group, 'chair', { x, z, rotY: rot }); B.W.add(x - 0.26, 0, z - 0.26, x + 0.26, 0.9, z + 0.26); placer.add(x - 0.3, x + 0.3, z - 0.3, z + 0.3); };
   const hasDoor = (s) => r.inSide === s || r.outSide === s;
 
   // approach lanes in front of each doorway stay clear
@@ -331,18 +332,18 @@ function furnish(B, r, placer, L) {
     for (const side of ['zmin', 'zmax', 'xmin', 'xmax']) if (hasDoor(side)) lane(side);
     if (theme === 'lab') {
       line('storage_cabinet', wallsFree[0] || 'zmin', irand(3, 5)); line('storage_cabinet', wallsFree[1] || 'xmin', irand(2, 3));
-      for (let i = 0; i < irand(2, 3); i++) { if (scatter('analysis_bench', 1, 1.5, [0, PI / 2])) cosmetic('chair', r._last.x + 0.1, r._last.z + (r._last.rot === 0 ? 1.0 : 0), 0.3 * i); }
+      for (let i = 0; i < irand(2, 3); i++) { if (scatter('analysis_bench', 1, 1.5, [0, PI / 2])) chair( r._last.x + 0.1, r._last.z + (r._last.rot === 0 ? 1.0 : 0), 0.3 * i); }
       scatter('instrument_cart', 2, 1.1); scatter('restraint_bed', 1, 1.8, [0, PI / 2]);
     } else if (theme === 'server') {
       line('server_rack', wallsFree[0] || 'zmin', irand(4, 6)); line('server_rack', wallsFree[1] || 'xmax', irand(2, 4));
-      for (let i = 0; i < 2; i++) { if (scatter('monitor_station', 1, 1.6, [0, PI])) cosmetic('chair', r._last.x, r._last.z + (r._last.rot === 0 ? 1.1 : -1.1), r._last.rot + PI); }
+      for (let i = 0; i < 2; i++) { if (scatter('monitor_station', 1, 1.6, [0, PI])) chair( r._last.x, r._last.z + (r._last.rot === 0 ? 1.1 : -1.1), r._last.rot + PI); }
       line('storage_cabinet', wallsFree[1] || 'zmax', 2);
     } else if (theme === 'storage') {
       line('storage_rack', wallsFree[0] || 'zmin', irand(3, 4)); line('storage_rack', wallsFree[1] || 'xmin', irand(2, 3));
       scatter('crate_A', 2, 1.6); scatter('crate_B', 3, 1.5); scatter('canister', 3, 1.2); scatter('barrier_22', 1);
     } else {
       line('workstation', wallsFree[0] || 'zmin', irand(3, 4));
-      for (let i = 0; i < 2; i++) { if (scatter('monitor_station', 1, 1.6, [0, PI])) cosmetic('chair', r._last.x, r._last.z + (r._last.rot === 0 ? 1.1 : -1.1), r._last.rot + PI); }
+      for (let i = 0; i < 2; i++) { if (scatter('monitor_station', 1, 1.6, [0, PI])) chair( r._last.x, r._last.z + (r._last.rot === 0 ? 1.1 : -1.1), r._last.rot + PI); }
       line('server_rack', wallsFree[1] || 'xmax', 2); scatter('instrument_cart', 1, 1.1);
     }
   }
