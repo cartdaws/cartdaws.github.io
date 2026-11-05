@@ -80,6 +80,26 @@ class Particles {
   }
 
   clear() { this.life.fill(0); }
+
+  // Steer every live particle toward a point (with a sideways swirl that fades as it closes in); particles that reach it vanish.
+  // Returns how many arrived. Steering (rather than a pure pull) means nothing overshoots or orbits.
+  attract(tx, ty, tz, speed, swirl, dt, reach = 0.14) {
+    let arrived = 0;
+    const steer = Math.min(1, 7 * dt);
+    for (let i = 0; i < this.max; i++) {
+      if (this.life[i] <= 0) continue;
+      const dx = tx - this.pos[i * 3], dy = ty - this.pos[i * 3 + 1], dz = tz - this.pos[i * 3 + 2];
+      const d = Math.hypot(dx, dy, dz) || 1e-4;
+      if (d < reach) { this.life[i] = 0; this.size[i] = 0; arrived++; continue; }
+      const sp = speed * (0.45 + 0.55 * Math.min(1, d));
+      const h = Math.hypot(dx, dz) || 1e-4, sw = swirl * Math.min(1, d * 0.6);
+      const wx = (dx / d) * sp + (-dz / h) * sw, wy = (dy / d) * sp, wz = (dz / d) * sp + (dx / h) * sw;
+      this.vel[i * 3] += (wx - this.vel[i * 3]) * steer;
+      this.vel[i * 3 + 1] += (wy - this.vel[i * 3 + 1]) * steer;
+      this.vel[i * 3 + 2] += (wz - this.vel[i * 3 + 2]) * steer;
+    }
+    return arrived;
+  }
 }
 
 export class Effects {
@@ -87,6 +107,7 @@ export class Effects {
     this.scene = scene;
     this.glowP = new Particles(scene, 1800, true);
     this.smokeP = new Particles(scene, 500, false, 0.5);
+    this.streamP = new Particles(scene, 900, true); // the energy drawn from an absorbed machine into the hand
 
     this.lights = [];
     for (let i = 0; i < 3; i++) {
@@ -140,10 +161,11 @@ export class Effects {
     const s = h / (2 * Math.tan((fov * Math.PI) / 360));
     this.glowP.uniforms.uScale.value = s;
     this.smokeP.uniforms.uScale.value = s;
+    this.streamP.uniforms.uScale.value = s;
   }
 
   clear() {
-    this.glowP.clear(); this.smokeP.clear();
+    this.glowP.clear(); this.smokeP.clear(); this.streamP.clear();
     for (const l of this.lights) { l.light.intensity = 0; l.t = l.dur; }
     for (const r of this.rings) { r.mesh.visible = false; r.t = r.dur; }
     for (const b of this.balls) { b.mesh.visible = false; b.t = b.dur; }
@@ -249,6 +271,7 @@ export class Effects {
   update(dt) {
     this.glowP.update(dt);
     this.smokeP.update(dt);
+    this.streamP.update(dt);
     for (const l of this.lights) {
       if (l.t < l.dur) { l.t += dt; const k = Math.max(0, 1 - l.t / l.dur); l.light.intensity = l.peak * k * k; }
       else l.light.intensity = 0;
