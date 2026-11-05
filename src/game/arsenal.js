@@ -159,12 +159,14 @@ export class Arsenal {
         if (s < n) p.add(_b.set((Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * 0.5));
         verts.push(prev.x, prev.y, prev.z, p.x, p.y, p.z);
         for (let q = 0; q < 3; q++) g.effects.glowP.emit(p.x, p.y, p.z, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, (Math.random() - 0.5) * 2, 0.2, 0.2, 0.55, 0.9, 1, 0, 0.8);
+        g.effects.glowP.emit(p.x, p.y, p.z, 0, 0, 0, 0.14, 0.5, 0.75, 0.95, 1, 0, 0);               // a fat glowing core along the whole bolt
         prev = p;
       }
     }
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
     const line = new THREE.LineSegments(geo, new THREE.LineBasicMaterial({ color: 0xcff6ff, transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
     line.frustumCulled = false; this.group.add(line); this.arcs.push({ line, t: 0 });
+    for (const off of [0.035, -0.035]) { const l2 = line.clone(); l2.position.set(off, off * 0.6, 0); this.group.add(l2); this.arcs.push({ line: l2, t: 0 }); }   // two offset copies thicken it
   }
 
   // ---------------------------------------------------------------- 3 BARB: spine shotgun
