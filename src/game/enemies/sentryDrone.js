@@ -6,8 +6,8 @@ const SHOT_SPEED = 15;
 
 // std: the workshop sentry. armored: bigger, slower, longer bursts, takes a lot of punishment.
 export const DRONE_VARIANTS = {
-  std: { hp: 60, scale: 1, speed: 4.6, burst: 3, heal: 24, dmg: 10, body: 0x343c44, trim: 0xd9a21b },
-  armored: { hp: 130, scale: 1.3, speed: 3.6, burst: 5, heal: 40, dmg: 10, body: 0x20262b, trim: 0xa8281c },
+  std: { hp: 60, scale: 1, speed: 4.6, burst: 3, heal: 24, dmg: 10, body: 0x343c44, trim: 0xd9a21b, shot: 'orb', shotSpeed: 15 },
+  armored: { hp: 130, scale: 1.3, speed: 3.6, burst: 3, heal: 40, dmg: 12, body: 0x20262b, trim: 0xa8281c, shot: 'seeker', shotSpeed: 9 },
 };
 
 // Hovering turret: relocates between waypoints, lights its lens, then fires a short dodgeable burst.
@@ -35,59 +35,66 @@ export class SentryDrone extends Enemy {
   }
 
   build() {
-    const g = this.group;
-    const body = this.trackFlash(new THREE.MeshStandardMaterial({ color: this.v.body, roughness: 0.35, metalness: 0.8, emissive: 0x000000 }));
-    const trim = this.trackFlash(new THREE.MeshStandardMaterial({ color: this.v.trim, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
+    const g = this.group, v = this.v, armored = this.variant === 'armored';
+    const body = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.body, roughness: 0.38, metalness: 0.55, emissive: 0x000000 }));
+    const shell = this.trackFlash(new THREE.MeshStandardMaterial({ color: armored ? 0x4a5258 : 0x9aa5ad, roughness: 0.32, metalness: 0.35, emissive: 0x000000 }));
+    const trim = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.trim, roughness: 0.5, metalness: 0.4, emissive: 0x000000 }));
+    const dark = this.trackFlash(new THREE.MeshStandardMaterial({ color: 0x15191c, roughness: 0.55, metalness: 0.5, emissive: 0x000000 }));
     this.lensMat = new THREE.MeshStandardMaterial({ color: 0x120404, emissive: 0xff2a10, emissiveIntensity: 0.1 });
     const glow = new THREE.MeshStandardMaterial({ color: 0, emissive: 0xffa030, emissiveIntensity: 2 });
     this.glowMat = glow;
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.34, 20, 14), body);
-    core.scale.set(1, 0.85, 1);
-    g.add(core);
+    const put = (geo, mat, x, y, z, rx = 0, ry = 0, rz = 0, parent = g) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); parent.add(m); return m; };
+
+    // hull: two armoured half-shells around a dark core, joined by a trim seam
+    put(new THREE.SphereGeometry(0.3, 22, 16), dark, 0, 0, 0);
+    put(new THREE.SphereGeometry(0.34, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.46), shell, 0, 0.02, 0);
+    put(new THREE.SphereGeometry(0.33, 24, 12, 0, Math.PI * 2, Math.PI * 0.56, Math.PI * 0.44), body, 0, -0.02, 0);
+    put(new THREE.TorusGeometry(0.335, 0.022, 8, 36), trim, 0, 0, 0, Math.PI / 2);
+    // eye: recessed socket, iris ring and the glowing lens
+    put(new THREE.CylinderGeometry(0.17, 0.2, 0.12, 22), dark, 0, 0, -0.3, Math.PI / 2);
+    put(new THREE.TorusGeometry(0.15, 0.018, 8, 26), trim, 0, 0, -0.36);
+    const lens = put(new THREE.CircleGeometry(0.12, 22), this.lensMat, 0, 0, -0.365, 0, Math.PI);
+    lens.renderOrder = 2;
+    this.lensLight = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff3a1a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    this.lensLight.position.set(0, 0, -0.42);
+    g.add(this.lensLight);
+    // sensor mast and side stabilisers
+    put(new THREE.CylinderGeometry(0.012, 0.018, 0.34, 6), dark, 0.09, 0.42, 0.06);
+    put(new THREE.SphereGeometry(0.03, 8, 6), this.lensMat, 0.09, 0.6, 0.06);
+    put(new THREE.CylinderGeometry(0.01, 0.014, 0.22, 6), dark, -0.08, 0.38, 0.1);
+    for (const s of [-1, 1]) {
+      put(new THREE.BoxGeometry(0.04, 0.2, 0.32), shell, s * 0.36, -0.02, 0.08, 0, 0, s * 0.35);
+      put(new THREE.BoxGeometry(0.045, 0.05, 0.2), trim, s * 0.39, 0.06, 0.08, 0, 0, s * 0.35);
+    }
+    // spinning ring: segmented, with running lights
     this.ring = new THREE.Group();
     g.add(this.ring);
-    const torus = new THREE.Mesh(new THREE.TorusGeometry(0.52, 0.05, 8, 32), trim);
-    torus.rotation.x = Math.PI / 2;
-    this.ring.add(torus);
+    for (let i = 0; i < 8; i++) {
+      const an = (i / 8) * Math.PI * 2;
+      const seg = put(new THREE.BoxGeometry(0.2, 0.05, 0.06), i % 2 ? body : trim, Math.cos(an) * 0.52, 0, Math.sin(an) * 0.52, 0, -an + Math.PI / 2, 0, this.ring);
+      seg.rotation.y = -an;
+      if (i % 2 === 0) put(new THREE.SphereGeometry(0.03, 8, 6), glow, Math.cos(an) * 0.555, 0.03, Math.sin(an) * 0.555, 0, 0, 0, this.ring);
+    }
     for (let i = 0; i < 4; i++) {
-      const a = i * Math.PI / 2;
-      const strut = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.05, 0.05), body);
-      strut.position.set(Math.cos(a) * 0.43, 0, Math.sin(a) * 0.43);
-      strut.rotation.y = -a;
-      this.ring.add(strut);
-      const node = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), glow);
-      node.position.set(Math.cos(a) * 0.52, 0, Math.sin(a) * 0.52);
-      this.ring.add(node);
+      const an = i * Math.PI / 2;
+      put(new THREE.BoxGeometry(0.16, 0.025, 0.03), dark, Math.cos(an) * 0.42, 0, Math.sin(an) * 0.42, 0, -an, 0, this.ring);
     }
-    const housing = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.2, 16), body);
-    housing.rotation.x = Math.PI / 2;
-    housing.position.set(0, 0, -0.34);
-    g.add(housing);
-    const lens = new THREE.Mesh(new THREE.CircleGeometry(0.14, 20), this.lensMat);
-    lens.position.set(0, 0, -0.445);
-    lens.rotation.y = Math.PI;
-    g.add(lens);
-    this.lensLight = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8), new THREE.MeshBasicMaterial({ color: 0xff3a1a, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
-    this.lensLight.position.set(0, 0, -0.5);
-    g.add(this.lensLight);
-    const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.015, 0.4, 5), body);
-    ant.position.set(0.1, 0.45, 0.1);
-    g.add(ant);
-    const antTip = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), this.lensMat);
-    antTip.position.set(0.1, 0.66, 0.1);
-    g.add(antTip);
-    for (const s of [-1, 1]) {
-      const fin = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.3, 0.26), body);
-      fin.position.set(s * 0.27, -0.12, 0.12);
-      fin.rotation.z = s * 0.4;
-      g.add(fin);
-    }
+    // thruster pods underneath, glowing nozzles
     for (let i = 0; i < 3; i++) {
-      const a = i * 2.09;
-      const th = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.2, 8), glow);
-      th.position.set(Math.cos(a) * 0.2, -0.34, Math.sin(a) * 0.2 + 0.05);
-      th.rotation.x = Math.PI;
-      g.add(th);
+      const an = i * 2.09 + 0.5;
+      const x = Math.cos(an) * 0.2, z = Math.sin(an) * 0.2 + 0.04;
+      put(new THREE.CylinderGeometry(0.06, 0.075, 0.14, 12), body, x, -0.3, z);
+      put(new THREE.CylinderGeometry(0.045, 0.03, 0.05, 12), dark, x, -0.39, z);
+      put(new THREE.CircleGeometry(0.04, 12), glow, x, -0.416, z, Math.PI / 2);
+    }
+    // armoured variant: heavier plating and a crown of spikes
+    if (armored) {
+      for (let i = 0; i < 6; i++) {
+        const an = (i / 6) * Math.PI * 2;
+        put(new THREE.BoxGeometry(0.16, 0.06, 0.2), shell, Math.cos(an) * 0.26, 0.24, Math.sin(an) * 0.26, 0.5 * Math.sin(an), -an, 0.5 * Math.cos(an));
+        put(new THREE.ConeGeometry(0.03, 0.14, 6), trim, Math.cos(an) * 0.18, 0.36, Math.sin(an) * 0.18, Math.sin(an) * 0.6, 0, -Math.cos(an) * 0.6);
+      }
+      put(new THREE.TorusGeometry(0.2, 0.03, 8, 24), shell, 0, 0, -0.33);
     }
   }
 
@@ -313,7 +320,7 @@ export class SentryDrone extends Enemy {
     const lensPos = new THREE.Vector3(0, 0, -0.5).applyMatrix4(this.group.matrixWorld);
     const target = new THREE.Vector3(p.x, p.y + 1.0, p.z);
     const dir = target.sub(lensPos).normalize();
-    g.projectiles.spawnEnemy(lensPos, dir, SHOT_SPEED, this.v.dmg);
+    g.projectiles.spawnEnemy(lensPos, dir, this.v.shotSpeed || SHOT_SPEED, this.v.dmg, this.v.shot);
     g.sfxAt('droneShot', this.pos, 1.2);
     g.effects.flashLight(lensPos, 0xff4020, 12, 0.08);
   }

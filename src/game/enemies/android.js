@@ -20,9 +20,9 @@ const cyl = (r0, r1, h, n = 14) => geo(`cy${r0}|${r1}|${h}|${n}`, () => new THRE
 //  scout   - light and quick, short bursts
 //  heavy   - armoured, slow, long bursts
 export const ANDROID_VARIANTS = {
-  trooper: { hp: 50, scale: 1, speed: 3.2, burst: 3, dmg: 8, heal: 16, body: 0x2c3237, armor: 0xaab4bb, trim: 0xd9a21b, keep: [6, 12], aimT: 0.65, gap: 0.2 },
-  scout: { hp: 30, scale: 0.92, speed: 5.0, burst: 2, dmg: 6, heal: 10, body: 0x30373b, armor: 0xd2dad8, trim: 0x2aa8b0, keep: [5, 10], aimT: 0.5, gap: 0.16, slim: true },
-  heavy: { hp: 110, scale: 1.18, speed: 2.2, burst: 5, dmg: 9, heal: 32, body: 0x24292d, armor: 0x5d666d, trim: 0xa8281c, keep: [7, 14], aimT: 0.85, gap: 0.14, bulky: true },
+  trooper: { hp: 50, scale: 1, speed: 3.2, burst: 3, dmg: 8, heal: 16, shot: 'bolt', shotSpeed: 19, body: 0x2c3237, armor: 0xaab4bb, trim: 0xd9a21b, keep: [6, 12], aimT: 0.65, gap: 0.2 },
+  scout: { hp: 30, scale: 0.92, speed: 5.0, burst: 4, dmg: 5, heal: 10, shot: 'needle', shotSpeed: 27, flank: true, body: 0x30373b, armor: 0xd2dad8, trim: 0x2aa8b0, keep: [5, 10], aimT: 0.5, gap: 0.09, slim: true },
+  heavy: { hp: 110, scale: 1.18, speed: 2.2, burst: 3, dmg: 14, heal: 32, shot: 'plasma', shotSpeed: 10, body: 0x24292d, armor: 0x5d666d, trim: 0xa8281c, keep: [7, 14], aimT: 0.85, gap: 0.38, bulky: true },
 };
 
 export class SecurityAndroid extends Enemy {
@@ -162,6 +162,41 @@ export class SecurityAndroid extends Enemy {
     if (this.state === 'aim' && Math.random() < 0.35) { this.state = 'move'; this.timer = 0.5; } // knocked off its aim
   }
 
+  // Choose where to fight from: a clear shot at the player, inside its preferred range, close to cover,
+  // away from its squadmates, not too far to walk. Scouts like the player's flanks.
+  pickSpot() {
+    const g = this.game, nav = g.nav, p = g.player.pos, a = g.arena;
+    this.goalT = rand(2.5, 4.5);
+    if (!nav) { this.goal = null; this.field = null; return; }
+    const [near, far] = this.v.keep, mid = (near + far) / 2;
+    const pts = (g.waypoints || []).map((w) => ({ x: w.x, z: w.z }));
+    for (let i = 0; i < 10; i++) { const an = rand(0, Math.PI * 2), r = rand(near, far); pts.push({ x: p.x + Math.cos(an) * r, z: p.z + Math.sin(an) * r }); }
+    const fx = -Math.sin(g.player.yaw), fz = -Math.cos(g.player.yaw);
+    let best = null, bs = -1e9;
+    for (const q of pts) {
+      if (q.x < a.minX + 0.8 || q.x > a.maxX - 0.8 || q.z < a.minZ + 0.8 || q.z > a.maxZ - 0.8 || !nav.open(q.x, q.z)) continue;
+      const d = Math.hypot(q.x - p.x, q.z - p.z) || 0.01;
+      let sc = -Math.abs(d - mid) * 0.35;
+      sc += g.world.blocked(q.x, 1.35, q.z, p.x, p.y + 1.2, p.z) ? -2.5 : 3;
+      for (const [cx, cz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const h = g.world.raycast(q.x, 0.8, q.z, cx, 0, cz, 1.4, (bx) => bx.maxY >= 1 && bx.tag !== 'door');
+        if (h) { sc += 1.1; break; }
+      }
+      for (const o of g.enemies) {
+        if (o === this || !o.alive || o.kind !== 'android') continue;
+        if (o.goal && Math.hypot(o.goal.x - q.x, o.goal.z - q.z) < 3) sc -= 3;
+        if (Math.hypot(o.pos.x - q.x, o.pos.z - q.z) < 2) sc -= 1.5;
+      }
+      sc -= Math.hypot(q.x - this.pos.x, q.z - this.pos.z) * 0.12;
+      if (this.v.flank) sc += (1 - ((q.x - p.x) / d * fx + (q.z - p.z) / d * fz)) * 1.4;
+      sc += Math.random();
+      if (sc > bs) { bs = sc; best = q; }
+    }
+    if (!best) { this.goal = null; this.field = null; return; }
+    this.goal = best;
+    this.field = nav.field(best.x, best.z);
+  }
+
   canSee() {
     const p = this.game.player.pos, c = this.hitSpheres[0].c;
     return !this.game.world.blocked(c.x, c.y + 0.25, c.z, p.x, p.y + 1.2, p.z);
@@ -181,14 +216,23 @@ export class SecurityAndroid extends Enemy {
       if (this.state === 'move') {
         face(6);
         const los = this.canSee();
-        const [near, far] = this.v.keep;
+        this.goalT = (this.goalT || 0) - dt;
+        // stuck: wanted to move but barely did
+        this.chkT = (this.chkT || 0) - dt;
+        if (this.chkT <= 0) {
+          if (this.goal && this.lastX !== undefined && Math.hypot(this.pos.x - this.lastX, this.pos.z - this.lastZ) < 0.25) this.goalT = 0;
+          this.lastX = this.pos.x; this.lastZ = this.pos.z; this.chkT = 0.9;
+        }
+        if (!this.goal || this.goalT <= 0 || dist < this.v.keep[0] * 0.55) this.pickSpot();
         let tx = 0, tz = 0;
-        if (!los || dist > far) {
-          if (g.nav && g.nav.dir(this.pos.x, this.pos.z, _dir)) { tx = _dir.x; tz = _dir.z; } else { tx = dx / dist; tz = dz / dist; }
-        } else if (dist < near) { tx = -dx / dist + (-dz / dist) * this.strafe * 0.5; tz = -dz / dist + (dx / dist) * this.strafe * 0.5; }
-        else { tx = (-dz / dist) * this.strafe; tz = (dx / dist) * this.strafe; }
-        if (Math.random() < dt * 0.4) this.strafe *= -1;
-        const l = Math.hypot(tx, tz) || 1, sp = this.v.speed * (1 - 0.6 * this.flinch);
+        if (this.goal) {
+          const gx = this.goal.x - this.pos.x, gz = this.goal.z - this.pos.z, gd = Math.hypot(gx, gz);
+          if (gd > 0.6) {
+            if (this.field && g.nav && g.nav.dirIn(this.field, this.pos.x, this.pos.z, _dir)) { tx = _dir.x; tz = _dir.z; } else { tx = gx / gd; tz = gz / gd; }
+          } else { tx = (-dz / dist) * this.strafe * 0.35; tz = (dx / dist) * this.strafe * 0.35; } // holding the spot: small sidesteps
+        } else if (g.nav && g.nav.dir(this.pos.x, this.pos.z, _dir)) { tx = _dir.x; tz = _dir.z; }
+        if (Math.random() < dt * 0.5) this.strafe *= -1;
+        const l = Math.hypot(tx, tz) || 1, sp = this.v.speed * (1 - 0.6 * this.flinch) * Math.min(1, Math.hypot(tx, tz) + 0.2);
         this.vx = damp(this.vx, (tx / l) * sp, 8, dt);
         this.vz = damp(this.vz, (tz / l) * sp, 8, dt);
         if (los && this.timer <= 0 && dist < 20) { this.state = 'aim'; this.timer = this.v.aimT; g.sfxAt('droneCharge', this.pos, 1.0); }
@@ -264,7 +308,7 @@ export class SecurityAndroid extends Enemy {
     const from = this.muzzle.getWorldPosition(_v);
     const to = _w.set(p.x + rand(-0.25, 0.25), p.y + 1.1 + rand(-0.2, 0.2), p.z + rand(-0.25, 0.25));
     const dir = to.sub(from).normalize();
-    g.projectiles.spawnEnemy(from.clone(), dir.clone(), SHOT_SPEED, this.v.dmg);
+    g.projectiles.spawnEnemy(from.clone(), dir.clone(), this.v.shotSpeed || SHOT_SPEED, this.v.dmg, this.v.shot);
     g.sfxAt('droneShot', this.pos, 1.1);
     g.effects.flashLight(from, 0xff4020, 10, 0.07);
   }
