@@ -28,6 +28,28 @@ const SEAM = new THREE.Vector3(CX, 1.85, CZ - 0.98);        // the cracking pane
 const GLASS = new THREE.Vector3(CX + 0.12, 1.4, CZ - 0.98);
 const LOCK_POS = new THREE.Vector3(2.5, 1.25, -0.1);          // the jammed maintenance lock beside the bulkhead
 const BARRIER_Z = -5.0;
+const MARK = new THREE.Vector3(-0.62, 1.4, -0.08);            // the elder's hand, dragged across the bulkhead door they took the elder through
+
+const MARK_PALM = new THREE.Vector3(MARK.x - 0.48, MARK.y, 0.05);       // the centre of the palm print: where your own arm lands on it
+
+// A palm with its ring of sucker marks, dragged to the right, toward the door they took the elder through.
+function makeElderMark() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 256; const x = c.getContext('2d');
+  x.lineCap = 'round';
+  const palm = x.createRadialGradient(120, 128, 4, 120, 128, 78); palm.addColorStop(0, 'rgba(5,20,28,0.96)'); palm.addColorStop(0.75, 'rgba(6,26,34,0.9)'); palm.addColorStop(1, 'rgba(6,26,34,0)');
+  x.fillStyle = palm; x.fillRect(0, 0, 512, 256);
+  const stroke = (width, near, far) => { for (let i = 0; i < 5; i++) { const y0 = 62 + i * 33, grad = x.createLinearGradient(120, 0, 500, 0); grad.addColorStop(0, near); grad.addColorStop(1, far); x.strokeStyle = grad; x.lineWidth = width - Math.abs(i - 2) * (width / 7); x.beginPath(); x.moveTo(120, 128 + (y0 - 128) * 0.45); x.bezierCurveTo(220, y0, 330, y0 + (i - 2) * 6, 490 - Math.abs(i - 2) * 50, y0 + (i - 2) * 14 + 16); x.stroke(); } };
+  stroke(19, 'rgba(5,20,28,0.95)', 'rgba(5,20,28,0)');          // the smear itself
+  x.globalCompositeOperation = 'lighter';
+  stroke(5, 'rgba(90,255,225,0.95)', 'rgba(60,220,200,0)');     // still alive inside it
+  const core = x.createRadialGradient(120, 128, 2, 120, 128, 46); core.addColorStop(0, 'rgba(120,255,235,0.9)'); core.addColorStop(1, 'rgba(60,220,200,0)'); x.fillStyle = core; x.fillRect(0, 0, 512, 256);
+  x.fillStyle = 'rgba(170,255,240,1)';
+  for (let k = 0; k < 11; k++) { const a = k / 11 * Math.PI * 2; x.beginPath(); x.arc(120 + Math.cos(a) * 60, 128 + Math.sin(a) * 60, 6, 0, 7); x.fill(); }
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, toneMapped: false });
+  mat.userData.noSnap = true;
+  return new THREE.Mesh(new THREE.PlaneGeometry(1.8, 0.9), mat);
+}
 const ease = (t, a, b) => smooth(seg(t, a, b));
 const stage = (t, a, b, c, d) => ease(t, a, b) * (1 - ease(t, c, d));
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _l = new THREE.Vector3(), _q = new THREE.Quaternion(), _wq = new THREE.Quaternion();
@@ -62,6 +84,9 @@ export class Intro {
     this.seamMarker.position.set(SEAM.x, SEAM.y, SEAM.z - 0.02); this.seamMarker.visible = false; game.scene.add(this.seamMarker);
     this.glassPrint = new THREE.Mesh(new THREE.CircleGeometry(0.13, 20), new THREE.MeshBasicMaterial({ color: 0x9ffff0, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
     this.glassPrint.position.set(GLASS.x, GLASS.y, GLASS.z + 0.01); this.glassPrint.rotation.y = Math.PI; game.scene.add(this.glassPrint);
+    this.mark = makeElderMark(); this.mark.visible = false;
+    { const d = game.level.doors.containment; d.mesh.add(this.mark); this.mark.position.set(MARK.x - d.x, MARK.y - d.h / 2, 0.175); }      // on the door leaf, so it goes up with the door
+    this.markLight = new THREE.PointLight(0x7ff0e0, 0, 4, 2); this.markLight.userData.keepOn = true; this.markLight.position.set(MARK.x, MARK.y, 0.6); game.scene.add(this.markLight);
   }
 
   samplePose() { /* the menu backdrop is a fixed pose */ }
@@ -159,7 +184,7 @@ export class Intro {
     this.resetProps();
     g.absorber.reset(); g.weapon.reset();
     vm.setPistol(null); this.tentReset();
-    vm.form = 0; vm.crystal = 0; vm.frag = 0; vm.curl = 0.2; vm.reachW = 0; vm.restrain = 0; vm.restrainSlack = 0; vm.charge = 0; vm.leftHidden = false; vm.xray = 0; vm.tremor = 0;
+    vm.limp = 0; vm.fling = 0; vm.form = 0; vm.crystal = 0; vm.frag = 0; vm.curl = 0.2; vm.reachW = 0; vm.restrain = 0; vm.restrainSlack = 0; vm.charge = 0; vm.leftHidden = false; vm.xray = 0; vm.tremor = 0;
     for (const fr of vm.right.frags) fr.k = 0;
     vm.recoil = vm.recoilVel = vm.pulse = 0;
     g.weaponAcquired = false;
@@ -224,7 +249,7 @@ export class Intro {
   }
 
   setObjective(t) { if (this.f._obj !== t) { this.f._obj = t; this.g.ui.setObjective(t); } }
-  say(text, speaker, dur, thought = false) { this.g.ui.subtitle(text, speaker, dur, thought); if (speaker) this.g.audio.play('pa', { vol: speaker === 'SHIP AI' ? 0.7 : 0.5 }); }
+  say(text, speaker, dur, thought = false) { this.g.ui.subtitle(text, speaker, dur, thought); if (speaker) this.g.audio.play('pa', { vol: speaker === 'HALCYON' ? 0.7 : 0.5 }); }
   prompt(t) { this.g.ui.setPrompt(t); }
   once(key, fn) { if (!this.f[key]) { this.f[key] = true; fn(); } }
 
@@ -240,7 +265,7 @@ export class Intro {
     const g = this.g;
     if (this.route) this.updateRoute(dt);
     if (this.bolts && this.phase !== 'wreck') this.updateBolts(dt);
-    if (this.wakeT !== undefined) { this.wakeT += dt; this.g.ui.fade(1 - ease(this.wakeT, 0.3, 3.2)); if (this.wakeT > 3.4) this.wakeT = undefined; }
+    if (this.wakeT !== undefined) this.updateWake(dt);
     this.updateCuffs();
     if (!this.active) { this.pressed = false; return; }
     this.t += dt; this.stepT += dt;
@@ -259,6 +284,19 @@ export class Intro {
     }
     if (g.touchUI) { g.touchUI.setAbsorb(!!this.actLabel, this.actLabel || 'ABSORB'); g.input.absorbTap = false; }   // a held story button must not fire an absorb afterwards
     this.actLabel = null;
+  }
+
+  // Coming round on the floor of Bay Three: the same pose the fall ended in, then up, unsteadily, the arms last.
+  updateWake(dt) {
+    const g = this.g, p = g.player, vm = g.viewmodel, T = (this.wakeT += dt);
+    g.ui.fade(1 - ease(T, 0.3, 2.6));
+    const k = ease(T, 1.4, 4.4), sway = Math.sin(T * 1.9) * 0.05 * (1 - k) * Math.min(1, T);
+    const pose = this.wakePose || (this.wakePose = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 });
+    pose.x = p.pos.x + sway * 0.4; pose.z = p.pos.z - 0.25 * (1 - k);
+    pose.y = lerp(0.32, p.eye, k) + Math.sin(k * Math.PI) * 0.05 * Math.sin(T * 5.2);
+    pose.yaw = p.yaw + 0.5 * (1 - k) + sway; pose.pitch = lerp(0.9, 0, k);
+    g.cinePose = pose; vm.limp = 1 - ease(T, 2.0, 4.6);
+    if (T > 4.7) { this.wakeT = undefined; g.cinePose = null; vm.limp = 0; this.moveLocked = false; }
   }
 
   updateCuffs() {
@@ -289,14 +327,14 @@ export class Intro {
     switch (this.step) {
       case 0:                        // fade in: a still moment in the valley; you can look about, nothing is asked of you
         this.moveLocked = true; ui.fade(1 - ease(t, 0.2, 2.4));
-        if (t > 1.6) this.once('h1', () => this.say('The valley. The old hollow. It is quiet tonight.', '', 3.6, true));
+        if (t > 1.6) this.once('h1', () => this.say('The valley. The old hollow. It has been quiet for a long time now.', '', 3.8, true));
         if (t > 5.6) { this.step = 1; this.stepT = 0; }
         break;
       case 1: {                      // the head dips by itself: your own body, for a moment
         const k = ease(this.stepT, 0, 1.0) * (1 - ease(this.stepT, 2.0, 3.2));
         if (this.f.p0 === undefined) this.f.p0 = p.pitch;
         p.pitch = lerp(this.f.p0, -1.05, k);
-        if (this.stepT > 0.9) this.once('h2', () => this.say('My body. Whole. Home.', '', 2.6, true));
+        if (this.stepT > 0.9) this.once('h2', () => this.say('Still here. The others walked out one by one, and never came back.', '', 3.6, true));
         if (this.stepT > 3.4) { this.step = 2; this.stepT = 0; this.f.w0 = p.pos.clone(); }
         break;
       }
@@ -305,15 +343,15 @@ export class Intro {
         const wantYaw = Math.atan2(-(ex - p.pos.x), -(ez - p.pos.z));
         p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * Math.min(1, dt * 1.9);
         g.input.keys.clear(); g.input.keys.add('KeyW');
-        if (this.stepT > 2.2) this.once('h3', () => this.say('The elder is waiting at the hollow.', '', 3.2, true));
-        if (this.stepT > 7.5) this.once('h4', () => this.say('They have been waiting a long time.', '', 3.0, true));
+        if (this.stepT > 1.0) this.once('h3', () => this.say('Only the elder stayed.', '', 2.0, true));
+        if (this.stepT > 3.1) this.once('h4', () => this.say('What we touch, we keep. The elder keeps all of us.', '', 3.4, true));
         if (dist < 3.4) { g.input.keys.delete('KeyW'); p.speedMul = 1; this.step = 4; this.stepT = 0; this.moveLocked = true; }
         break;
       }
       case 4: {                      // the elder offers a hand; hold to reach out
         this.moveLocked = true; p.speedMul = 1;
         E.reach = damp(E.reach, dist < 5 ? 1 : 0, 2.5, dt);
-        const near = dist < 4.2 && E.reach > 0.85;
+        const near = dist < 4.2 && E.reach > 0.85 && this.stepT > 1.4;
         if (near) { this.actLabel = 'REACH'; this.prompt(this.tr('HOLD RIGHT CLICK TO REACH OUT', 'HOLD THE BUTTON TO REACH OUT')); }
         else this.prompt(dist > 4.2 ? '' : '');
         const done = this.hold(dt, near, 0.9);
@@ -398,7 +436,8 @@ export class Intro {
     }
     // an impact throws you down: black, then the aftermath
     if (ct > 10.0) ui.fade(ease(ct, 10.0, 11.4));
-    if (ct > 10.2) this.once('big', () => { g.addShake(0.9); g.audio.play('explosion', { vol: 1 }); vm.pulseGlow(0.6); });
+    if (ct > 10.2) this.once('big', () => { g.addShake(0.9); g.audio.play('explosion', { vol: 1 }); vm.pulseGlow(0.6); vm.fling = 1; });
+    if (ct > 10.5) vm.limp = ease(ct, 10.5, 11.5);
     if (ct > 11.8) this.enter('wreck');
   }
 
@@ -446,6 +485,7 @@ export class Intro {
   updateWreck(dt, pressed) {
     const g = this.g, p = g.player, H = this.home, ui = g.ui, vm = g.viewmodel, f = this.f, t = this.t;
     this.updateBolts(dt);
+    if (t < 4) vm.limp = 1 - ease(t, 0.8, 3.6);
     // the settlement stays smouldering: smoke rises from every fire
     f.smoke = (f.smoke || 0) - dt;
     if (f.smoke <= 0) { f.smoke = 0.12; for (const fi of H.fires) if (fi.on && g.effects.smokeP) g.effects.smokeP.emit(HOME.x + fi.x + (Math.random() - 0.5), 1 + Math.random(), HOME.z + fi.z + (Math.random() - 0.5), (Math.random() - 0.5) * 0.4 + 0.3, 1.3 + Math.random() * 0.8, (Math.random() - 0.5) * 0.4, 3.5, 0.9 * fi.s, 0.12, 0.1, 0.1, 0, 0.6, 1.4); }
@@ -461,14 +501,14 @@ export class Intro {
       case 0:                      // wake in the ruins
         this.moveLocked = false; ui.fade(1 - ease(t, 0.3, 2.6));
         { const wantYaw = Math.atan2(-(wx - p.pos.x), -(wz - p.pos.z)); if (t < 5) { p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * Math.min(1, dt * 0.9); p.pitch += (0.02 - p.pitch) * Math.min(1, dt * 1.5); } }
-        if (!f.w1 && t > 1.0) { f.w1 = true; this.say('They took the elder. All of them.', '', 3.4, true); }
-        if (!f.w1b && t > 4.6) { f.w1b = true; this.say('Whatever did this is still out there. And it left a ship behind.', '', 3.6, true); }
-        if (t > 6.4) { this.step = 1; this.stepT = 0; this.setObjective('SEARCH THE WRECKED HUMAN LANDER'); }
+        if (!f.w1 && t > 1.0) { f.w1 = true; this.say('They took the elder. The last of us but me.', '', 3.4, true); }
+        if (!f.w1b && t > 4.6) { f.w1b = true; this.say('One of their ships fell. So they can fall.', '', 3.2, true); }
+        if (t > 6.4) { this.step = 1; this.stepT = 0; this.setObjective('SEARCH THE WRECK'); }
         break;
       case 1: {                    // the sidearm
         const near = this.pistolItem.visible && dpst < 2.6;
         this.pistolMarker.visible = true; this.pistolMarker.material.opacity = 0.5 + 0.3 * Math.sin(g.time * 4);
-        if (dw < 14 && !f.w2) { f.w2 = true; this.say('A human craft. Burning. The pilot is still in it.', '', 3.2, true); }
+        if (dw < 14 && !f.w2) { f.w2 = true; this.say('Still burning. The pilot is still in it.', '', 3.0, true); }
         if (near) { this.actLabel = 'ABSORB'; this.prompt(this.tr('HOLD RIGHT CLICK TO ABSORB THE SIDEARM', 'HOLD THE BUTTON TO ABSORB THE SIDEARM')); } else this.prompt('');
         if (this.hold(dt, near, 1.0)) {
           this.step = 5; this.stepT = 0; this.h = 0; this.prompt(''); ui.setHold(null); this.moveLocked = true; this.pistolMarker.visible = false;
@@ -494,7 +534,7 @@ export class Intro {
           this.pistolItem.visible = false; vm.reachW = 0;
           g.effects.flashLight(tip, 0x6ffff0, 40, 0.5); g.audio.play('gel', { vol: 0.7 });
           this.setReadyArm(); g.weaponAcquired = true; g.weapon.reset(); vm.pulseGlow(1);
-          this.say('Their weapon. It is mine now.', '', 3, true);
+          this.say('What I touch, I keep. Their weapon is mine now.', '', 3.2, true);
           this.setObjective('TAKE THE LANDER AND FOLLOW THEM');
           save.setIntroDone(true); progress.setIntroDone(true);
           this.step = 2; this.stepT = 0; this.moveLocked = false;
@@ -502,6 +542,7 @@ export class Intro {
         break;
       }
       case 2: {                    // board the lander
+        if (this.stepT > 3.4) this.once('w3', () => this.say('It remembers the hand that held it. Human. That is their word for themselves.', '', 4.2, true));
         const hx = wx + 3.6, hz = wz + 1.4, dh = Math.hypot(p.pos.x - hx, p.pos.z - hz);
         const near = dh < 3.6;
         if (near) { this.actLabel = 'BOARD'; this.prompt(this.tr('HOLD RIGHT CLICK TO CLIMB ABOARD', 'HOLD THE BUTTON TO CLIMB ABOARD')); } else this.prompt('');
@@ -531,7 +572,7 @@ export class Intro {
         pose.pitch = lerp(B.pitch0, pitchL + 0.04, k);
         g.cinePose = pose; this.hideBody = true;
         this.once('b1', () => g.audio.play('servo', { vol: 0.5 }));
-        if (T > 2.4) this.once('b2', () => { g.audio.play('surge', { vol: 0.7 }); g.audio.play('unlock', { vol: 0.5 }); this.say('Their controls. Their language. My hands will learn it.', '', 3.4, true); });
+        if (T > 2.4) this.once('b2', () => { g.audio.play('surge', { vol: 0.7 }); g.audio.play('unlock', { vol: 0.5 }); this.say('Their controls. I touch them, and I know them.', '', 3.4, true); });
         // systems wake: the screens come up, the engines kindle
         const wake = ease(T, 2.6, 4.0);
         sc.forEach((m, i) => { m.material.opacity = 0.25 + 0.65 * wake * (0.85 + 0.15 * Math.sin(g.time * 5 + i)); });
@@ -547,7 +588,7 @@ export class Intro {
           g.addShake(0.05 + 0.1 * L);
         }
         if (T > 6.3) ui.fade(ease(T, 6.3, 7.8));
-        if (T > 3.8) this.once('b3', () => this.say('Find them. Whatever it takes.', '', 3.2, true));
+        if (T > 5.6) this.once('b3', () => this.say('Find them. Whatever it takes.', '', 3.2, true));
         if (T > 8.0) this.launch();
         break;
       }
@@ -603,7 +644,7 @@ export class Intro {
     if (w.userData.canopyPivot) w.userData.canopyPivot.rotation.x = 1.15 * open;
     // dialogue and sound: what the lander is, why it still flies, what it is for
     if (T > 0.4) this.once('bd1', () => { this.say('Scorched, split open, but the drive core is still warm. Their machines are built to survive.', '', 4.4, true); g.audio.play('unlock', { vol: 0.5 }); });
-    if (T > 4.8) this.once('bd2', () => this.say('They took the elder up there. I will follow, whatever it takes.', '', 3.8, true));
+    if (T > 4.8) this.once('bd2', () => this.say('The elder went up there. So will I.', '', 3.2, true));
     if (T > 8.1) this.once('bd3', () => { g.audio.play('door', { vol: 0.8 }); });
     // three shots: wide from the front of the wing, then following from behind, then through the canopy into the pilot's own eyes
     const cam = this._bc || (this._bc = new THREE.Vector3()), tgt = this._bt || (this._bt = new THREE.Vector3());
@@ -641,6 +682,7 @@ export class Intro {
   // The lander is drawn into the research vessel's bay: the survivor steps out into the containment bay and the escape begins.
   arrive() {
     const g = this.g, p = g.player;
+    g.viewmodel.limp = 0;
     p.extraSolid = null;
     this.home.show(false); this.home.clearFires();
     this.setReadyArm();
@@ -664,8 +706,8 @@ export class Intro {
     if (T > 1.6 && T < 7.8 && p.pos.z > 3.0) { this.moveLocked = false; g.input.keys.clear(); g.input.keys.add('KeyW'); p.speedMul = 0.26; } else if (T > 1.6) { g.input.keys.clear(); this.moveLocked = true; }
     if (T > 1.6) this.setObjective(T < 4.6 ? 'FIND THE ELDER' : 'SOMETHING IS WRONG');
     // act 2: the vents: an alarm tone, a hiss, then gas pouring from the ceiling around you
-    if (T > 3.4) this.once('g2', () => { g.audio.play('alert', { vol: 0.45 }); g.audio.play('hiss', { vol: 0.6 }); });
-    if (T > 4.4) this.once('g3', () => { this.say('The air... it burns.', '', 2.8, true); g.audio.play('hiss', { vol: 0.9 }); });
+    if (T > 3.4) this.once('g2', () => { g.audio.play('alert', { vol: 0.45 }); g.audio.play('hiss', { vol: 0.6 }); this.say('Bay Three sealed. Releasing anesthetic.', 'HALCYON', 2.0); });
+    if (T > 5.5) this.once('g3', () => { this.say('The air... it burns.', '', 1.6, true); g.audio.play('hiss', { vol: 0.9 }); });
     this.gasK = smooth(clamp((T - 3.6) / 5.2, 0, 1));
     f.puff = (f.puff || 0) - dt;
     if (this.gasK > 0 && f.puff <= 0 && T < 11) {
@@ -673,14 +715,16 @@ export class Intro {
       for (let i = 0; i < 3; i++) {
         const sx = (Math.random() < 0.5 ? -1 : 1) * (0.8 + Math.random() * 2.6), sz = p.pos.z - 1.5 - Math.random() * 4;
         if (fx.smokeP) fx.smokeP.emit(p.pos.x + sx, 3.2, sz, -sx * 0.2 + (Math.random() - 0.5) * 0.4, -1.4 - Math.random() * 0.8, (Math.random() - 0.5) * 0.4, 2.8, 0.9 + Math.random() * 0.8, 0.4, 0.85, 0.3, 0, 0.5, 1.6);
-        if (fx.smokeP) fx.smokeP.emit(p.pos.x + (Math.random() - 0.5) * 2.2, 0.2 + Math.random() * 1.4, p.pos.z + (Math.random() - 0.5) * 2.2 - 0.5, 0, 0.1, 0, 3.0, 1.2 + Math.random(), 0.35, 0.8, 0.28, 0, 0.6, 1.4);
+        if (fx.smokeP) fx.smokeP.emit(p.pos.x + (Math.random() - 0.5) * 6, 0.2 + Math.random() * 1.4, p.pos.z - 2.6 - Math.random() * 3.5, 0, 0.1, 0, 3.0, 1.2 + Math.random(), 0.35, 0.8, 0.28, 0, 0.6, 1.4);
       }
     }
     this.gasEl.style.opacity = (this.gasK * 0.85).toFixed(3);
     // the body fails: coughing, swaying view, shorter steps, then the legs give way
+    g.viewmodel.limp = ease(T, 5.6, 8.8);
     if (T > 5.0) { g.flinch = Math.max(g.flinch || 0, 0.25 + 0.5 * this.gasK); g.flinchRoll = Math.sin(T * 1.7) * 2.2; }
     if (T > 5.6) this.once('g4', () => { g.audio.play('hurt', { vol: 0.5 }); });
-    if (T > 7.0) this.once('g5', () => { g.audio.play('hurt', { vol: 0.7 }); this.say('Can\'t... breathe...', '', 2.4, true); });
+    if (T > 7.2) this.once('g5', () => { g.audio.play('hurt', { vol: 0.7 }); this.say('Can\'t... breathe...', '', 2.2, true); });
+    if (T > 9.5) this.once('g7', () => this.say('Specimen Nine secured. Awaiting collection.', 'HALCYON', 2.8));
     if (T > 8.2) {
       // act 3: down: the camera sinks to the floor and the view rolls up toward the ceiling lights
       if (!f.fall) { f.fall = { y: g.camera.position.y, x: p.pos.x, z: p.pos.z, yaw: p.yaw, pitch: p.pitch }; this.moveLocked = true; g.input.keys.clear(); p.speedMul = 1; g.audio.play('clatter', { vol: 0.6 }); g.addShake(0.4); }
@@ -700,16 +744,15 @@ export class Intro {
     this.hideBody = false;
     g.player.speedMul = 1;
     this.enterRoute(false);
-    g.ui.fade(1); this.wakeT = 0;
+    g.ui.fade(1); this.wakeT = 0; this.moveLocked = true; g.viewmodel.limp = 1;
     g.ui.clearSubtitle();
-    this.say('Cold floor. The gas is gone. They knocked me out and left me to be collected.', '', 4.6, true);
   }
 
     // The right hand reaches toward a world point, only as far as an arm can.
   reachAt(worldPoint, w) {
     const vm = this.g.viewmodel;
     vm.reachTarget.copy(this.g.camera.worldToLocal(_l.copy(worldPoint)));
-    vm.reachW = w;
+    vm.reachW = w; vm.reachHeld = true;
   }
 
   // ---------------------------------------------------------------------------------------------- 2. CELL
@@ -1145,21 +1188,23 @@ export class Intro {
     g.weaponAcquired = true; this.granted = true;
     g.weapon.reset();
     save.setIntroDone(true); progress.setIntroDone(true);                           // the checkpoint: the Shardcaster exists
-    g.ui.setObjective('SHOOT THE JAMMED LOCK'); this.f = { _obj: 'SHOOT THE JAMMED LOCK' };
+    const obj0 = skipped ? 'SHOOT THE JAMMED LOCK' : '';
+    g.ui.setObjective(obj0); this.f = { _obj: obj0, markDone: !!skipped };
+    this.mark.visible = !skipped; this.markLight.intensity = skipped ? 0 : 1.4;
     g.ui.showHud(true);
     document.body.classList.remove('intro-cross');
     g.input.pressed.clear(); g.input.fireGuardUntil = performance.now() + 300;
-    if (!skipped) this.say('Automated security deployed on all research decks.', 'SHIP AI', 3.4);
   }
 
   updateRoute(dt) {
     const g = this.g, p = g.player, ui = g.ui, t = g.time, f = this.f;
+    this.updateMark(dt);
     if (this.target && this.target.alive) {
       this.lockHalo.scale.setScalar(1 + 0.1 * Math.sin(t * 6)); this.lockHalo.material.opacity = 0.5 + 0.4 * Math.sin(t * 6);
       this.lockLens.color.setRGB(1, 0.2 + 0.15 * Math.sin(t * 10), 0.1);
       this.lockHalo.lookAt(g.camera.position);
       const d = Math.hypot(p.pos.x - LOCK_POS.x, p.pos.z - LOCK_POS.z);
-      if (d < 11 && !f.shotHint && ui.subT <= 0) { f.shotHint = true; ui.hint(this.tr('LEFT CLICK: FIRE AT THE LOCK', 'TAP FIRE: SHOOT THE LOCK'), 4); }
+      if (d < 11 && !f.shotHint && ui.subT <= 0 && f.markDone && (f.mt === undefined || f.mt > 15)) { f.shotHint = true; ui.hint(this.tr('LEFT CLICK: FIRE AT THE LOCK', 'TAP FIRE: SHOOT THE LOCK'), 4); }
     }
     // jump hint at the barrier
     if (this.barrier.visible && this.barrierBox && this.barrierBox.enabled) {
@@ -1183,10 +1228,47 @@ export class Intro {
     }
   }
 
+  // Waking in Bay Three: the number, then the elder's mark on the wall by the bulkhead. Touching it is the first time the elder speaks.
+  updateMark(dt) {
+    const g = this.g, p = g.player, f = this.f;
+    if (!this.mark.visible) return;
+    const glow = 0.72 + 0.28 * Math.sin(g.time * 2.2);
+    this.mark.material.opacity = (f.markDone ? 0.55 : 1) * glow;
+    this.markLight.intensity = (this.target && this.target.alive ? (f.markDone ? 0.5 : 1.4) : 0) * glow;
+    if (!f.markDone) {
+      f.wt = (f.wt || 0) + dt;
+      if (f.wt > 3.0) this.once('w1', () => this.say('Cold floor. The gas is gone. Nothing came for me. Not yet.', '', 3.4, true));
+      if (f.wt > 6.6) this.once('w2', () => this.say('Nine. It called me nine.', '', 2.4, true));
+      if (f.wt > 9.2) this.once('w3', () => this.say('Then eight went before me.', '', 2.6, true));
+      if (f.wt > 12.0) this.once('w4', () => { this.say('That mark on the door. I know that hand.', '', 3.2, true); this.setObjective('TOUCH THE MARK ON THE DOOR'); });
+      const near = f.wt > 12 && Math.hypot(p.pos.x - MARK.x, p.pos.z - MARK.z) < 3.8;
+      if (near) this.reachAt(MARK_PALM, 0.45 * this.h);
+      g.storyAct = near ? 'TOUCH' : null;
+      this.prompt(near ? this.tr('HOLD RIGHT CLICK TO TOUCH THE MARK', 'HOLD THE BUTTON TO TOUCH THE MARK') : '');
+      if (this.hold(dt, near, 0.9)) {
+        f.markDone = true; f.mt = 0; this.h = 0; g.storyAct = null; this.prompt(''); g.ui.setHold(null); g.ui.clearSubtitle();
+        this.setObjective('');
+        g.audio.play('gel', { vol: 0.7 }); g.audio.play('crystal', { vol: 0.4 }); g.audio.play('heartbeat', { vol: 0.5 });
+        g.viewmodel.pulseGlow(1); g.addShake(0.12);
+      }
+      return;
+    }
+    if (f.mt === undefined) return;
+    f.mt += dt;
+    if (f.mt < 2.6) this.reachAt(MARK_PALM, 0.45 * (1 - ease(f.mt, 1.8, 2.6)));          // the arm stays on the mark while the memory comes through
+    const elder = (text, dur) => { g.ui.subtitle(text, 'ELDER', dur); g.audio.play('crystal', { vol: 0.2 }); g.viewmodel.pulseGlow(0.4); };
+    if (f.mt > 0.3) this.once('e1', () => elder('You came. I asked you not to.', 3.0));
+    if (f.mt > 3.5) this.once('e2', () => elder('They hold us apart, so we cannot touch. So we cannot remember each other.', 4.0));
+    if (f.mt > 7.7) this.once('e3', () => elder('They are taking me to their hangar. Deck nine. A great ship is waiting.', 4.0));
+    if (f.mt > 11.9) this.once('e4', () => { elder('Touch everything. Keep everything. Come for me.', 3.2); if (this.target && this.target.alive) this.setObjective('SHOOT THE JAMMED LOCK'); });
+    if (f.mt > 15.3) this.once('e5', () => this.say('Specimen Nine is awake. Security to Bay Three.', 'HALCYON', 3.0));
+  }
+
   // the Shardcaster reaches the maintenance lock
   hitTarget(hp) {
     const g = this.g, T = this.target;
     if (!T || !T.alive) return;
+    if (!this.f.markDone) { g.effects.hitSparks(hp, [1, 0.6, 0.2], 6); g.audio.play('hit'); if (!this.f.markHint) { this.f.markHint = true; g.ui.hint('THE MARK FIRST', 2.5); } return; }
     T.hp--;
     g.effects.hitSparks(hp, [1, 0.6, 0.2], 14); g.audio.play('hit'); g.ui.hitMarker(false);
     this.lockLight.intensity = 6; this.lockLens.color.set(0xffffff);
@@ -1196,8 +1278,8 @@ export class Intro {
       g.audio.play('spark', { vol: 0.9 }); g.audio.play('door', { vol: 0.9 });
       g.ui.hitMarker(true);
       g.level.doors.containment.open();
-      g.ui.setObjective('ESCAPE THROUGH THE ROBOTICS DECK');
-      this.f._obj = 'ESCAPE THROUGH THE ROBOTICS DECK';
+      g.ui.setObjective('THROUGH THE ROBOTICS DECK TO THE HANGAR');
+      this.f._obj = 'THROUGH THE ROBOTICS DECK TO THE HANGAR';
       g.ui.hint(this.tr('THE BULKHEAD IS OPEN: GO', 'THE BULKHEAD IS OPEN: GO'), 4);
     }
   }
@@ -1224,6 +1306,7 @@ export class Intro {
   }
 
   endRoute() {
+    this.g.viewmodel.limp = 0; this.wakeT = undefined; this.mark.visible = false; this.markLight.intensity = 0; this.g.storyAct = null;      // nothing from the wake-up may outlive a restart
     this.route = false; this.routePrompt = false; this.target = null;
     this.lockGroup.visible = false; this.barrier.visible = false;
     if (this.barrierBox) this.barrierBox.enabled = false;

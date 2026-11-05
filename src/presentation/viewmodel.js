@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { lerp, damp, clamp } from '../core/util.js';
-import { makeHandGel, updateHandGels } from './hand.js';
+import { TENT, TENT_GLSL, makeHandGel, updateHandGels } from './hand.js';
 
 const _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -96,6 +96,10 @@ class HandArm {
     pos.z += Math.sin(st + ph) * 0.05 * mk - vm.airK * 0.02;
     const pumpPitch = Math.sin(st + ph) * 0.13 * mk - vm.airK * 0.14 + vm.landK * 0.12;
     _e.set(0.44 + rec * 0.1 + vm.swayY * 0.4 + vm.dashK * 0.1 + pumpPitch, side * -0.1 + vm.swayX * 0.5 - side * vm.dashK * 0.1 + side * 0.05 * mk, side * -0.08 + side * Math.sin(st) * 0.05 * mk + side * Math.sin(t * 0.8 + this.phase) * 0.02 * idle, 'YXZ');
+    // the body is failing or thrown: the arms are not held up by anything
+    const limp = vm.limp || 0, fling = vm.fling || 0;
+    if (limp > 0) { const sag = limp * (side > 0 ? 1 : 0.9); pos.y -= 0.72 * sag; pos.z += 0.3 * sag; pos.x += side * 0.05 * sag; _e.x -= 0.95 * sag; _e.z += side * 0.25 * sag + Math.sin(t * 2.1 + this.phase) * 0.03 * sag; }
+    if (fling > 0) { pos.y += 0.26 * fling; pos.x += side * 0.14 * fling; _e.x += 0.55 * fling; _e.z -= side * 0.3 * fling; }
     this.root.quaternion.setFromEuler(_e);
     if (vm.restrain > 0) {
       // the clamps are fixed in the world, so the held wrists follow them as the head turns and tilts
@@ -109,37 +113,43 @@ class HandArm {
       const qloc = qc.clone().multiply(qa);
       this.root.quaternion.slerp(qloc, w);
     }
+    this.root.scale.z = 0.95;
     if (this.weapon && vm.reachW > 0) {
-      const w = vm.reachW;
-      _d.subVectors(vm.reachTarget, ELBOW).normalize();
-      _w.copy(vm.reachTarget).addScaledVector(_d, -0.1);
-      _m.lookAt(_w, vm.reachTarget, UP);
+      // the arm hinges at a fixed elbow below the view and stretches along the line to the target, so the tip lands on it
+      const w = Math.min(1, vm.reachW / 0.45);
+      _d.subVectors(vm.reachTarget, ELBOW); const dist = _d.length(); _d.normalize();
+      const zs = clamp(dist / 2.565, 0.45, 1.2);
+      _w.copy(ELBOW).addScaledVector(_d, 1.36 * 0.95 * zs);
+      _m.lookAt(ELBOW, vm.reachTarget, UP);
       _q.setFromRotationMatrix(_m);
       pos.lerp(_w, w);
       this.root.quaternion.slerp(_q, w);
+      this.root.scale.z = 0.95 * lerp(1, zs, w);
     }
     this.root.position.copy(pos);
 
     // ---- shape: morph targets drive grip, weapon form, recoil flare ----
-    this.setKey('Grip', clamp(curl * (1 - f * 0.9) + (this.weapon ? vm.sGrip : 0), 0, 1));
-    this.setKey('Weapon', clamp(f * (1 - 0.55 * rec) * (this.weapon ? vm.sWeapon : 1), 0, 1));
-    this.setKey('Spread', clamp(rec * 1.2 + fid * 0.55 + (this.weapon ? vm.sSpread : 0), 0, 1));
+    const rk = this.weapon ? Math.min(1, (vm.reachW || 0) / 0.45) : 0;
+    this.setKey('Reach', rk);
+    this.setKey('Grip', clamp((curl * (1 - f * 0.9) + (this.weapon ? vm.sGrip : 0)) * (1 - rk) + 0.45 * limp, 0, 1));
+    this.setKey('Weapon', clamp(f * (this.weapon ? vm.sWeapon : 1) * (1 - rk) * (1 - 0.7 * limp), 0, 1));
+    this.setKey('Spread', clamp(rec * 1.2 * (1 - f * (this.weapon ? vm.sWeapon : 1)) + fid * 0.55 + (this.weapon ? vm.sSpread : 0), 0, 1));
     this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35 + (this.weapon ? vm.bulge + vm.sSwell : 0), 0, 1.4));
 
     this.palmCore.scale.setScalar(1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6);
     if (!this.weapon) return;
     const sq = 1 - rec * 0.12;
-    this.barrel.visible = false; this.maw.visible = f > 0.02 && vm.sWeapon > 0.97;      // the tentacle itself is the barrel; the maw glows inside its open mouth
+    this.barrel.visible = false; this.maw.visible = false;      // the tentacle itself is the barrel: one seamless arm, with only a glow inside its mouth
     this.barrel.scale.set(1 + rec * 0.1, 1 + rec * 0.1, Math.max(0.001, f) * sq);
     this.maw.scale.copy(this.barrel.scale);
     this.maw.scale.x = this.maw.scale.y = (1 + vm.pulse * 0.35);
-    this.tooth.visible = f > 0.25 && vm.sWeapon > 0.97;
+    this.tooth.visible = false;
     this.tooth.scale.set(Math.max(0.001, f), Math.max(0.001, f), Math.max(0.001, f) * (1 + vm.pulse * 0.2));
     this.gland.visible = false;                 // the old forearm gland was sized for the thicker old arm and floated outside the new one
     this.gland.scale.setScalar(Math.max(0.001, f) * (1 + vm.pulse * 0.3 + vm.charge * 0.2 + Math.sin(t * 2.2) * 0.04));
     this.muzzle.position.z = -0.33 * Math.max(0.001, f);
     this.glow.position.copy(this.muzzle.position);
-    vm.glowMat.opacity = vm.pulse * 0.85;
+    vm.glowMat.opacity = Math.max(vm.pulse * 0.85, 0.22 * f * vm.sWeapon * (1 - rk));
     this.glow.scale.setScalar(0.45 + vm.pulse * 1.3);
     this.light.position.copy(this.muzzle.position);
     this.light.intensity = vm.pulse * 5;
@@ -185,6 +195,12 @@ export class ViewModel {
     this.sGrip = 0; this.sSpread = 0; this.sSwell = 0; this.sWeapon = 1;
     this.styleTarget = STYLES.shardcaster; this.styleRim = new THREE.Color(0x48dccb); this.styleSuck = new THREE.Color(0x0a2a2c);
     this.suckerMat = new THREE.MeshStandardMaterial({ color: 0x2c3e52, roughness: 0.32, metalness: 0.1, emissive: 0x0a2a2c, emissiveIntensity: 0.6 });
+    this.suckerMat.onBeforeCompile = function (shader) {
+      THREE.Material.prototype.onBeforeCompile.call(this, shader);        // keeps the retro vertex snapping hook
+      Object.assign(shader.uniforms, TENT);
+      shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\n' + TENT_GLSL).replace('#include <morphtarget_vertex>', '#include <morphtarget_vertex>\n  float tb; transformed = tentacleLive(transformed, objectNormal, tb);');
+    };
+    this.suckerMat.customProgramCacheKey = () => 'tentacle-suckers';
     this.barrelGel = makeHandGel({ color: 0x0f2230, rim: 0x6fe8d8, alpha: 0.55 });
     this.coreMat = new THREE.MeshBasicMaterial({ color: 0x2a8f86 });
     this.maw = new THREE.MeshBasicMaterial({ color: 0x8ff5e6 });
@@ -224,7 +240,7 @@ export class ViewModel {
     if (group) this.root.add(group);
   }
 
-  fireKick() { this.recoilVel += 8; this.pulse = 1; }
+  fireKick() { this.recoilVel += 8; this.pulse = 1; this.pump = 0.42; }
   pulseGlow(v) { this.pulse = Math.max(this.pulse, v); }
 
   syncToCamera(camera) {
@@ -251,6 +267,9 @@ export class ViewModel {
     this.wasAir = air;
     this.landK = damp(this.landK || 0, 0, 7, dt);
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
+    this.pump = Math.min(2, (this.pump ?? 2) + dt * 2.6);
+    TENT.tTime.value = t; TENT.tMove.value = this.moveK; TENT.tPump.value = this.pump; TENT.tAim.value = 0.8 * (this.form || 0) * (this.sWeapon ?? 1);
+    this.fling = Math.max(0, (this.fling || 0) - dt * 1.4);
     this.skinGel.uniforms.uAlpha.value = lerp(0.78, 0.16, this.xray);
     { const T = this.styleTarget, k = Math.min(1, dt * 5);
       this.styleRim.lerp(_sc.set(T.rim), k); this.styleSuck.lerp(_sc.set(T.suck), k);

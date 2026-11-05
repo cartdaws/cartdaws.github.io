@@ -93,6 +93,7 @@ export class Encounter {
   update(dt) {
     const g = this.game;
     this.updateLocks(dt);
+    if (this.lineT > 0) { this.lineT -= dt; if (this.lineT <= 0) g.ui.subtitle('Intruder. It calls me that.', '', 2.6, true); }
     const r = this.room;
     if (!r || this.won) return;
     switch (this.state) {
@@ -145,7 +146,8 @@ export class Encounter {
     g.ui.banner(r.kind === 'finale' ? 'FINAL LOCKDOWN' : 'LOCKDOWN', 'red', 1.5);
     g.audio.play('announce', { vol: 0.8 });
     // the ship AI speaks at the first lockdown only; after that the alarm says enough
-    if (r.id === 0 || r.kind === 'finale') g.ui.subtitle(r.id === 0 ? 'Intruder in the Robotics Deck. Sealing the workshop.' : 'Final lockdown. All units to the hangar lift.', 'SHIP AI', 2.6);
+    if (r.id === 0 || r.kind === 'finale') g.ui.subtitle(r.id === 0 ? 'Intruder in the Robotics Deck. Sealing the workshop.' : 'Final lockdown. All units to the hangar lift.', 'HALCYON', 2.6);
+    if (r.id === 0 && !this.told.intruder) { this.told.intruder = true; this.lineT = 2.9; }
     if (!this.told.drums && r.barrels.length) { this.told.drums = true; g.ui.hintOnce('drums', 'RED DRUMS EXPLODE', 2.5); }
     g.addShake(0.25);
     for (const e of g.enemies) e.warn?.();

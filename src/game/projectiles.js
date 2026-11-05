@@ -20,6 +20,9 @@ const ENEMY_SHOTS = {
 const SHOT_MATS = {};
 for (const [k, d] of Object.entries(ENEMY_SHOTS)) SHOT_MATS[k] = { core: new THREE.MeshBasicMaterial({ color: d.core }), halo: add(d.halo) };
 for (const m of Object.values(SHOT_MATS)) { m.halo.opacity = 0.55; m.core.userData.noSnap = m.halo.userData.noSnap = true; }
+const SOFT = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const x = c.getContext('2d'); const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.35, 'rgba(255,255,255,0.5)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); return new THREE.CanvasTexture(c); })();
+const HALO_SPRITES = {};
+for (const [k, d] of Object.entries(ENEMY_SHOTS)) { HALO_SPRITES[k] = new THREE.SpriteMaterial({ map: SOFT, color: d.halo, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }); HALO_SPRITES[k].userData.noSnap = true; }
 const _aim = new THREE.Vector3();
 const shotGeo = new THREE.SphereGeometry(0.15, 12, 10);
 const shotMat = new THREE.MeshBasicMaterial({ color: 0xffe0b0 });
@@ -74,10 +77,10 @@ export class Projectiles {
     const d = ENEMY_SHOTS[kind] || ENEMY_SHOTS.orb, mats = SHOT_MATS[kind] || SHOT_MATS.orb;
     const mesh = new THREE.Group();
     const core = new THREE.Mesh(shotGeo, mats.core);
-    const halo = new THREE.Mesh(shotGeo, mats.halo);
+    const halo = new THREE.Sprite(HALO_SPRITES[kind] || HALO_SPRITES.orb);
     const s = d.size / 0.15, st = d.stretch || 1;
-    core.scale.set(s, s, s * st);
-    halo.scale.set(s * d.halo2, s * d.halo2, s * d.halo2 * Math.max(1, st * 0.5));
+    core.scale.set(s * 0.55, s * 0.55, s * 0.55 * st);
+    { const w = 0.3 * s * d.halo2 * 1.5; halo.scale.set(w, w, 1); }
     mesh.add(core, halo);
     mesh.position.copy(origin);
     mesh.lookAt(origin.clone().add(dir));

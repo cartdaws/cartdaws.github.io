@@ -102,7 +102,7 @@ export class FlightCombat {
     }
     this.alertT = 3.2;
     this.f.g.audio.play('alert', { vol: 0.5 });
-    this.f.g.ui.subtitle(n > 2 ? 'Security wing launched. Multiple interceptors.' : 'Interceptors on your tail.', 'SHIP AI', 3.2);
+    this.f.g.ui.subtitle(n > 2 ? 'Still no answer. Security wing, weapons free.' : 'Lander Four, you are off your flight plan. Interceptors inbound.', 'HALCYON', 3.6);
   }
 
   // ---------------------------------------------------------------- per frame
@@ -159,7 +159,7 @@ export class FlightCombat {
       _q.setFromUnitVectors(_c.set(0, 0, -1), _b.copy(e.vel).normalize()); e.mesh.quaternion.slerp(_q, 1 - Math.exp(-4 * dt));
       // fire when roughly facing the player and in range
       _b.set(0, 0, -1).applyQuaternion(e.mesh.quaternion);
-      if (e.cool <= 0 && d < 520 && _b.dot(_a) > 0.75 && !f.docking) {
+      if (e.cool <= 0 && d < 520 && _b.dot(_a) > 0.75 && !f.docking && !this.standDown) {
         e.cool = 1.4 + Math.random() * 1.2;
         for (const sx of [-1, 1]) {
           const mesh = new THREE.Mesh(this.shotGeo, this.hostMat); mesh.add(this.sharedGlow(0xff5a3a, 6)); mesh.position.copy(e.mesh.position).add(_c.set(sx * 1.9, 0, -1).applyQuaternion(e.mesh.quaternion));

@@ -1,3 +1,4 @@
+import { resetMemories } from './memories.js';
 import * as THREE from 'three';
 import { Input } from '../core/input.js';
 import { Audio } from '../core/audio.js';
@@ -93,7 +94,7 @@ export class Game {
     this.enemies = [];
     this.barrels = [];
     this.deathT = 0; this.deathMenu = false; this.deathRoll = 0; this.deathFx = { land: false };
-    this.deathPuddle = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ color: 0x1ab88c, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2 }));
+    this.deathPuddle = new THREE.Mesh(new THREE.CircleGeometry(1, 40), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); const g = x.createRadialGradient(64, 64, 8, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(255,255,255,0.75)'); g.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })(), color: 0x0d6a58, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2 }));
     this.deathPuddle.rotation.x = -Math.PI / 2;
     this.deathPuddle.visible = false;
     this.deathPuddle.material.userData.noSnap = true;
@@ -228,8 +229,8 @@ export class Game {
     const bnew = $('btn-new');
     if (progress.introDone) { bnew.classList.remove('hidden'); $('btn-play').querySelector('span').textContent = 'CONTINUE'; }
     $('st-hp').textContent = `VITALITY ${this.player.maxHealth}` + (progress.maxHpBonus ? `  (+${progress.maxHpBonus} ABSORBED)` : '');
-    $('st-cp').textContent = progress.introDone ? 'CHECKPOINT: SHARDCASTER ACQUIRED' : 'NEW SPECIMEN';
-    bnew.onclick = () => { progress.setIntroDone(false); this.play(); };
+    $('st-cp').textContent = progress.introDone ? 'CHECKPOINT: ABOARD THE HALCYON' : 'THE VALLEY';
+    bnew.onclick = () => { progress.setIntroDone(false); resetMemories(); this.play(); };
     const panels = { 'btn-opts': $('panel-opts'), 'btn-help': $('panel-help') };
     for (const [btn, panel] of Object.entries(panels)) {
       $(btn).onclick = () => {
@@ -412,7 +413,7 @@ export class Game {
     this.trauma = 0;
     this.hitFlash = this.flinch = this.hbPulse = this.hbTimer = 0;
     this.deadTimer = 0;
-    this.deathT = 0; this.deathMenu = false; this.deathPuddle.visible = false; this.body.deathK = 0;
+    this.deathT = 0; this.deathMenu = false; this.deathPuddle.visible = false; this.body.deathK = 0; this.viewmodel.limp = 0;
     this.state = 'playing';
     this.cinePose = null;
     this.opening.onRetry();
@@ -449,6 +450,7 @@ export class Game {
   updateDeath() {
     const t = this.deathT, p = this.player.pos;
     this.body.deathK = smooth(clamp(t / 0.9, 0, 1));
+    this.viewmodel.limp = this.body.deathK;
     if (!this.deathFx.land && t >= 0.95) {
       this.deathFx.land = true;
       this.addShake(0.35);
@@ -480,14 +482,15 @@ export class Game {
     this.ending = { t: 0 }; this.opening.moveLocked = true;
     this.audio.play('unlock', { vol: 0.9 });
     this.ui.setObjective('');
-    this.ui.subtitle('Hangar lift engaged. Tracing the elder’s signal.', 'SHIP AI', 3.2);
+    this.ui.subtitle('Deck nine. Almost there.', '', 2.8, true);
   }
   updateEnding(dt) {
     const E = this.ending; E.t += dt;
-    if (E.t > 3.4 && !E.a) { E.a = 1; this.ui.subtitle('Signal found. Source: the flagship MERIDIAN. It is leaving the system.', 'SHIP AI', 4.2); this.audio.play('alert', { vol: 0.5 }); this.addShake(0.2); }
-    if (E.t > 8.0 && !E.b) { E.b = 1; this.ui.subtitle('Then that is where I am going.', '', 3.0, true); }
-    if (E.t > 6.5) this.ui.fade(smooth(clamp((E.t - 6.5) / 2.5, 0, 1)));
-    if (E.t > 9.6) { this.ending = null; this.opening.moveLocked = false; this.ui.fade(0); this.finishChapter(); }
+    if (E.t > 3.2 && !E.a) { E.a = 1; this.ui.subtitle('Meridian undocked. All eight specimens aboard. Course: out of the system.', 'MEMORY', 4.2); this.audio.play('alert', { vol: 0.5 }); this.addShake(0.2); }
+    if (E.t > 7.6 && !E.c) { E.c = 1; this.ui.subtitle('You are too late, Specimen Nine. Nothing is left aboard for you.', 'HALCYON', 3.6); this.audio.play('pa', { vol: 0.6 }); }
+    if (E.t > 11.4 && !E.b) { E.b = 1; this.ui.subtitle('Nothing but a hangar full of ships.', '', 3.4, true); }
+    if (E.t > 12.6) this.ui.fade(smooth(clamp((E.t - 12.6) / 2.4, 0, 1)));
+    if (E.t > 15.2) { this.ending = null; this.opening.moveLocked = false; this.ui.fade(0); this.finishChapter(); }
   }
   finishChapter() {
     this.state = 'complete';
@@ -652,7 +655,7 @@ export class Game {
 
     this.level.update(this.time);
     this.effects.update(dt);
-    this.body.setVisible(!this.cinePose && !this.opening.hideBody);
+    this.body.setVisible(!this.cinePose && !this.opening.hideBody && this.state !== 'dead');     // the camera ends up on the floor: your own body would fill the view
     this.body.update(dt);
     this.ui.update(dt);
     if (this.touchUI) this.touchUI.setVisible(this.paused ? false : this.state === 'flight' ? 'flight' : this.state === 'playing', this.opening.active ? this.opening.buttons() : null);

@@ -413,12 +413,12 @@ export class Flight {
     this.warship.position.set(-500, -150, -200); this.warship.visible = true; this.warshipT = 0;
     for (const d of this.debris) d.userData.hit = false;
     g.viewmodel.root.visible = false; g.body.setVisible(false);
-    g.ui.showHud(true); g.ui.setObjective('FLY TO THE RESEARCH VESSEL'); g.ui.setPrompt('');
+    g.ui.showHud(true); g.ui.setObjective('FLY TO THE HALCYON'); g.ui.setPrompt('');
     document.body.classList.add('intro', 'in-flight'); // hides the on-foot crosshair, health and weapon readouts; softens the shared UI
     this.hud.classList.remove('hidden');
     g.audio.stopSiren?.();
     g.ui.fade(0);
-    g.ui.subtitle('The elder... they took the elder. And the others.', '', 3.4, true);
+    g.ui.subtitle('That great ship. It has the elder.', '', 3.4, true);
     this.f = {};
     this.dying = null; this.combat.reset();
   }
@@ -460,7 +460,7 @@ export class Flight {
   damage(n) {
     if (this.dying || this.docking) return;
     this.hull = Math.max(0, this.hull - n); this.shake = Math.max(this.shake, 0.55); this.flash = 0.6; this.g.audio.play('hurt', { vol: 0.6 });
-    if (this.hull <= 0) { this.dying = { t: 0 }; this.g.ui.subtitle('Hull breach. Emergency power. Rerouting.', 'SHIP AI', 3); this.g.audio.play('explosion', { vol: 0.8 }); }
+    if (this.hull <= 0) { this.dying = { t: 0 }; this.g.ui.subtitle('Hull breach. Emergency power. Rerouting.', 'LANDER', 3); this.g.audio.play('explosion', { vol: 0.8 }); }
   }
 
   stop() {
@@ -542,15 +542,17 @@ export class Flight {
 
     // ---- story beats along the way
     const dist = this.distance();
-    if (dist < 4200 && !this.f.b) { this.f.b = true; g.ui.subtitle('Their ship is headed there. The vessel. Whatever they took, it is aboard.', '', 4, true); g.audio.play('pa', { vol: 0.4 }); }
-    if (dist < 2300 && !this.f.c) { this.f.c = true; g.ui.subtitle('Unidentified craft. You are approaching a restricted vessel. Turn back.', 'SHIP AI', 4.4); g.audio.play('alert', { vol: 0.4 }); }
-    if (dist < 900 && !this.f.d) { this.f.d = true; g.ui.setObjective('ENTER THE DOCKING BAY'); g.ui.hint('FLY TOWARD THE LIT BAY', 5); }
+    if (this.t > 4.4 && !this.f.a) { this.f.a = true; g.ui.subtitle('Pilot not responding. Returning to research vessel Halcyon.', 'LANDER', 3.8); g.audio.play('pa', { vol: 0.4 }); }
+    if (this.t > 8.6 && !this.f.a2) { this.f.a2 = true; g.ui.subtitle('Then take me there.', '', 2.6, true); }
+    this.combat.standDown = dist < 900;             // it wants you alive
+    if (dist < 3000 && !this.f.c) { this.f.c = true; g.ui.subtitle('Lander Four, your pilot has no vital signs. Who is flying that ship?', 'HALCYON', 4.2); g.audio.play('alert', { vol: 0.4 }); }
+    if (dist < 900 && !this.f.d) { this.f.d = true; g.ui.setObjective('ENTER THE DOCKING BAY'); g.ui.hint('FLY TOWARD THE LIT BAY', 5); g.ui.subtitle('All fighters stand down. Something is alive in that cockpit. Let it dock.', 'HALCYON', 4.6); g.audio.play('pa', { vol: 0.5 }); }
 
     // ---- docking: steer into the glowing mouth of the bay at a safe speed and the ship is pulled in
     // docking assist: near the bay the ship's computer takes over the throttle and draws the lander in; no precise flying needed
     if (!this.docking && dist < 260 && this.speed > 120) this.speed = damp(this.speed, 110, 1.6, dt);
     if (!this.docking && dist < 130) {
-      this.docking = { t: 0 }; g.ui.setPrompt(''); g.audio.play('door', { vol: 0.8 }); g.ui.subtitle('Docking clamps engaged.', 'SHIP AI', 2.6);
+      this.docking = { t: 0 }; g.ui.setPrompt(''); g.audio.play('door', { vol: 0.8 }); g.ui.subtitle('Docking clamps engaged. Welcome aboard.', 'HALCYON', 3.2);
     } else if (!this.docking && dist < 330) g.ui.setPrompt('DOCKING ASSIST');
     else if (!this.docking) g.ui.setPrompt('');
     if (this.docking) {

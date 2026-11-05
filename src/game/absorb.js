@@ -1,3 +1,4 @@
+import { nextMemory } from './memories.js';
 import * as THREE from 'three';
 import { clamp, lerp, smooth, rand } from '../core/util.js';
 import { progress } from './progress.js';
@@ -34,7 +35,7 @@ export class Absorber {
     // the puddle the machine melts into
     this.puddle = new THREE.Mesh(
       new THREE.CircleGeometry(1, 36),
-      new THREE.MeshBasicMaterial({ color: 0x2a9bff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2 }),
+      new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = c.height = 128; const x = c.getContext('2d'); const q = x.createRadialGradient(64, 64, 6, 64, 64, 64); q.addColorStop(0, 'rgba(255,255,255,1)'); q.addColorStop(0.6, 'rgba(255,255,255,0.6)'); q.addColorStop(1, 'rgba(255,255,255,0)'); x.fillStyle = q; x.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c); })(), color: 0x2a9bff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, polygonOffset: true, polygonOffsetFactor: -2 }),
     );
     this.puddle.rotation.x = -Math.PI / 2;
     this.puddle.visible = false;
@@ -98,11 +99,12 @@ export class Absorber {
 
     const target = this.pick();
     this.target = target;
-    if (g.touchUI) g.touchUI.setAbsorb(!!target);
-    vm.reachW = Math.max(0, vm.reachW - dt * 5);
+    if (g.touchUI) g.touchUI.setAbsorb(!!target || !!g.storyAct, target ? 'ABSORB' : (g.storyAct || 'ABSORB'));   // story moments borrow the same button
+    if (!vm.reachHeld) vm.reachW = Math.max(0, vm.reachW - dt * 5);      // a story beat holding the reach keeps it
+    vm.reachHeld = false;
     vm.bulge = Math.max(0, vm.bulge - dt * 4);
 
-    if (!target) { ui.setPrompt(''); return; }
+    if (!target) { if (!g.storyAct && !g.opening.routePrompt) ui.setPrompt(''); return; }      // never wipe a prompt something else is showing
     if (!this.hinted) { this.hinted = true; ui.hintOnce('absorb', g.touchMode ? 'TAP ABSORB ON SHUT-DOWN ROBOTS' : 'RIGHT CLICK SHUT-DOWN ROBOTS TO ABSORB', 3); }
     ui.setPrompt(g.touchMode ? 'ABSORB' : 'ABSORB  ·  RMB');
     const c = target.hitSpheres[0].c;
@@ -254,6 +256,8 @@ export class Absorber {
     p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14) + 1);
     g.ui.setHealth(p.health, p.maxHealth);
     g.ui.rewardNote('MAX HP +1');
+    const memory = nextMemory();                      // what we touch, we keep: the machine gives up what it remembers
+    if (memory) { g.ui.subtitle(memory, 'MEMORY', 4.6); g.audio.play('crystal', { vol: 0.25 }); }
     g.ui.hitMarker(true);
     g.viewmodel.pulseGlow(0.8);
     g.addShake(0.05);

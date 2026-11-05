@@ -5,6 +5,7 @@
 #   Weapon  the tentacle shortens and thickens into a muscular siphon with an open mouth at z = -0.33, around the weapon organs
 #   Spread  the tip whips out to the side and lifts (recoil, idle flexing)
 #   Swell   the whole tentacle thickens
+#   Reach   the tentacle straightens and stretches far forward: touching the elder, the sidearm, the mark
 #   blender -b --python art/build_hand2.py -- public/models/hand2.glb art/hand2.blend
 # No subdivision modifier: applying one on export discards the shape keys, and the game then silently keeps the old hand. Set every key value to 0 before exporting.
 import bpy, bmesh, math, sys
@@ -50,6 +51,8 @@ POSES = {
                [.094, .08, .068, .058, .052, .044, .034, .024, .014, .005], 'tip'),
     'weapon': ([(0, 0, 1.36), (.01, -.03, .92), (-.008, -.04, .48), (.004, -.025, .1), (.002, -.012, -.02), (0, -.005, -.1), (0, 0, -.18), (0, 0, -.26), (0, 0, -.33)],
                [.094, .08, .07, .064, .066, .068, .066, .062, .066], 'mouth'),
+    'reach':  ([(0, 0, 1.36), (.01, -.02, .9), (0, -.03, .46), (0, -.02, .06), (0, 0, -.28), (0, .02, -.58), (0, .05, -.84), (0, .08, -1.06), (0, .1, -1.22), (0, .11, -1.34)],
+               [.094, .08, .068, .058, .05, .042, .034, .025, .015, .006], 'tip'),
     'spread': ([(0, 0, 1.36), (.03, -.03, .92), (.01, -.045, .48), (.05, -.03, .08), (.1, 0, -.2), (.16, .05, -.4), (.24, .13, -.52), (.32, .22, -.56), (.4, .28, -.52), (.46, .28, -.44)],
                [.094, .08, .068, .058, .052, .044, .034, .024, .014, .005], 'tip'),
 }
@@ -107,7 +110,7 @@ sucks = make('HandSuckers', [v for s in suck0 for v in s], sfaces, SUCK)
 bpy.context.view_layer.objects.active = hand
 for obj, idx in ((hand, 0), (sucks, 1)):
     obj.shape_key_add(name='Basis', from_mix=False)
-    for name, pose in (('Grip', 'grip'), ('Weapon', 'weapon'), ('Spread', 'spread'), ('Swell', 'swell')):
+    for name, pose in (('Grip', 'grip'), ('Weapon', 'weapon'), ('Spread', 'spread'), ('Swell', 'swell'), ('Reach', 'reach')):
         sk = obj.shape_key_add(name=name, from_mix=False)
         data = build(pose)[idx]
         flat = data if idx == 0 else [v for s in data for v in s]
