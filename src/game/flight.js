@@ -164,7 +164,7 @@ export class Flight {
 
     // flight HUD
     const hud = document.createElement('div'); hud.id = 'flight-hud'; hud.className = 'hidden';
-    hud.innerHTML = '<div class="fh-ret"></div><div class="fh-l"><b id="fh-spd">0</b><small>M/S</small><i><u id="fh-thr"></u></i><span id="fh-boost">BOOST</span></div><div class="fh-r"><small>RESEARCH VESSEL</small><b id="fh-dist">--</b><small>KM</small></div><div class="fh-hull"><u id="fh-hull"></u></div>';
+    hud.innerHTML = '<div class="fh-ret"></div><div class="fh-l"><b id="fh-spd">0</b><small>M/S</small><i><u id="fh-thr"></u></i><span id="fh-boost">BOOST</span></div><div class="fh-r"><small>RESEARCH VESSEL</small><b id="fh-dist">--</b><small>KM</small></div><div class="fh-hull"><u id="fh-hull"></u></div><div class="fh-keys"><span><kbd>MOUSE</kbd>STEER</span><span><kbd>W</kbd><kbd>S</kbd>THROTTLE</span><span><kbd>A</kbd><kbd>D</kbd>BANK</span><span><kbd>SHIFT</kbd>BOOST</span><span><kbd>SPACE</kbd>BRAKE</span></div>';
     document.body.appendChild(hud); this.hud = hud;
     const st = document.createElement('style');
     st.textContent = '#flight-hud{position:fixed;inset:0;pointer-events:none;z-index:6;font-family:inherit;color:#9ff5ea;text-shadow:0 0 8px rgba(80,255,230,.5)}#flight-hud.hidden{display:none}'
@@ -172,6 +172,7 @@ export class Flight {
       + '.fh-l{position:absolute;left:36px;bottom:40px;display:flex;flex-direction:column;gap:4px}.fh-l b,.fh-r b{font-size:34px;font-weight:600;letter-spacing:.04em}.fh-l small,.fh-r small{font-size:11px;letter-spacing:.3em;opacity:.7}'
       + '.fh-l i{display:block;width:160px;height:5px;background:rgba(10,30,34,.6);border:1px solid rgba(159,245,234,.45)}.fh-l u{display:block;height:100%;width:50%;background:#9ff5ea}#fh-boost{font-size:11px;letter-spacing:.3em;opacity:.25}#fh-boost.on{opacity:1;color:#ffd27a}'
       + '.fh-r{position:absolute;right:36px;bottom:40px;text-align:right;display:flex;flex-direction:column;gap:2px}.fh-hull{position:absolute;left:50%;bottom:22px;width:180px;margin-left:-90px;height:4px;background:rgba(10,30,34,.6);border:1px solid rgba(159,245,234,.35)}.fh-hull u{display:block;height:100%;background:#7affc4}';
+    st.textContent += '.fh-keys{position:absolute;left:50%;top:18px;transform:translateX(-50%);display:flex;gap:18px;padding:8px 16px;background:rgba(6,16,20,.55);border:1px solid rgba(159,245,234,.3);font-size:11px;letter-spacing:.22em;white-space:nowrap}.fh-keys span{display:flex;align-items:center;gap:6px;opacity:.9}.fh-keys kbd{font:inherit;padding:2px 6px;border:1px solid rgba(159,245,234,.6);background:rgba(159,245,234,.12);color:#d8fff8;letter-spacing:.12em}@media(max-width:700px){.fh-keys{flex-wrap:wrap;justify-content:center;gap:8px 12px;width:92vw;font-size:9px}}';
     document.head.appendChild(st);
   }
 
@@ -263,7 +264,6 @@ export class Flight {
 
     // ---- story beats along the way
     const dist = this.distance();
-    if (this.t > 5 && !this.f.a) { this.f.a = true; g.ui.hint('MOUSE: STEER   W / S: THROTTLE   A / D: BANK   SHIFT: BOOST   SPACE: BRAKE', 6); }
     if (dist < 4200 && !this.f.b) { this.f.b = true; g.ui.subtitle('Their ship is headed there. The vessel. Whatever they took, it is aboard.', '', 4, true); g.audio.play('pa', { vol: 0.4 }); }
     if (dist < 2300 && !this.f.c) { this.f.c = true; g.ui.subtitle('Unidentified craft. You are approaching a restricted vessel. Turn back.', 'SHIP AI', 4.4); g.audio.play('alert', { vol: 0.4 }); }
     if (dist < 900 && !this.f.d) { this.f.d = true; g.ui.setObjective('ENTER THE DOCKING BAY'); g.ui.hint('FLY INTO THE LIT BAY  ·  SLOW DOWN TO DOCK', 5); }
