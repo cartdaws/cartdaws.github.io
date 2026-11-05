@@ -68,7 +68,7 @@ export class Arsenal {
 
   select(i) {
     if (i === this.index || !FORMS[i] || !this.unlocked.has(FORMS[i].id)) return;
-    this.index = i; this.cool = Math.max(this.cool, 0.18); this.g.weapon.reset();
+    this.index = i; this.cool = Math.max(this.cool, 0.28); this.g.weapon.reset();
     this.g.viewmodel.pulseGlow(0.6); this.g.audio.play('gel', { vol: 0.35 }); this.g.viewmodel.setStyle(this.active.id);
     this.render();
   }

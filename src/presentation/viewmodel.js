@@ -4,6 +4,7 @@ import { TENT, TENT_GLSL, makeHandGel, updateHandGels } from './hand.js';
 
 const _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+const smoother = (k) => k * k * k * (k * (k * 6 - 15) + 10);      // starts and ends at rest: nothing in the arm's movement begins or stops abruptly
 const ELBOW = new THREE.Vector3(0.5, -0.78, 0.2); // where the reaching arm emerges from (camera space)
 
 // One first-person arm: the Blender-modelled hand (continuous gel skin driven by morph targets), a nerve cord and palm core
@@ -75,12 +76,13 @@ class HandArm {
 
   update(dt, ctx) {
     const vm = this.vm, t = vm.time, side = this.side;
-    const f = this.weapon ? vm.form : 0, rec = this.weapon ? vm.recoil : 0;
+    const f = this.weapon ? vm.armK : 0, rec = this.weapon ? vm.recoil : 0;    // armK: how far this arm has become a weapon, on one eased timeline
     const mk = vm.moveK, st = vm.stride, ph = side > 0 ? 0 : Math.PI;
     const idle = 1 - Math.min(1, mk * 1.5);
     // idle fidget: now and then the free hand flexes its fingers
     const fid = this.weapon ? 0 : Math.pow(Math.max(0, Math.sin(t * 0.55 + this.phase * 3)), 14) * idle;
-    const curl = this.weapon ? vm.curl : 0.22 + Math.sin(t * 0.9 + this.phase) * 0.04 + 0.3 * mk - 0.2 * fid;
+    const curl0 = this.weapon ? vm.curl : 0.22 + Math.sin(t * 0.9 + this.phase) * 0.04 + 0.3 * mk - 0.2 * fid;
+    const curl = this.curlS = damp(this.curlS ?? curl0, curl0, 6, dt);
 
     // ---- pose: hold, restrained, or reaching ----
     const pos = _v.copy(this.hold);
@@ -99,6 +101,8 @@ class HandArm {
     // the body is failing or thrown: the arms are not held up by anything
     const limp = vm.limp || 0, fling = vm.fling || 0;
     if (limp > 0) { const sag = limp * (side > 0 ? 1 : 0.9); pos.y -= 0.72 * sag; pos.z += 0.3 * sag; pos.x += side * 0.05 * sag; _e.x -= 0.95 * sag; _e.z += side * 0.25 * sag + Math.sin(t * 2.1 + this.phase) * 0.03 * sag; }
+    const bump = this.weapon ? vm.armBump : 0;
+    if (bump > 0) { pos.y -= 0.05 * bump; pos.z += 0.03 * bump; _e.x -= 0.1 * bump; _e.z += side * 0.07 * bump; }
     if (fling > 0) { pos.y += 0.26 * fling; pos.x += side * 0.14 * fling; _e.x += 0.55 * fling; _e.z -= side * 0.3 * fling; }
     this.root.quaternion.setFromEuler(_e);
     if (vm.restrain > 0) {
@@ -130,10 +134,10 @@ class HandArm {
 
     // ---- shape: morph targets drive grip, weapon form, recoil flare ----
     const rk = this.weapon ? Math.min(1, (vm.reachW || 0) / 0.45) : 0;
-    this.setKey('Reach', rk);
+    this.setKey('Reach', clamp(rk + 0.55 * (this.weapon ? vm.armBump : 0) * (1 - rk), 0, 1));
     this.setKey('Grip', clamp((curl * (1 - f * 0.9) + (this.weapon ? vm.sGrip : 0)) * (1 - rk) + 0.45 * limp, 0, 1));
-    this.setKey('Weapon', clamp(f * (this.weapon ? vm.sWeapon : 1) * (1 - rk) * (1 - 0.7 * limp), 0, 1));
-    this.setKey('Spread', clamp(rec * 1.2 * (1 - f * (this.weapon ? vm.sWeapon : 1)) + fid * 0.55 + (this.weapon ? vm.sSpread : 0), 0, 1));
+    this.setKey('Weapon', clamp(f * (1 - rk) * (1 - 0.7 * limp), 0, 1));
+    this.setKey('Spread', clamp(rec * 1.2 * (1 - f) + fid * 0.55 + (this.weapon ? vm.sSpread : 0), 0, 1));
     this.setKey('Swell', clamp(f * 0.9 + vm.pulse * 0.1 + vm.charge * 0.35 + (this.weapon ? vm.bulge + vm.sSwell : 0), 0, 1.4));
 
     this.palmCore.scale.setScalar(1 + vm.pulse * 0.9 + Math.sin(t * 2.4 + this.phase) * 0.1 + vm.charge * 0.6);
@@ -149,7 +153,7 @@ class HandArm {
     this.gland.scale.setScalar(Math.max(0.001, f) * (1 + vm.pulse * 0.3 + vm.charge * 0.2 + Math.sin(t * 2.2) * 0.04));
     this.muzzle.position.z = -0.33 * Math.max(0.001, f);
     this.glow.position.copy(this.muzzle.position);
-    vm.glowMat.opacity = Math.max(vm.pulse * 0.85, 0.22 * f * vm.sWeapon * (1 - rk));
+    vm.glowMat.opacity = Math.max(vm.pulse * 0.85, 0.22 * f * f * f * f * (1 - rk));      // the mouth lights last, once it has closed around it
     this.glow.scale.setScalar(0.45 + vm.pulse * 1.3);
     this.light.position.copy(this.muzzle.position);
     this.light.intensity = vm.pulse * 5;
@@ -192,7 +196,9 @@ export class ViewModel {
 
     this.skinGel = makeHandGel({ color: 0x0e1c2c, rim: 0x48dccb, alpha: 0.78 });
     // each weapon form gives the arm its own look: skin glow, sucker glow and a resting pose (blended smoothly when the form changes)
-    this.sGrip = 0; this.sSpread = 0; this.sSwell = 0; this.sWeapon = 1;
+    this.sGrip = 0; this.sSpread = 0; this.sSwell = 0;
+    this.styleT = 1; this.styleFrom = { grip: 0, spread: 0, swell: 0 };
+    this.armK = 1; this.armFrom = 1; this.armTo = 1; this.armT = 1; this.armDur = 0.5; this.armSpan = 0; this.armBump = 0; this.armSlow = 0;
     this.styleTarget = STYLES.shardcaster; this.styleRim = new THREE.Color(0x48dccb); this.styleSuck = new THREE.Color(0x0a2a2c);
     this.suckerMat = new THREE.MeshStandardMaterial({ color: 0x2c3e52, roughness: 0.32, metalness: 0.1, emissive: 0x0a2a2c, emissiveIntensity: 0.6 });
     this.suckerMat.onBeforeCompile = function (shader) {
@@ -233,14 +239,18 @@ export class ViewModel {
     this.left = new HandArm(this, -1, false);
   }
 
-  setStyle(id) { this.styleTarget = STYLES[id] || STYLES.shardcaster; }
+  setStyle(id) {
+    const next = STYLES[id] || STYLES.shardcaster;
+    if (next === this.styleTarget) return;
+    this.styleTarget = next; this.styleT = 0; this.styleFrom = { grip: this.sGrip, spread: this.sSpread, swell: this.sSwell };
+  }
   setPistol(group) {
     if (this.pistol) this.root.remove(this.pistol);
     this.pistol = group;
     if (group) this.root.add(group);
   }
 
-  fireKick() { this.recoilVel += 8; this.pulse = 1; this.pump = 0.42; }
+  fireKick() { this.recoilVel += 8; this.pulse = 1; this.pump = 0.42; this.pumpGain = 1; }
   pulseGlow(v) { this.pulse = Math.max(this.pulse, v); }
 
   syncToCamera(camera) {
@@ -268,13 +278,27 @@ export class ViewModel {
     this.landK = damp(this.landK || 0, 0, 7, dt);
     updateHandGels(t, this.pulse + this.charge * 0.6, this.charge);
     this.pump = Math.min(2, (this.pump ?? 2) + dt * 2.6);
-    TENT.tTime.value = t; TENT.tMove.value = this.moveK; TENT.tPump.value = this.pump; TENT.tAim.value = 0.8 * (this.form || 0) * (this.sWeapon ?? 1);
+    TENT.tTime.value = t; TENT.tMove.value = this.moveK; TENT.tPump.value = this.pump; TENT.tAim.value = 0.8 * this.armK; TENT.tGain.value = this.pumpGain ?? 1;
     this.fling = Math.max(0, (this.fling || 0) - dt * 1.4);
     this.skinGel.uniforms.uAlpha.value = lerp(0.78, 0.16, this.xray);
     { const T = this.styleTarget, k = Math.min(1, dt * 5);
       this.styleRim.lerp(_sc.set(T.rim), k); this.styleSuck.lerp(_sc.set(T.suck), k);
       this.skinGel.uniforms.uRim.value.copy(this.styleRim); this.suckerMat.emissive.copy(this.styleSuck); this.suckerMat.emissiveIntensity = T.suckI;
-      this.sGrip = lerp(this.sGrip, T.grip, k); this.sSpread = lerp(this.sSpread, T.spread, k); this.sSwell = lerp(this.sSwell, T.swell, k); this.sWeapon = lerp(this.sWeapon, T.weapon, k); }
+      this.styleT = Math.min(1, this.styleT + dt / 0.5);
+      const sk = smoother(this.styleT), F = this.styleFrom;
+      this.sGrip = lerp(F.grip, T.grip, sk); this.sSpread = lerp(F.spread, T.spread, sk); this.sSwell = lerp(F.swell, T.swell, sk);
+      // armed and unarmed are one continuous movement. A new target starts from wherever the arm is now, so changing your mind mid-way never pops.
+      const want = this.form * T.weapon;
+      if (Math.abs(want - this.armTo) > 0.001) {
+        this.armSpan = Math.abs(want - this.armK); this.armFrom = this.armK; this.armTo = want; this.armT = 0;
+        this.armDur = this.armSlow || 0.26 + 0.3 * this.armSpan; this.armSlow = 0;
+      }
+      this.armT = Math.min(1, this.armT + dt / this.armDur);
+      const ak = smoother(this.armT);
+      this.armK = lerp(this.armFrom, this.armTo, ak);
+      this.armBump = 4 * ak * (1 - ak) * this.armSpan;
+      if (this.armT < 1 && this.armSpan > 0.1) { this.pump = lerp(0.52, 0.95, ak); this.pumpGain = 0.32; }     // a bulge of muscle rolls up the arm as it changes
+    }
 
     this.swayX = damp(this.swayX, clamp(-ctx.lookX * 0.0012, -0.06, 0.06), 7, dt);
     this.swayY = damp(this.swayY, clamp(ctx.lookY * 0.0012, -0.06, 0.06), 7, dt);

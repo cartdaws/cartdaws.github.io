@@ -1148,6 +1148,7 @@ export class Intro {
 
   setReadyArm() {
     const vm = this.g.viewmodel;
+    if (vm.form < 0.5) vm.armSlow = 1.5;
     vm.form = 1; vm.crystal = 1; vm.frag = 1; vm.curl = 0; vm.reachW = 0; vm.restrain = 0; vm.restrainSlack = 1; vm.charge = 0; vm.leftHidden = false; vm.xray = 0; vm.tremor = 0; vm.bulge = 0;
     for (const fr of vm.right.frags) fr.k = 1;
     vm.recoil = vm.recoilVel = 0;
