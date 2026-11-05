@@ -380,9 +380,9 @@ export function buildLevel(scene, world, kit) {
 
   // Encounter layout.
   L.enemySpawns = [
-    { type: 'bug', x: -7, z: -19 },
-    { type: 'bug', x: 0, z: -32 },
-    { type: 'bug', x: 8, z: -26 },
+    { type: 'android', variant: 'trooper', x: -7, z: -19 },
+    { type: 'android', variant: 'trooper', x: 0, z: -32 },
+    { type: 'android', variant: 'scout', x: 8, z: -26 },
     { type: 'drone', x: -11, z: -24 },
     { type: 'drone', x: 11, z: -31.5 },
   ];

@@ -115,6 +115,8 @@ export class Audio {
         this.tone(o, { type: 'triangle', f0: 2100 * p, f1: 700 * p, dur: 0.11, vol: 0.28 });
         this.tone(o, { type: 'sine', f0: 3400 * p, f1: 2600 * p, dur: 0.16, vol: 0.12, delay: 0.01 });
         this.tone(o, { type: 'sine', f0: 190, f1: 70, dur: 0.12, vol: 0.3 });
+        this.tone(o, { type: 'sine', f0: 120, f1: 42, dur: 0.16, vol: 0.42 });
+        this.noise(o, { dur: 0.07, vol: 0.32, type: 'lowpass', f0: 900, f1: 200 });
         this.noise(o, { dur: 0.035, vol: 0.18, type: 'highpass', f0: 5000 });
         break;
       case 'impact':

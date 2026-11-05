@@ -87,22 +87,22 @@ function composeWave(depth, finale, wave) {
   const out = [];
   const add = (type, variant, n = 1) => { for (let i = 0; i < n; i++) out.push({ type, variant }); };
   if (finale) {
-    if (wave === 0) { add('bug', 'std', 2); add('bug', 'swarm', 3); add('drone', 'std', 2); }
-    else { add('bug', 'brute', 2); add('bug', 'swarm', 2); add('drone', 'armored', 1); add('drone', 'std', 1); }
+    if (wave === 0) { add('android', 'trooper', 3); add('android', 'scout', 2); add('drone', 'std', 1); }
+    else { add('android', 'heavy', 2); add('android', 'scout', 2); add('drone', 'armored', 1); }
     return out;
   }
-  const total = Math.min(7, 3 + Math.floor(depth * 0.5) + irand(0, 1));
+  const total = Math.min(6, 3 + Math.floor(depth * 0.45) + irand(0, 1));
   let drones = depth >= 1 ? 1 : 0;
   if (depth >= 3 && Math.random() < 0.7) drones++;
   if (depth >= 6 && Math.random() < 0.5) drones++;
   drones = Math.min(drones, 3);
   for (let i = 0; i < drones; i++) add('drone', depth >= 4 && Math.random() < 0.45 ? 'armored' : 'std');
   while (out.length < total) {
-    let v = 'std';
+    let v = 'trooper';
     const r = Math.random();
-    if (depth >= 3 && r < 0.22) v = 'brute';
-    else if (depth >= 1 && r < 0.55) v = 'swarm';
-    add('bug', v);
+    if (depth >= 3 && r < 0.25) v = 'heavy';
+    else if (depth >= 1 && r < 0.55) v = 'scout';
+    add('android', v);
   }
   return out;
 }

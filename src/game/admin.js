@@ -34,7 +34,7 @@ export class Admin {
     // live settings read by the rest of the game
     this.god = false; this.noclip = false; this.infDash = false; this.rapid = false; this.oneHit = false;
     this.speed = 1; this.jump = 1; this.grav = 1; this.timeScale = 1; this.fov = 0; // fov 0 = default
-    this.spawnType = 'bug:std';
+    this.spawnType = 'android:trooper';
     this.msgT = 0;
     this.build();
     this.bindKeys();
@@ -102,7 +102,7 @@ export class Admin {
 
     head('ENEMIES');
     const sel = document.createElement('select');
-    for (const [v, n] of [['bug:std', 'BUG'], ['bug:swarm', 'SWARM BUG'], ['bug:brute', 'BRUTE BUG'], ['drone:std', 'SENTRY DRONE'], ['drone:armored', 'ARMORED DRONE']]) sel.add(new Option(n, v));
+    for (const [v, n] of [['android:trooper', 'ANDROID TROOPER'], ['android:scout', 'ANDROID SCOUT'], ['android:heavy', 'ANDROID HEAVY'], ['drone:std', 'SENTRY DRONE'], ['drone:armored', 'ARMORED DRONE'], ['bug:std', 'OLD BUG']]) sel.add(new Option(n, v));
     sel.addEventListener('change', () => { this.spawnType = sel.value; });
     el.appendChild(sel);
     button('SPAWN IN FRONT', () => this.spawn());

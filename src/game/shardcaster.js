@@ -12,7 +12,7 @@ export class Shardcaster {
     this.game = game;
     this.name = 'SHARDCASTER';
     this.interval = 0.135; // seconds between shots while held
-    this.damage = 10;
+    this.damage = 20;
     this.speed = 95;
     this.cooldown = 0;
     this.heldTime = 0;
@@ -73,9 +73,12 @@ export class Shardcaster {
       g.projectiles.spawnPlayer(_m.clone(), _o.clone(), this.speed, this.damage);
     }
     g.viewmodel.fireKick();
+    g.viewmodel.recoilVel += 6;
     g.effects.muzzle(_m);
-    g.effects.glowP.emit(_m.x, _m.y, _m.z, 0, 0, 0, 0.08, 0.28, 0.6, 1, 1);
-    g.audio.play('shot', { vol: 0.85 });
-    g.addShake(0.035);
+    g.effects.glowP.emit(_m.x, _m.y, _m.z, 0, 0, 0, 0.09, 0.42, 0.6, 1, 1);
+    g.effects.flashLight(_m, 0x7ff0ff, 26, 0.06);
+    g.audio.play('shot', { vol: 0.95 });
+    g.addShake(0.06);
+    g.kick = Math.min(0.05, (g.kick || 0) + 0.016); // the view jumps a little with every shot
   }
 }
