@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clamp, damp, lerp, smooth, seg } from '../core/util.js';
+import { FlightCombat } from './flightCombat.js';
 
 // FREE FLIGHT. After the humans burn the homeworld, the survivor takes the human lander and flies it out of orbit, across open space, to the research
 // vessel where the humans keep their captives. Everything here lives in its own group far from the facility; entering swaps the sky and fog, leaving
@@ -245,7 +246,7 @@ export class Flight {
 
     // flight HUD
     const hud = document.createElement('div'); hud.id = 'flight-hud'; hud.className = 'hidden';
-    hud.innerHTML = '<div class="fh-ret"></div><div class="fh-l"><b id="fh-spd">0</b><small>M/S</small><i><u id="fh-thr"></u></i><span id="fh-boost">BOOST</span></div><div class="fh-r"><small>RESEARCH VESSEL</small><b id="fh-dist">--</b><small>KM</small></div><div class="fh-hull"><u id="fh-hull"></u></div><div class="fh-keys"><span><kbd>MOUSE</kbd>STEER</span><span><kbd>W</kbd><kbd>S</kbd>THROTTLE</span><span><kbd>A</kbd><kbd>D</kbd>BANK</span><span><kbd>SHIFT</kbd>BOOST</span><span><kbd>SPACE</kbd>BRAKE</span></div>';
+    hud.innerHTML = '<div class="fh-ret"></div><div class="fh-l"><b id="fh-spd">0</b><small>M/S</small><i><u id="fh-thr"></u></i><span id="fh-boost">BOOST</span></div><div class="fh-r"><small>RESEARCH VESSEL</small><b id="fh-dist">--</b><small>KM</small></div><div class="fh-hull"><u id="fh-hull"></u></div><div class="fh-keys"><span><kbd>MOUSE</kbd>STEER</span><span><kbd>W</kbd><kbd>S</kbd>THROTTLE</span><span><kbd>A</kbd><kbd>D</kbd>BANK</span><span><kbd>SHIFT</kbd>BOOST</span><span><kbd>SPACE</kbd>BRAKE</span><span><kbd>LMB</kbd>FIRE</span><span><kbd>RMB</kbd>BARBS</span></div>';
     document.body.appendChild(hud); this.hud = hud;
     const st = document.createElement('style');
     st.textContent = '#flight-hud{position:fixed;inset:0;pointer-events:none;z-index:6;font-family:inherit;color:rgba(168,235,226,.72)}#flight-hud.hidden{display:none}'
@@ -256,6 +257,8 @@ export class Flight {
       + '.fh-keys{position:absolute;left:50%;top:16px;transform:translateX(-50%);display:flex;gap:16px;padding:6px 14px;background:rgba(6,16,20,.16);border:1px solid rgba(168,235,226,.12);font-size:10px;letter-spacing:.2em;white-space:nowrap;opacity:.7}.fh-keys span{display:flex;align-items:center;gap:6px}.fh-keys kbd{font:inherit;padding:1px 5px;border:1px solid rgba(168,235,226,.32);background:rgba(168,235,226,.06);color:rgba(214,250,244,.9);letter-spacing:.1em}@media(max-width:700px){.fh-keys{flex-wrap:wrap;justify-content:center;gap:6px 10px;width:92vw;font-size:9px}}'
       + 'body.in-flight #subtitle{background:rgba(6,16,20,.22)!important;border-color:transparent!important;text-shadow:0 1px 6px rgba(0,0,0,.8)}body.in-flight #objective{opacity:.55}body.in-flight #hint{background:rgba(6,16,20,.2)!important;opacity:.8}';
     document.head.appendChild(st);
+    this.combat = new FlightCombat(this);
+    this.dying = null;
   }
 
   // Enter flight just after liftoff: the ship hangs over the burning world, pointed at the research vessel.
@@ -280,6 +283,14 @@ export class Flight {
     g.ui.fade(0);
     g.ui.subtitle('The elder... they took the elder. And the others.', '', 3.4, true);
     this.f = {};
+    this.dying = null; this.combat.reset();
+  }
+
+  // Damage to the ship from enemy fire and collisions. At zero the hull fails and the ship is rebuilt at the start of the run.
+  damage(n) {
+    if (this.dying || this.docking) return;
+    this.hull = Math.max(0, this.hull - n); this.shake = Math.max(this.shake, 0.55); this.g.audio.play('hurt', { vol: 0.6 });
+    if (this.hull <= 0) { this.dying = { t: 0 }; this.g.ui.subtitle('Hull breach. Emergency power. Rerouting.', 'SHIP AI', 3); this.g.audio.play('explosion', { vol: 0.8 }); }
   }
 
   stop() {
@@ -301,7 +312,7 @@ export class Flight {
     this.t += dt;
     this.stars.position.copy(this.camPos); this.sky.position.copy(this.camPos); this.starMat.uniforms.uTime.value = this.t;
     this.belt.rotation.y += dt * 0.004; if (this.moon) this.moon.rotation.y += dt * 0.02;
-    const live = input.locked && this.phase !== 'docked' && !this.docking;
+    const live = input.locked && this.phase !== 'docked' && !this.docking && !this.dying;
 
     // ---- steering: the mouse points the nose, A and D bank and yaw, W and S set the throttle, Shift boosts, Space brakes
     const sens = (g.sens || 0.0022) * 0.9;
@@ -326,6 +337,11 @@ export class Flight {
     _f.set(0, 0, -1).applyQuaternion(this.quat);
     this.pos.addScaledVector(_f, this.speed * dt);
 
+    // ---- a destroyed ship is rebuilt at the start of the run
+    if (this.dying) {
+      this.dying.t += dt; g.ui.fade(smooth(clamp(this.dying.t / 1.2, 0, 1)));
+      if (this.dying.t > 1.6) { this.pos.set(0, 0, 0); this.speed = 40; this.hull = 100; this.dying = null; this.t = 7; this.combat.reset(); this.quat.setFromUnitVectors(_v.set(0, 0, -1), _f.copy(DOCK).sub(this.pos).normalize()); this.camPos.copy(this.pos); this.camQuat.copy(this.quat); this.phase = 'cruise'; this.warship.visible = false; g.ui.fade(0); }
+    }
     // ---- wreckage: a glancing hit costs hull and shoves the ship; the field thins out toward the vessel
     for (const d of this.debris) {
       d.rotation.x += d.userData.spin.x * dt; d.rotation.y += d.userData.spin.y * dt; d.rotation.z += d.userData.spin.z * dt;
@@ -344,6 +360,8 @@ export class Flight {
       this.warshipGlow.scale.setScalar(120 + 80 * Math.sin(this.warshipT * 3));
       if (this.warshipT > 9) { this.warship.visible = false; this.phase = 'cruise'; }
     }
+
+    this.combat.update(dt, input, live);
 
     // ---- story beats along the way
     const dist = this.distance();
