@@ -10,7 +10,7 @@ export const MACHINE_MEMORIES = [
   'Command is very interested. A soldier that learns any weapon by holding it.',
   'Order from the Meridian: bring the old ones first. They have kept the most.',
   'Specimen Eight secured. Meridian cleared to load all specimens for transfer.',
-  'Harvest complete. Forty-one thousand live specimens in the fleet holds. Departing for the home world.',
+  'Harvest complete. Forty-one thousand live specimens in the fleet holds. Departing for Earth.',
   'Note added by Halcyon: it is reading these. Stop letting it touch the units.',
 ];
 

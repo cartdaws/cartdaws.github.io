@@ -542,7 +542,7 @@ export class Intro {
         break;
       }
       case 2: {                    // board the lander
-        if (this.stepT > 3.4) this.once('w3', () => this.say('It remembers the hand that held it. Human. That is their word for themselves.', '', 4.2, true));
+        if (this.stepT > 3.4) this.once('w3', () => this.say('It remembers the hand that held it. Human. That is their word. Now I know who.', '', 4.2, true));
         const hx = wx + 3.6, hz = wz + 1.4, dh = Math.hypot(p.pos.x - hx, p.pos.z - hz);
         const near = dh < 3.6;
         if (near) { this.actLabel = 'BOARD'; this.prompt(this.tr('HOLD RIGHT CLICK TO CLIMB ABOARD', 'HOLD THE BUTTON TO CLIMB ABOARD')); } else this.prompt('');
@@ -588,7 +588,7 @@ export class Intro {
           g.addShake(0.05 + 0.1 * L);
         }
         if (T > 6.3) ui.fade(ease(T, 6.3, 7.8));
-        if (T > 5.6) this.once('b3', () => this.say('Find them. Whatever it takes.', '', 3.2, true));
+        if (T > 4.9) this.once('b3', () => this.say('Find them. Make them pay. Whatever it costs.', '', 3.2, true));
         if (T > 8.0) this.launch();
         break;
       }
@@ -1205,7 +1205,7 @@ export class Intro {
       this.lockLens.color.setRGB(1, 0.2 + 0.15 * Math.sin(t * 10), 0.1);
       this.lockHalo.lookAt(g.camera.position);
       const d = Math.hypot(p.pos.x - LOCK_POS.x, p.pos.z - LOCK_POS.z);
-      if (d < 11 && !f.shotHint && ui.subT <= 0 && f.markDone && (f.mt === undefined || f.mt > 15)) { f.shotHint = true; ui.hint(this.tr('LEFT CLICK: FIRE AT THE LOCK', 'TAP FIRE: SHOOT THE LOCK'), 4); }
+      if (d < 11 && !f.shotHint && ui.subT <= 0 && f.markDone && (f.mt === undefined || f.mt > 21.5)) { f.shotHint = true; ui.hint(this.tr('LEFT CLICK: FIRE AT THE LOCK', 'TAP FIRE: SHOOT THE LOCK'), 4); }
     }
     // jump hint at the barrier
     if (this.barrier.visible && this.barrierBox && this.barrierBox.enabled) {
@@ -1262,7 +1262,8 @@ export class Intro {
     if (f.mt > 3.5) this.once('e2', () => elder('They took every valley. Thousands of us, held apart in their ships so we cannot touch.', 4.2));
     if (f.mt > 7.7) this.once('e3', () => elder('They are taking me to their hangar. Deck nine. A great ship is waiting.', 4.0));
     if (f.mt > 11.9) this.once('e4', () => { elder('Touch everything. Keep everything. Find us.', 3.2); if (this.target && this.target.alive) this.setObjective('SHOOT THE JAMMED LOCK'); });
-    if (f.mt > 15.3) this.once('e5', () => this.say('Specimen Nine is awake. Security to Bay Three.', 'HALCYON', 3.0));
+    if (f.mt > 15.3) this.once('e6', () => this.say('I will. And then they will pay for every valley.', '', 3.0, true));
+    if (f.mt > 18.5) this.once('e5', () => this.say('Specimen Nine is awake. Security to Bay Three.', 'HALCYON', 3.0));
   }
 
   // the Shardcaster reaches the maintenance lock

@@ -290,7 +290,7 @@ export class Arsenal {
       g.storyAct = 'TAKE'; this.cacheNear = true;
       g.ui.setPrompt(g.touchMode ? 'HOLD THE BUTTON  ·  TAKE WHAT THEY KEPT' : 'HOLD RIGHT CLICK  ·  TAKE WHAT THEY KEPT');
       this.hold = clamp(this.hold + (g.input.interactDown() ? dt / 0.9 : -dt * 1.5), 0, 1); g.ui.setHold(this.hold);
-      if (this.hold >= 1) { this.hold = 0; g.ui.setHold(null); g.ui.setPrompt(''); g.effects.hitSparks(this.cache.position.clone().setY(1.1), [0.4, 1, 0.9], 24); this.unlock('lash'); g.storyAct = null; this.cacheNear = false; g.ui.subtitle('One of ours. They kept a piece of us in a jar. It comes with me now.', '', 4.4, true); }
+      if (this.hold >= 1) { this.hold = 0; g.ui.setHold(null); g.ui.setPrompt(''); g.effects.hitSparks(this.cache.position.clone().setY(1.1), [0.4, 1, 0.9], 24); this.unlock('lash'); g.storyAct = null; this.cacheNear = false; g.ui.subtitle('One of ours, in a jar. It comes with me. They will answer for this.', '', 4.4, true); }
     } else {
       if (this.cacheNear) { this.cacheNear = false; g.storyAct = null; g.ui.setPrompt(''); }
       if (this.hold > 0) { this.hold = 0; g.ui.setHold(null); }
