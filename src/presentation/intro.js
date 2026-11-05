@@ -344,7 +344,7 @@ export class Intro {
         p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * Math.min(1, dt * 1.9);
         g.input.keys.clear(); g.input.keys.add('KeyW');
         if (this.stepT > 1.0) this.once('h3', () => this.say('Only the elder stayed.', '', 2.0, true));
-        if (this.stepT > 3.1) this.once('h4', () => this.say('What we touch, we keep. The elder keeps all of us.', '', 3.4, true));
+        if (this.stepT > 3.1) this.once('h4', () => this.say('What we touch, we keep. It is how we stay one people.', '', 3.4, true));
         if (dist < 3.4) { g.input.keys.delete('KeyW'); p.speedMul = 1; this.step = 4; this.stepT = 0; this.moveLocked = true; }
         break;
       }
@@ -501,7 +501,7 @@ export class Intro {
       case 0:                      // wake in the ruins
         this.moveLocked = false; ui.fade(1 - ease(t, 0.3, 2.6));
         { const wantYaw = Math.atan2(-(wx - p.pos.x), -(wz - p.pos.z)); if (t < 5) { p.yaw += Math.atan2(Math.sin(wantYaw - p.yaw), Math.cos(wantYaw - p.yaw)) * Math.min(1, dt * 0.9); p.pitch += (0.02 - p.pitch) * Math.min(1, dt * 1.5); } }
-        if (!f.w1 && t > 1.0) { f.w1 = true; this.say('They took the elder. The last of us but me.', '', 3.4, true); }
+        if (!f.w1 && t > 1.0) { f.w1 = true; this.say('They took the elder. They took everyone.', '', 3.4, true); }
         if (!f.w1b && t > 4.6) { f.w1b = true; this.say('One of their ships fell. So they can fall.', '', 3.2, true); }
         if (t > 6.4) { this.step = 1; this.stepT = 0; this.setObjective('SEARCH THE WRECK'); }
         break;
@@ -644,7 +644,7 @@ export class Intro {
     if (w.userData.canopyPivot) w.userData.canopyPivot.rotation.x = 1.15 * open;
     // dialogue and sound: what the lander is, why it still flies, what it is for
     if (T > 0.4) this.once('bd1', () => { this.say('Scorched, split open, but the drive core is still warm. Their machines are built to survive.', '', 4.4, true); g.audio.play('unlock', { vol: 0.5 }); });
-    if (T > 4.8) this.once('bd2', () => this.say('The elder went up there. So will I.', '', 3.2, true));
+    if (T > 4.8) this.once('bd2', () => this.say('My people went up there. So will I.', '', 3.2, true));
     if (T > 8.1) this.once('bd3', () => { g.audio.play('door', { vol: 0.8 }); });
     // three shots: wide from the front of the wing, then following from behind, then through the canopy into the pilot's own eyes
     const cam = this._bc || (this._bc = new THREE.Vector3()), tgt = this._bt || (this._bt = new THREE.Vector3());
@@ -704,7 +704,7 @@ export class Intro {
     if (T > 0.6) this.once('g1', () => this.say('Docked. No guards, no alarms. Where is everyone?', '', 3.6, true));
     // you walk in from the airlock and stop in the open middle of the bay. The bulkhead ahead seals while you are out, so you must never get past it.
     if (T > 1.6 && T < 7.8 && p.pos.z > 3.0) { this.moveLocked = false; g.input.keys.clear(); g.input.keys.add('KeyW'); p.speedMul = 0.26; } else if (T > 1.6) { g.input.keys.clear(); this.moveLocked = true; }
-    if (T > 1.6) this.setObjective(T < 4.6 ? 'FIND THE ELDER' : 'SOMETHING IS WRONG');
+    if (T > 1.6) this.setObjective(T < 4.6 ? 'FIND YOUR PEOPLE' : 'SOMETHING IS WRONG');
     // act 2: the vents: an alarm tone, a hiss, then gas pouring from the ceiling around you
     if (T > 3.4) this.once('g2', () => { g.audio.play('alert', { vol: 0.45 }); g.audio.play('hiss', { vol: 0.6 }); this.say('Bay Three sealed. Releasing anesthetic.', 'HALCYON', 2.0); });
     if (T > 5.5) this.once('g3', () => { this.say('The air... it burns.', '', 1.6, true); g.audio.play('hiss', { vol: 0.9 }); });
@@ -1259,9 +1259,9 @@ export class Intro {
     if (f.mt < 2.6) this.reachAt(MARK_PALM, 0.45 * (1 - ease(f.mt, 1.8, 2.6)));          // the arm stays on the mark while the memory comes through
     const elder = (text, dur) => { g.ui.subtitle(text, 'ELDER', dur); g.audio.play('crystal', { vol: 0.2 }); g.viewmodel.pulseGlow(0.4); };
     if (f.mt > 0.3) this.once('e1', () => elder('You came. I asked you not to.', 3.0));
-    if (f.mt > 3.5) this.once('e2', () => elder('They hold us apart, so we cannot touch. So we cannot remember each other.', 4.0));
+    if (f.mt > 3.5) this.once('e2', () => elder('They took every valley. Thousands of us, held apart in their ships so we cannot touch.', 4.2));
     if (f.mt > 7.7) this.once('e3', () => elder('They are taking me to their hangar. Deck nine. A great ship is waiting.', 4.0));
-    if (f.mt > 11.9) this.once('e4', () => { elder('Touch everything. Keep everything. Come for me.', 3.2); if (this.target && this.target.alive) this.setObjective('SHOOT THE JAMMED LOCK'); });
+    if (f.mt > 11.9) this.once('e4', () => { elder('Touch everything. Keep everything. Find us.', 3.2); if (this.target && this.target.alive) this.setObjective('SHOOT THE JAMMED LOCK'); });
     if (f.mt > 15.3) this.once('e5', () => this.say('Specimen Nine is awake. Security to Bay Three.', 'HALCYON', 3.0));
   }
 

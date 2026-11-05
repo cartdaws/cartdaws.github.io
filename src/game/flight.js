@@ -418,7 +418,7 @@ export class Flight {
     this.hud.classList.remove('hidden');
     g.audio.stopSiren?.();
     g.ui.fade(0);
-    g.ui.subtitle('That great ship. It has the elder.', '', 3.4, true);
+    g.ui.subtitle('That great ship. It has the elder, and how many more?', '', 3.4, true);
     this.f = {};
     this.dying = null; this.combat.reset();
   }

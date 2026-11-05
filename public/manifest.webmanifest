@@ -1,7 +1,7 @@
 {
   "name": "INTRUDER",
   "short_name": "INTRUDER",
-  "description": "They burned your world and took your people. Take their ship. Take their weapons. Find your kind.",
+  "description": "They burned your world and took your people. Find your kind. Then take their world for your own.",
   "start_url": "./",
   "scope": "./",
   "display": "fullscreen",

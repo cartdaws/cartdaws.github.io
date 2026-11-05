@@ -486,11 +486,12 @@ export class Game {
   }
   updateEnding(dt) {
     const E = this.ending; E.t += dt;
-    if (E.t > 3.2 && !E.a) { E.a = 1; this.ui.subtitle('Meridian undocked. All eight specimens aboard. Course: out of the system.', 'MEMORY', 4.2); this.audio.play('alert', { vol: 0.5 }); this.addShake(0.2); }
-    if (E.t > 7.6 && !E.c) { E.c = 1; this.ui.subtitle('You are too late, Specimen Nine. Nothing is left aboard for you.', 'HALCYON', 3.6); this.audio.play('pa', { vol: 0.6 }); }
-    if (E.t > 11.4 && !E.b) { E.b = 1; this.ui.subtitle('Nothing but a hangar full of ships.', '', 3.4, true); }
-    if (E.t > 12.6) this.ui.fade(smooth(clamp((E.t - 12.6) / 2.4, 0, 1)));
-    if (E.t > 15.2) { this.ending = null; this.opening.moveLocked = false; this.ui.fade(0); this.finishChapter(); }
+    if (E.t > 3.2 && !E.a) { E.a = 1; this.ui.subtitle('Meridian undocked. All eight aboard. Joining the fleet: forty-one thousand of us, bound for their home world.', 'MEMORY', 5.0); this.audio.play('alert', { vol: 0.5 }); this.addShake(0.2); }
+    if (E.t > 8.4 && !E.c) { E.c = 1; this.ui.subtitle('You are too late, Specimen Nine. Nothing is left aboard for you.', 'HALCYON', 3.6); this.audio.play('pa', { vol: 0.6 }); }
+    if (E.t > 12.2 && !E.b) { E.b = 1; this.ui.subtitle('Nothing but a hangar full of ships.', '', 3.0, true); }
+    if (E.t > 15.4 && !E.d) { E.d = 1; this.ui.subtitle('Our world is ash. Theirs will do.', '', 3.6, true); }
+    if (E.t > 16.4) this.ui.fade(smooth(clamp((E.t - 16.4) / 2.6, 0, 1)));
+    if (E.t > 19.2) { this.ending = null; this.opening.moveLocked = false; this.ui.fade(0); this.finishChapter(); }
   }
   finishChapter() {
     this.state = 'complete';

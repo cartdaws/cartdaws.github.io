@@ -5,11 +5,12 @@ const KEY = 'intruder-memory';
 export const MACHINE_MEMORIES = [
   'All crew transferred to the Meridian. The machines will run the Halcyon from here.',
   'Survey note: they keep nothing written. Every memory passes by touch, from one body to the next.',
-  'Seven specimens recovered from the valley so far. None of them will speak to us. None of them can.',
+  'Seven specimens taken from this valley for study. None of them will speak to us. None of them can.',
   'Trial twenty-seven. The subject touched the scanner, and the scanner stopped being ours.',
   'Command is very interested. A soldier that learns any weapon by holding it.',
-  'Order from the Meridian: bring the old one. It carries the memory of every one of them.',
+  'Order from the Meridian: bring the old ones first. They have kept the most.',
   'Specimen Eight secured. Meridian cleared to load all specimens for transfer.',
+  'Harvest complete. Forty-one thousand live specimens in the fleet holds. Departing for the home world.',
   'Note added by Halcyon: it is reading these. Stop letting it touch the units.',
 ];
 
