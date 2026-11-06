@@ -62,7 +62,7 @@ export class Game {
     this.scene.fog = new THREE.FogExp2(0x050709, 0.016);
     this.baseHemi = new THREE.HemisphereLight(0x7f95a4, 0x14181b, 0.42); this.scene.add(this.baseHemi);       // the ship's own interior fill; anywhere with a sky has its own light
 
-    this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.05, 500);
+    this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.08, 500);
     this.camera.rotation.order = 'YXZ';
 
     this.world = new CollisionWorld();
@@ -850,6 +850,7 @@ export class Game {
     const MAX = this.maxLights;
     // lights come and go (a new run, the wreck, the boarding), so the list is refreshed regularly rather than built once
     this.lightT = (this.lightT || 0) - 1;
+    const fresh = !this.lightList;      // a new place starts already lit: there is nothing to fade from
     if (!this.lightList || this.lightT <= 0) { this.lightT = 90; this.lightList = []; this.scene.traverse((o) => { if (o.isPointLight) this.lightList.push(o); }); }
     const p = this.camera.position;
     // a light inside a hidden group (the homeworld while on the ship, say) costs nothing and must not use up the budget
@@ -857,7 +858,27 @@ export class Game {
     const dist = (l) => { const e = l.matrixWorld.elements, x = e[12] - p.x, y = e[13] - p.y, z = e[14] - p.z; return x * x + y * y + z * z; };
     const rows = this.lightList.map((l) => ({ l, live: live(l), s: l.userData.keepOn ? -1e9 : (l.intensity > 0.5 ? dist(l) : 1e9 + dist(l)) }));
     rows.sort((a, b) => (a.live === b.live ? a.s - b.s : a.live ? -1 : 1));
-    for (let i = 0; i < rows.length; i++) rows[i].l.visible = i < MAX;
+    // A lamp joining or leaving this set must fade, or every surface it touches jumps. So the nearest few are wanted, the last slots hold whatever is still fading out, and the number switched on never changes.
+    const step = fresh ? 1 : (this.lightDt ?? 1 / 60) / 0.5, WANT = Math.max(1, MAX - 3);
+    const near = (l) => { const k = l.userData.lampK; return k === undefined ? 0 : k; };
+    for (let i = 0; i < rows.length; i++) {
+      const { l, live: on } = rows[i];
+      if (l.userData.keepOn) { l.userData.lampK = 1; continue; }
+      const want = on && i < WANT; l.userData.lampK = Math.max(0, Math.min(1, near(l) + (want ? step : -step)));
+      if (!want && !on) l.userData.lampK = 0;
+    }
+    // first the ones that are lit at all, brightest first, then anything to keep the count constant
+    const order = rows.map((r, i) => ({ r, i, k: r.live ? (r.l.userData.keepOn ? 2 : near(r.l)) : -1 })).sort((a, b) => (b.k - a.k) || (a.i - b.i));
+    order.forEach((o, i) => { o.r.l.visible = i < MAX; if (i >= MAX) o.r.l.userData.lampK = 0; });
+  }
+  // the fade is applied only while drawing, because other systems write these lights' intensities themselves
+  lampFade(on) {
+    if (!this.lightList) return;
+    for (const l of this.lightList) {
+      if (l.userData.keepOn || !l.visible) continue;
+      const k = l.userData.lampK ?? 1;
+      if (on) { l.userData.lampI = l.intensity; l.intensity *= k * k * (3 - 2 * k); } else if (l.userData.lampI !== undefined) { l.intensity = l.userData.lampI; l.userData.lampI = undefined; }
+    }
   }
 
   render(dt) {
@@ -910,8 +931,11 @@ export class Game {
       }
     }
     this.cullChunks();
+    this.lightDt = dt;
     this.cullLights();
+    this.lampFade(true);
     this.post.render(dt, this.time);
+    this.lampFade(false);
   }
 }
 

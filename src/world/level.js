@@ -347,8 +347,9 @@ export function buildLevel(scene, world, kit) {
   L.surge = 0; // opening: electrical overload of the containment system
   L.update = (t) => {
     for (const f of L.flicker) {
-      let k = 0.94 + 0.06 * Math.sin(t * 13 + f.ph);
-      if (f.broken) k = Math.sin(t * 40 + f.ph) > 0.55 && Math.sin(t * 3.1) > 0.2 ? 0.15 : 0.9;
+      // A lamp is steady. A faulty one holds steady too, and every several seconds it stumbles, briefly, then recovers. It must never strobe a whole room.
+      let k = 0.99 + 0.01 * Math.sin(t * 1.7 + f.ph);
+      if (f.broken && Math.sin(t * 0.71 + f.ph) * Math.sin(t * 1.13 + f.ph * 2) > 0.94) k = Math.sin(t * 34 + f.ph) > 0 ? 0.62 : 0.88;
       f.l.intensity = f.base * k;
     }
     const status = kitMaterial('Status');

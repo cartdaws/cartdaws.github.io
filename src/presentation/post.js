@@ -26,7 +26,7 @@ THREE.Material.prototype.onBeforeCompile = function (shader) {
 const SanitizeShader = {
   uniforms: { tDiffuse: { value: null } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); bvec3 bad = notEqual(c.rgb, c.rgb); vec3 ok = min(c.rgb, vec3(16.0)); gl_FragColor = vec4(mix(ok, vec3(0.0), vec3(bad)), c.a); }',
+  fragmentShader: 'uniform sampler2D tDiffuse; varying vec2 vUv; void main(){ vec4 c = texture2D(tDiffuse, vUv); bvec3 bad = notEqual(c.rgb, c.rgb); vec3 ok = min(c.rgb, vec3(2.2)); gl_FragColor = vec4(mix(ok, vec3(0.0), vec3(bad)), c.a); }',
 };
 const GradeShader = {
   uniforms: { tDiffuse: { value: null }, uTime: { value: 0 }, uMode: { value: 0 }, uHurt: { value: 0 }, uPulse: { value: 0 }, uHit: { value: 0 } },
@@ -83,7 +83,9 @@ export class PostFX {
     vm.clearDepth = true;
     this.composer.addPass(vm);
     this.composer.addPass(new ShaderPass(SanitizeShader));
-    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.12, 0.4, 1.0);
+    this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.085, 0.35, 1.25);
+    // A lamp glows where it is. The widest blur levels would lay a veil over the whole picture, and it would vanish the instant the lamp left the view, which reads as the whole room flickering.
+    this.bloom.bloomFactors = [1.0, 0.7, 0.32, 0.08, 0.02]; if (this.bloom.compositeMaterial) this.bloom.compositeMaterial.uniforms.bloomFactors.value = this.bloom.bloomFactors;
     this.composer.addPass(this.bloom);
     this.grade = new ShaderPass(GradeShader);
     this.composer.addPass(this.grade);
