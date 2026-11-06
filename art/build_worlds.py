@@ -5,7 +5,7 @@
 #     Umma_*   Ummari: floating lantern people: veined frilled bell, ruffled mouth arms, trailing threads
 import bpy, math, random, sys, os
 from mathutils import Vector
-sys.path.insert(0, r"C:\Users\cartd\Desktop\Intruder-Rebuild\art")
+sys.path.insert(0, r"C:\Users\cartd\Desktop\Intruder-V2\art")
 import importlib, modelkit; importlib.reload(modelkit)
 from modelkit import B, mat, export_all
 

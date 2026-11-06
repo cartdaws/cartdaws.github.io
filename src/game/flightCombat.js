@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 //   Right mouse: homing barbs, three at a time at whatever is in front of the nose (salvaged from the first interceptor you destroy).
 // Human interceptors come out of the research vessel's defence screen in two waves and hunt the lander. They strafe, they shoot, they die.
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _f = new THREE.Vector3(), _q = new THREE.Quaternion();
-const BARB_KEY = 'intruder-ship-barbs';
+const BARB_KEY = 'intruderv2-ship-barbs';
 
 // One soft-glow texture shared by every sprite. Effects can spawn dozens of sprites a second; a texture each would exhaust a phone's memory within minutes.
 let GLOW_TEX = null;

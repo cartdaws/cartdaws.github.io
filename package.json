@@ -1,12 +1,12 @@
 {
-  "name": "intruder",
+  "name": "intruder-v2",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.0.0-experiment",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port 5174 --strictPort",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview --port 5175 --strictPort"
   },
   "dependencies": {
     "three": "^0.186.1",

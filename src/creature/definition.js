@@ -129,7 +129,7 @@ export function validateImport(text) {
   if (typeof text !== 'string' || text.length > 20000) return { error: 'That file is too large to be a creature preset.' };
   try { o = JSON.parse(text); } catch (e) { return { error: 'That file is not valid JSON.' }; }
   if (!o || typeof o !== 'object' || Array.isArray(o)) return { error: 'The file does not contain a creature.' };
-  if (o.kind !== 'intruder-creature') return { error: 'This is not an INTRUDER creature preset.' };
+  if (o.kind !== 'intruderv2-creature') return { error: 'This is not an INTRUDER creature preset.' };
   if (!Number.isInteger(o.version) || o.version < 1) return { error: 'The preset has no valid version.' };
   if (o.version > VERSION) return { error: 'This preset was made by a newer version of the game.' };
   const d = o.creature;
@@ -147,7 +147,7 @@ export function validateImport(text) {
 }
 
 export function exportText(def) {
-  return JSON.stringify({ kind: 'intruder-creature', version: VERSION, creature: sanitize(def) }, null, 1);
+  return JSON.stringify({ kind: 'intruderv2-creature', version: VERSION, creature: sanitize(def) }, null, 1);
 }
 
 // ---- constrained randomisation: every value is drawn inside its range, with a pull toward the middle so results look like a creature ----

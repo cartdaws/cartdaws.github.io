@@ -1,5 +1,5 @@
 // INTRUDER service worker. Network first: online you always get the newest build; offline you get the last one that loaded.
-const CACHE = 'intruder-v1';
+const CACHE = 'intruderv2-v1';
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', (e) => {

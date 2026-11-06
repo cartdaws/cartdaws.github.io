@@ -478,7 +478,7 @@ export class Flight {
     this.warship.position.set(-500, -150, -200); this.warship.visible = !this.free; this.warshipT = 0;
     for (const d of this.debris) d.userData.hit = false;
     g.viewmodel.root.visible = false; g.body.setVisible(false);
-    g.ui.showHud(true); g.ui.setObjective(this.free ? g.campaign.roadObjective() : 'FLY TO THE HALCYON'); g.ui.setPrompt(''); this.armor = (() => { try { return localStorage.getItem('intruder-armor') === '1' ? 0.5 : 1; } catch (e) { return 1; } })();
+    g.ui.showHud(true); g.ui.setObjective(this.free ? g.campaign.roadObjective() : 'FLY TO THE HALCYON'); g.ui.setPrompt(''); this.armor = (() => { try { return localStorage.getItem('intruderv2-armor') === '1' ? 0.5 : 1; } catch (e) { return 1; } })();
     document.body.classList.add('intro', 'in-flight'); // hides the on-foot crosshair, health and weapon readouts; softens the shared UI
     this.hud.classList.remove('hidden');
     g.audio.stopSiren?.(); g.audio.scene('space');

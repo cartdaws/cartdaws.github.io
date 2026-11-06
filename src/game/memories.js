@@ -1,6 +1,6 @@
 // What the machines remember. One line plays each time you absorb a machine, in order: this is how the player learns what happened aboard the Halcyon.
 // See STORY.md. The position survives death and restarts, and goes back to the start on New Game.
-const KEY = 'intruder-memory';
+const KEY = 'intruderv2-memory';
 
 export const MACHINE_MEMORIES = [
   'All crew transferred to the Meridian. The machines will run the Halcyon from here.',

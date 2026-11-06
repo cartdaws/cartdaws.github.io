@@ -2,7 +2,7 @@
 # Each node is one mesh with one material, so the game can draw hundreds of them as instances and tint and light them itself.
 import bpy, math, random, sys
 from mathutils import Vector
-sys.path.insert(0, r"C:\Users\cartd\Desktop\Intruder-Rebuild\art")
+sys.path.insert(0, r"C:\Users\cartd\Desktop\Intruder-V2\art")
 import importlib, modelkit; importlib.reload(modelkit)
 from modelkit import B, export_all
 import modelkit as _mk

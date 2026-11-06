@@ -121,10 +121,10 @@ export class UI {
   // Tutorial hints: shown once ever on this device, then never again.
   hintOnce(key, text, dur = 3) {
     let seen = {};
-    try { seen = JSON.parse(localStorage.getItem('intruder-seen') || '{}'); } catch (e) { /* optional */ }
+    try { seen = JSON.parse(localStorage.getItem('intruderv2-seen') || '{}'); } catch (e) { /* optional */ }
     if (seen[key]) return;
     seen[key] = 1;
-    try { localStorage.setItem('intruder-seen', JSON.stringify(seen)); } catch (e) { /* optional */ }
+    try { localStorage.setItem('intruderv2-seen', JSON.stringify(seen)); } catch (e) { /* optional */ }
     this.hint(text, dur);
   }
   clearHints() { this.hintQueue.length = 0; this.hintTimer = 0; this.hintEl.classList.remove('show'); }

@@ -131,7 +131,7 @@ export class Game {
     };
     this.post = new PostFX(this.renderer, this.scene, this.viewmodel.scene, this.camera);
     this.gfx = this.touchMode ? 'retro' : 'realistic'; // retro is far cheaper to draw, a better default on phones
-    try { this.gfx = JSON.parse(localStorage.getItem('intruder-settings') || '{}').gfx || this.gfx; } catch (e) { /* default */ }
+    try { this.gfx = JSON.parse(localStorage.getItem('intruderv2-settings') || '{}').gfx || this.gfx; } catch (e) { /* default */ }
     this.post.setMode(this.gfx, this.scene);
     this.refreshGfxButtons();
     this.newRun();
@@ -234,7 +234,7 @@ export class Game {
     $('btn-play').onclick = () => this.play();
     const tag = document.createElement('div');
     tag.className = 'build-tag';
-    tag.textContent = `BUILD ${typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'DEV'} UTC`;
+    tag.textContent = `V2 EXPERIMENT  ·  BUILD ${typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'DEV'} UTC`;
     $('menu-start').appendChild(tag);
     // start menu: CONTINUE skips the introduction once it has been seen; NEW GAME plays it again
     const bnew = $('btn-new');
@@ -262,7 +262,7 @@ export class Game {
     for (const id of ['set-volume', 'set-volume-2']) $(id).oninput = (e) => { this.audio.setVolume(+e.target.value); $('set-volume').value = $('set-volume-2').value = e.target.value; this.saveSettings(); };
     for (const id of ['set-sens', 'set-sens-2']) $(id).oninput = (e) => { this.sens = +e.target.value; $('set-sens').value = $('set-sens-2').value = e.target.value; this.saveSettings(); };
     try {
-      const s = JSON.parse(localStorage.getItem('intruder-settings') || '{}');
+      const s = JSON.parse(localStorage.getItem('intruderv2-settings') || '{}');
       if (s.volume != null) { this.audio.volume = s.volume; $('set-volume').value = $('set-volume-2').value = s.volume; }
       if (s.sens != null) { this.sens = s.sens; $('set-sens').value = $('set-sens-2').value = s.sens; }
     } catch (e) { /* settings are optional */ }
@@ -298,7 +298,7 @@ export class Game {
   }
 
   saveSettings() {
-    try { localStorage.setItem('intruder-settings', JSON.stringify({ volume: this.audio.volume, sens: this.sens, gfx: this.gfx })); } catch (e) { /* ignore */ }
+    try { localStorage.setItem('intruderv2-settings', JSON.stringify({ volume: this.audio.volume, sens: this.sens, gfx: this.gfx })); } catch (e) { /* ignore */ }
   }
 
   // Keep a phone's screen awake while playing, and bring the sound back if the system interrupted it.

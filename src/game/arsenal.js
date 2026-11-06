@@ -17,7 +17,7 @@ export const FORMS = [
   { id: 'lash', name: 'LASH', key: 'Digit4', how: 'find the specimen cache', trait: 'ITS REACH PULLS THINGS TO YOU' },
   { id: 'gel', name: 'GEL BOMB', key: 'Digit5', how: 'absorb a drone', kind: 'drone', trait: 'YOU DRIFT: HOLD JUMP TO FALL SLOWLY' },
 ];
-const KEY = 'intruder-arsenal-v2';
+const KEY = 'intruderv2-arsenal-v2';
 const CACHE_AT = new THREE.Vector3(-3.2, 0, -9.5);          // the specimen cache beyond the first barrier of the containment bay
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _m = new THREE.Vector3(), _o = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3();

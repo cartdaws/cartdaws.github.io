@@ -32,8 +32,8 @@ async function saveForOffline() {
   const say = (t) => { const el = document.querySelector('.build-tag'); if (el) { el.dataset.base = el.dataset.base || el.textContent; el.textContent = el.dataset.base + '  ·  ' + t; } };
   try {
     const list = await (await fetch('precache.json', { cache: 'no-store' })).json();
-    const cache = await caches.open('intruder-v1');
-    let saved = {}; try { saved = JSON.parse(localStorage.getItem('intruder-saved') || '{}'); } catch { /* private mode */ }
+    const cache = await caches.open('intruderv2-v1');
+    let saved = {}; try { saved = JSON.parse(localStorage.getItem('intruderv2-saved') || '{}'); } catch { /* private mode */ }
     let done = 0;
     for (const f of list) {
       const url = new URL(f.u, document.baseURI).href;
@@ -42,16 +42,16 @@ async function saveForOffline() {
         if (!res.ok) throw new Error(f.u);
         await cache.put(url, res);
         saved[f.u] = f.h;
-        try { localStorage.setItem('intruder-saved', JSON.stringify(saved)); } catch { /* private mode */ }
+        try { localStorage.setItem('intruderv2-saved', JSON.stringify(saved)); } catch { /* private mode */ }
       }
       say('SAVING FOR OFFLINE ' + Math.round(++done / list.length * 100) + '%');
     }
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-    try { localStorage.setItem('intruder-saved-all', '1'); } catch { /* private mode */ }
+    try { localStorage.setItem('intruderv2-saved-all', '1'); } catch { /* private mode */ }
     say('READY OFFLINE');
   } catch {
     // no network right now: fine if an earlier visit finished saving
-    let all = false; try { all = !!localStorage.getItem('intruder-saved-all'); } catch { /* private mode */ }
+    let all = false; try { all = !!localStorage.getItem('intruderv2-saved-all'); } catch { /* private mode */ }
     say(all ? 'READY OFFLINE' : 'NOT SAVED YET  ·  NEEDS SIGNAL');
   }
 }

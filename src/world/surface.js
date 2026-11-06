@@ -561,7 +561,7 @@ export class Surface {
     const g = this.g, ui = g.ui;
     if (talk.gift === 'hp' || talk.gift === 'hull') ui.rewardNote(talk.note);      // a new form announces itself when it unlocks
     g.audio.play('crystal', { vol: 0.6 }); g.viewmodel.pulseGlow(1); g.addShake(0.08);
-    if (talk.gift === 'hp') this.gainHp(10); else if (talk.gift === 'hull') { try { localStorage.setItem('intruder-armor', '1'); } catch (e) { /* optional */ } g.flight.armor = 0.5; } else { g.arsenal.unlock(talk.gift); ui.rewardNote(talk.note); }
+    if (talk.gift === 'hp') this.gainHp(10); else if (talk.gift === 'hull') { try { localStorage.setItem('intruderv2-armor', '1'); } catch (e) { /* optional */ } g.flight.armor = 0.5; } else { g.arsenal.unlock(talk.gift); ui.rewardNote(talk.note); }
     ui.setObjective(g.campaign.worldDone(this.id));
   }
 

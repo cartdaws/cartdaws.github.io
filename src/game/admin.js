@@ -1,5 +1,5 @@
 const CODE = '4310';
-const KEY = 'intruder-admin';
+const KEY = 'intruderv2-admin';
 
 const CSS = `
 #admin { position: fixed; right: 14px; top: 14px; bottom: 14px; width: 270px; z-index: 30; overflow-y: auto; padding: 14px 16px 18px;

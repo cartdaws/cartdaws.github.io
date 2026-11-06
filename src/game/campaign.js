@@ -3,7 +3,7 @@ import { addSign } from '../world/signs.js';
 
 // THE CAMPAIGN. The one place that knows where the journey has got to. Every system reports what happened here, and this decides what follows from it: what the tracker says,
 // how the ship reacts, what your body has become. It holds no mechanics of its own. See STORY.md.
-const KEY = 'intruder-campaign';
+const KEY = 'intruderv2-campaign';
 const fresh = () => ({ beat: 'valley', absorbed: { android: 0, bug: 0, drone: 0 }, total: 0, voices: [], worlds: {}, alert: 0, chart: false, crossed: false });
 
 // the two lines of the tracker: why you are doing all this, and what is next
@@ -87,7 +87,7 @@ export class Campaign {
   load() {
     try { const o = JSON.parse(localStorage.getItem(KEY) || 'null'); if (o && o.absorbed) return { ...fresh(), ...o }; } catch (e) { /* first run */ }
     const n = fresh();
-    try { Object.assign(n.worlds, JSON.parse(localStorage.getItem('intruder-worlds') || '{}')); } catch (e) { /* none */ }      // a save from before the campaign existed keeps what it did
+    try { Object.assign(n.worlds, JSON.parse(localStorage.getItem('intruderv2-worlds') || '{}')); } catch (e) { /* none */ }      // a save from before the campaign existed keeps what it did
     return n;
   }
   save() { try { localStorage.setItem(KEY, JSON.stringify(this.s)); } catch (e) { /* storage is optional */ } }
@@ -95,7 +95,7 @@ export class Campaign {
   // New Game: nobody remembers anything, including your body
   reset() {
     this.s = fresh(); this.save(); this.f = {};
-    try { localStorage.removeItem('intruder-armor'); localStorage.removeItem('intruder-worlds'); } catch (e) { /* optional */ }
+    try { localStorage.removeItem('intruderv2-armor'); localStorage.removeItem('intruderv2-worlds'); } catch (e) { /* optional */ }
     const g = this.g; g.viewmodel.setMachine(0); g.flight.armor = 1;
   }
 
