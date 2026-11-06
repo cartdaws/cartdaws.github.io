@@ -5,13 +5,13 @@
 //   limbK     how much thicker the limb carrying it becomes; massK how much it adds to the trunk's bulk
 //   style     how the arm holds itself with it: rim colour, curl, how far the arm rolls to show its back, weapon = the arm's firing pose
 //   attack    what the trigger does. Every number is [stage 1, stage 2, stage 3]
-//   mods      what it does to your body wherever you carry it. The strongest copy counts; copies do not stack
+//   mods      what it does to your body wherever you carry it
 //   move      how you move while it is the arm you have raised
 //   role, plus, minus   the same thing in words, for the wheel and the lab
 export const SLOTS = 8;            // the wheel holds eight, and so does the body: eight limbs
 export const ENERGY_MAX = 100;
 export const ENERGY_REGEN = 15;    // per second
-export const COPY_BONUS = 0.1;     // each further limb committed to the same mutation strengthens it by this much
+export const STACK_BONUS = 0.12;   // past stage 3, every further absorb of its enemy makes the mutation this much stronger
 
 // Your own arms, always available, costing nothing. Not a mutation and does not take a slot.
 export const BARE = {
@@ -34,7 +34,7 @@ export const MUTATIONS = {
     moveNote: (t) => `${Math.round((0.07 + t * 0.03) * 100)}% SLOWER, HEAVY`,
   },
   shard: {
-    id: 'shard', name: 'SHARD SIPHON', kind: 'tech', sources: ['trooper', 'scout'], nodes: ['Mut_Shard', 'Mut_ShardDark', 'Mut_ShardGlow', 'Mut_ShardFlesh', 'Mut_ShardRings'], infect: 0.85,
+    id: 'shard', name: 'SHARD SIPHON', kind: 'tech', sources: ['trooper'], nodes: ['Mut_Shard', 'Mut_ShardDark', 'Mut_ShardGlow', 'Mut_ShardFlesh', 'Mut_ShardRings'], infect: 0.85,
     trunk: ['Tor_Shard', 'Tor_ShardDark', 'Tor_ShardRings', 'Tor_ShardFlesh', 'Tor_ShardGlow'], limbK: 0.06, massK: 0.035, hud: '#7fb8a8',
     note: 'FAST RANGED FIRE. EVERY SHOT DRINKS ENERGY. WEAK AGAINST HEAVY ARMOUR.',
     role: 'AT A DISTANCE', plus: 'HITS AT ANY RANGE. CONSTANT PRESSURE', minus: 'DRINKS ENERGY. SPREADS AS YOU HOLD IT. SLOWS YOU FIRING. HALF DAMAGE TO HEAVIES',
@@ -53,6 +53,28 @@ export const MUTATIONS = {
     mods: (t) => ({ dmgTaken: 1 + 0.12 - t * 0.02 }),
     move: () => ({ speed: 1.06, accel: 1.15, jump: 1.05 }),
     moveNote: () => '6% FASTER, EXPOSED',
+  },
+  hook: {
+    id: 'hook', name: 'TENDON HOOK', kind: 'tech', sources: ['scout'], nodes: ['Mut_Hook', 'Mut_HookDark', 'Mut_HookCable', 'Mut_HookFlesh'], infect: 0.7,
+    trunk: ['Tor_Hook', 'Tor_HookDark', 'Tor_HookCable', 'Tor_HookFlesh'], limbK: 0.0, massK: 0.025, hud: '#b0b4b8',
+    note: 'THE ARM SHOOTS OUT AND TAKES HOLD. LIGHT MACHINES COME TO YOU. YOU GO TO HEAVY ONES, AND TO ANY SURFACE.',
+    role: 'CONTROL AND MOVEMENT', plus: 'YANKS MACHINES OFF THEIR FEET. CARRIES YOU ANYWHERE YOU CAN SEE. RAISED, YOU ARE AGILE', minus: 'BARELY HURTS. ONE TARGET. BRINGS THEM INTO YOUR FACE. YOU CANNOT STEER WHILE PULLED',
+    style: { rim: 0xc8d0d8, suck: 0x000000, suckI: 0, grip: 0, spread: 0, swell: 0.05, weapon: 0.85, noMouth: true, roll: 2.3 },
+    attack: { type: 'hook', dmg: [8, 11, 14], range: [17, 20, 23], stun: [0.6, 0.75, 0.9], rate: [0.95, 0.8, 0.65], cost: [12, 12, 12] },
+    mods: () => ({ dmgTaken: 1.05 }),
+    move: () => ({ accel: 1.35 }),
+    moveNote: () => 'AGILE',
+  },
+  acid: {
+    id: 'acid', name: 'ACID GLAND', kind: 'organic', sources: ['bladder'], nodes: ['Mut_Acid', 'Mut_AcidFlesh', 'Mut_AcidGlow'], infect: 0.6,
+    trunk: ['Tor_Acid', 'Tor_AcidFlesh', 'Tor_AcidGlow'], limbK: 0.12, massK: 0.045, hud: '#9aa040',
+    note: 'SPITS A GLOB ON A SLOW ARC. THE POOL EATS MACHINES AND WEAKENS THEM. IT CAN HURT YOU TOO.',
+    role: 'CONTROLLING GROUND', plus: 'POOL DAMAGES, SLOWS, AND MAKES MACHINES TAKE 40% MORE FROM EVERYTHING. ABSORBING HEALS YOU 30% MORE', minus: 'SLOW ARC, EASY TO DODGE. LITTLE DAMAGE AT ONCE. THE POOL BURNS YOU TOO',
+    style: { rim: 0xb0c050, suck: 0x000000, suckI: 0, grip: 0, spread: 0, swell: 0.3, weapon: 0.8, noMouth: false, roll: 2.2 },
+    attack: { type: 'acid', dmg: [8, 11, 14], dot: [12, 16, 21], radius: [2.4, 2.8, 3.2], speed: 17, lift: 4.5, life: 4, rate: [1.0, 0.9, 0.8], cost: [16, 16, 16], corrode: 1.4 },
+    mods: () => ({ absorbHeal: 1.3 }),
+    move: () => ({}),
+    moveNote: () => 'WET, CORROSIVE',
   },
 };
 

@@ -45,6 +45,28 @@ pr = B()
 for i in range(18):
     a = i / 18 * 2 * PI; pr.blob((math.cos(a) * 0.6, 0.0 + 0.012 * math.sin(a * 5), math.sin(a) * 0.82), 0.016, seg=7, rows=4)
 pr.make('ShellPores', M['lamp'], uv=4.0)
+# ================================================================ THE BLADDERBACK: a second harmless grazer. A soft fat body carrying its stomach on the outside: swollen, faintly lit sacs on a low wet crawl of stubby feet.
+M.update({'blskin': mat('BladderSkin', '#3b2a22', 0.42), 'blsac': mat('BladderSac', '#26280f', 0.18, 0.0, '#4c5812', 0.32), 'blfoot': mat('BladderFoot', '#5a4238', 0.5), 'blglow': mat('BladderDuct', '#6c7a22', 0.3, 0.0, '#a8c030', 1.6)})
+bb = B()
+def bbody(u, v):
+    a = u * 2 * PI; th = v * PI
+    lump = 1 + noise.noise(Vector((math.cos(a) * 1.6, math.sin(a) * 1.6, v * 2.6))) * 0.13 + noise.noise(Vector((math.cos(a) * 4, math.sin(a) * 4, v * 7))) * 0.035
+    y = math.cos(th) * 0.3 * lump + 0.36
+    return Vector((math.sin(th) * math.cos(a) * 0.5 * lump, max(0.06, y), math.sin(th) * math.sin(a) * 0.72 * lump))
+bb.grid(bbody, 44, 26, closed_u=True); bb.make('Bladder', M['blskin'], grime=0.2, uv=2.5)
+bs = B(); bd = B()
+for x, y, z, r0 in ((0.0, 0.66, 0.06, 0.26), (0.25, 0.56, -0.2, 0.17), (-0.26, 0.56, -0.16, 0.18), (0.26, 0.55, 0.3, 0.16), (-0.24, 0.56, 0.32, 0.17), (0.0, 0.62, -0.42, 0.13), (0.0, 0.54, 0.54, 0.12)):
+    bs.blob((x, y, z), r0, sx=1.0, sy=0.86, sz=1.1, seg=20, rows=14)
+    for q in range(3):
+        an = q * 2.1 + x * 9; p0 = Vector((x + math.cos(an) * r0 * 0.95, y - r0 * 0.1, z + math.sin(an) * r0 * 0.95)); pm = Vector((x + math.cos(an) * r0 * 1.0, y - r0 * 0.62, z + math.sin(an) * r0 * 1.02)); p1 = Vector((x * 0.96 + math.cos(an) * r0 * 0.92, y - r0 * 1.05, z * 0.98 + math.sin(an) * r0 * 0.92))
+        bd.tube([p0, pm, p1], [0.008, 0.007, 0.004], sides=5, rings=7)
+bs.make('BladderSacs', M['blsac'], uv=3.0); bd.make('BladderDucts', M['blglow'], uv=1.0)
+bf = B()
+for i in range(8):
+    a = (i + 0.5) / 8 * 2 * PI; x, z = math.cos(a) * 0.42, math.sin(a) * 0.6
+    bf.tube([(x * 0.8, 0.16, z * 0.8), (x * 1.12, 0.08, z * 1.12), (x * 1.26, 0.03, z * 1.26)], [0.075, 0.06, 0.038], sides=9, rings=8)
+bf.tube([(0, 0.3, -0.62), (0, 0.27, -0.78), (0, 0.2, -0.88)], [0.14, 0.11, 0.07], sides=12, rings=10)     # the blunt wet head
+bf.make('BladderFoot', M['blfoot'], uv=3.0)
 save_v2(r"art\v2_creatures.blend")
 export_all(r"public\models\v2_creatures.glb")
 print('RESULT', sum(len(o.data.polygons) for o in bpy.data.objects), 'faces', bpy.data.filepath)

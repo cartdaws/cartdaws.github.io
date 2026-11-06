@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { BARE, MUTATIONS, SLOTS, ENERGY_MAX, ENERGY_REGEN, TIER_GROW, MAX_TIER, COPY_BONUS } from './mutations.js';
+import { BARE, MUTATIONS, SLOTS, ENERGY_MAX, ENERGY_REGEN, TIER_GROW, MAX_TIER, STACK_BONUS } from './mutations.js';
 import { Inspect } from './inspect.js';
+import { Abilities } from './abilities.js';
 import { v2node } from './assets.js';
 import { makeV2Skin, makeGrowthMaterial } from './armskin.js';
 import { MutationWheel } from './wheel.js';
@@ -19,7 +20,7 @@ export class Evolution {
     try { this.codex = new Set(JSON.parse(localStorage.getItem(CODEX) || '[]')); } catch (e) { this.codex = new Set(); }
     this.equipped = []; this.selected = -1; this.lastSelected = -1; this.offers = []; this.qBlock = false;
     this.energy = ENERGY_MAX; this.cool = 0; this.pending = null; this.dryT = 0; this.qT = -1; this.timeScale = 1; this.beat = null; this.swap = null; this.mods = { dmgTaken: 1, speed: 1, regen: 1 };
-    this.wheel = new MutationWheel(this); this.inspect = new Inspect(game); this.chargeHit = new Set(); this.regenHold = 0; this.stats = {};
+    this.wheel = new MutationWheel(this); this.inspect = new Inspect(game); this.abilities = new Abilities(game); this.chargeHit = new Set(); this.regenHold = 0; this.stats = {};
     this.installArms();
     game.body.installV2(game.scene, game.viewmodel.skinShared);
     this.buildHud();
@@ -56,8 +57,8 @@ export class Evolution {
   get active() { const c = this.current; return c ? c.m : BARE; }
   get tierI() { const c = this.current; return c ? c.tier - 1 : 0; }
   has(id) { return this.equipped.some((q) => q.m.id === id); }
-  copies(id) { return this.equipped.filter((q) => q.m.id === id).length; }
-  copyK(id) { return 1 + COPY_BONUS * Math.max(0, this.copies(id) - 1); }
+  // Every mutation holds one limb and deepens every time you absorb its enemy. Stages 1 to 3 spread it over the limb and the body; after that it simply keeps getting stronger and bigger.
+  powerK(q) { return q ? 1 + STACK_BONUS * Math.max(0, q.n - MAX_TIER) : 1; }
   // Which two limbs are up. With nothing chosen the arms that come up are free ones, if you have any.
   raisedSlots() {
     const free = (no) => { for (let i = 0; i < SLOTS; i++) if (i !== no && !this.equipped[i]) return i; return -1; };
@@ -68,6 +69,7 @@ export class Evolution {
 
   // A new body. What you know, you still know.
   resetRun() {
+    this.abilities.reset();
     this.equipped = []; this.selected = -1; this.lastSelected = -1; this.offers = []; this.energy = ENERGY_MAX; this.cool = 0; this.pending = null; this.beat = null; this.swap = null; this.timeScale = 1; this.wheel.cancel();
     const vm = this.g.viewmodel;
     for (const arm of [vm.right, vm.left]) { for (const g of Object.values(arm.growths)) { g.front.value = 1.2; for (const me of g.meshes) me.visible = false; } arm.showing = null; arm.own.uFront.value = 1.2; arm.own.uInfect.value = 0; arm.own.uWound.value = 0; }
@@ -75,10 +77,9 @@ export class Evolution {
   }
 
   recompute() {
-    const M = { dmgTaken: 1, regen: 1 }, best = {};
-    // what a mutation does for your body it does wherever you carry it; copies do not stack, the strongest counts
-    for (const q of this.equipped) if (!best[q.m.id] || q.tier > best[q.m.id].tier) best[q.m.id] = q;
-    for (const q of Object.values(best)) { const d = q.m.mods ? q.m.mods(q.tier) : {}; for (const k in d) M[k] *= d[k]; }
+    const M = { dmgTaken: 1, regen: 1, absorbHeal: 1 };
+    // what a mutation does for your body it does wherever you carry it
+    for (const q of this.equipped) { const d = q.m.mods ? q.m.mods(q.tier) : {}; for (const k in d) M[k] *= d[k]; }
     // how you move is decided by the arm you have raised
     const c = this.current, mv = c && c.m.move ? c.m.move(c.tier) : {}, P = this.g.player;
     P.evoSpeed = mv.speed ?? 1; P.evoAccel = mv.accel ?? 1; P.evoJump = mv.jump ?? 1; P.evoDash = mv.dash ?? 1; P.evoDashT = mv.dashT ?? 1;
@@ -86,20 +87,14 @@ export class Evolution {
   }
 
   // ---------------------------------------------------------------- absorbing
-  // What you get from what you absorbed. Its own mutation first; failing that, one you already know of the same nature, which is how past lives help; failing that, what you have grows further.
+  // What you get from what you absorbed: the mutation that enemy gives. The first time it grows on a free limb. Every time after that it gets stronger.
   onAbsorbed(e) {
     const src = e.kind === 'android' ? e.variant : (e.sourceId || e.kind);
-    const nature = e.organic ? 'organic' : 'tech', all = Object.values(MUTATIONS);
-    const own = all.filter((m) => m.sources.includes(src));
-    const known = all.filter((m) => m.kind === nature && this.codex.has(m.id));
-    const pick = own.find((m) => !this.has(m.id)) || known.find((m) => !this.has(m.id));
-    if (pick) { this.grow(pick); return pick; }
-    const up = this.equipped.filter((q) => (q.m.kind === nature) && q.tier < MAX_TIER).sort((a, b) => (own.includes(b.m) ? 1 : 0) - (own.includes(a.m) ? 1 : 0) || a.tier - b.tier)[0];
-    if (up) { this.deepen(up); return up.m; }
-    // fully deepened: it spreads to a limb of its own, if you have one free
-    if (own.length && this.equipped.length < SLOTS) { this.grow(own[0]); return own[0]; }
-    this.energy = ENERGY_MAX; this.toast('', 'NOTHING MORE TO TAKE', 'Your body has no use for this. It feeds you anyway.', 2);
-    return null;
+    const m = Object.values(MUTATIONS).find((x) => x.sources.includes(src));
+    if (!m) return null;
+    const q = this.equipped.find((x) => x.m.id === m.id);
+    if (q) { this.deepen(q); return m; }
+    this.grow(m); return m;
   }
 
   grow(m) {
@@ -107,10 +102,10 @@ export class Evolution {
     if (first) { this.codex.add(m.id); try { localStorage.setItem(CODEX, JSON.stringify([...this.codex])); } catch (e) { /* optional */ } }
     // Every limb is taken: nothing is ever overwritten. You are asked, and what you absorbed has already healed and fed you, whichever you choose.
     if (this.equipped.length >= SLOTS) { this.askNinth(m, first); return; }
-    const slot = this.equipped.length, again = this.has(m.id);
-    this.equipped.push({ m, tier: 1, grow: 0.3 });
+    const slot = this.equipped.length;
+    this.equipped.push({ m, tier: 1, n: 1, grow: first ? 0.3 : 0.45 });
     this.recompute(); this.wheel.render();
-    this.startBeat(first ? 'A NEW THING GROWS' : again ? 'IT TAKES ANOTHER LIMB' : 'YOUR BODY REMEMBERS', m.name, (again ? `LIMB ${slot + 1}. EVERY LIMB GIVEN TO IT MAKES IT ${Math.round(COPY_BONUS * 100)}% STRONGER.` : m.note) + (this.selected >= 0 && !again ? '  ·  Q TO USE IT' : ''), first);
+    this.startBeat(first ? 'A NEW THING GROWS' : 'YOUR BODY REMEMBERS', m.name, m.note + (this.selected >= 0 ? '  ·  Q TO USE IT' : ''), first);
     // bare arms take the first thing that grows. After that it never takes your weapon out of your hand: it grows on another limb while you fight, and the wheel has it.
     if (this.selected < 0) { this.selected = slot; this.recompute(); }
     this.applyLook(false);
@@ -124,7 +119,7 @@ export class Evolution {
       if (k < 0) this.toast('YOU KEEP YOUR BODY', m.name, 'It fed you anyway. It can grow later, if a limb comes free.', 1.8);
       else {
         const old = this.equipped[k], up = k === this.selected;
-        this.equipped[k] = { m, tier: 1, grow: 0.3 }; this.g.body.v2?.showLimb(k);
+        this.equipped[k] = { m, tier: 1, n: 1, grow: 0.3 }; this.g.body.v2?.showLimb(k);
         this.startBeat(first ? 'A NEW THING GROWS' : 'YOUR BODY REMEMBERS', m.name, old.m.name + ' is gone. ' + m.note, false);
         this.recompute(); this.wheel.render(); this.applyLook(false);
       }
@@ -133,9 +128,9 @@ export class Evolution {
     });
   }
   deepen(q) {
-    q.tier++; this.recompute(); this.wheel.render();
+    q.n++; q.tier = Math.min(MAX_TIER, q.n); this.recompute(); this.wheel.render();
     this.nameHud(); this.g.body.v2?.showLimb(this.equipped.indexOf(q));
-    this.g.ui.rewardNote(`${q.m.name}  ·  STAGE ${q.tier}`); this.g.audio.play('gel', { vol: 0.5 }); this.g.audio.play('crack', { vol: 0.35 }); this.g.addShake(0.05);
+    this.g.ui.rewardNote(`${q.m.name}  ·  ×${q.n}` + (q.n > MAX_TIER ? `  ·  +${Math.round((this.powerK(q) - 1) * 100)}%` : `  ·  STAGE ${q.tier}`)); this.g.audio.play('gel', { vol: 0.5 }); this.g.audio.play('crack', { vol: 0.35 }); this.g.addShake(0.05);
   }
 
   // The moment it happens. The first time you ever find a mutation the world catches its breath, briefly. After that you just feel it, and keep going.
@@ -204,8 +199,9 @@ export class Evolution {
     // a blow lands a moment after the arm starts to move
     if (this.pending) { this.pending.t -= dt; if (this.pending.t <= 0) { this.land(this.pending.a); this.pending = null; } }
     const swapping = this.swap && !this.swap.done;
-    const a = this.active.attack, ti = this.tierI, want = enabled && live && !this.wheel.open && !swapping && !g.absorber.drawing;
-    const kc = this.copyK(this.active.id);
+    this.abilities.update(dt);
+    const a = this.active.attack, ti = this.tierI, want = enabled && live && !this.wheel.open && !swapping && !g.absorber.drawing && !this.abilities.busy;
+    const kc = this.powerK(this.current);
     g.player.evoFire = 1;
     if (a.type === 'shard') {
       weapon.damage = a.dmg[ti] * kc; weapon.interval = a.interval[ti]; weapon.bloomK = a.bloom ? a.bloom[ti] : undefined;
@@ -221,6 +217,8 @@ export class Evolution {
           this.energy -= a.cost[ti]; this.cool = a.rate[ti];
           if (a.type === 'melee') { vm.strike(a.dur, a.heavy); this.pending = { t: a.hitAt, a }; g.audio.play('dash', { vol: a.heavy ? 0.7 : 0.45 }); }
           else if (a.type === 'arc') { g.arsenal.arcV2({ range: a.range[ti], links: a.links[ti], radius: a.radius, dmg: a.dmg[ti] * kc, stun: a.stun[ti] }); this.regenHold = a.regenHold; }
+          else if (a.type === 'hook') this.abilities.hook(a, ti, kc);
+          else if (a.type === 'acid') this.abilities.acid(a, ti, kc);
         }
       }
       weapon.step(dt, false, false);
@@ -241,17 +239,20 @@ export class Evolution {
   // What a hit from the raised arm really does, and a record of it for the lab.
   hitDamage(e, dmg) {
     const a = this.active.attack;
-    if (a.armour && e.variant === 'heavy') { dmg *= a.armour; this.g.audio.play('clatter', { vol: 0.2 }); }
-    this.lastHit = { id: this.active.id, dmg, t: this.g.time }; this.g.lab?.gym?.onHit(this.active.id, dmg);
+    if (e.corrodeT > 0) dmg *= 1.4;      // the acid leaves it soft
+    if (a.armour && e.variant === 'heavy' && e.facing && e.facing(this.g.player.pos.x, this.g.player.pos.z) > 0.15) { dmg *= a.armour; this.g.audio.play('clatter', { vol: 0.2 }); }
+    this.noteHit(this.active.id, dmg);
     return dmg;
   }
+
+  noteHit(id, dmg) { this.g.lab?.gym?.onHit(id, dmg); }
 
   dry() { if (this.dryT <= 0) this.g.audio.play('clatter', { vol: 0.25 }); this.dryT = 0.35; }
 
   // The blow arrives. Every machine in reach and in front of you.
   land(a) {
     const g = this.g, cam = g.camera; cam.getWorldDirection(_d); _o.copy(cam.position);
-    let hits = 0; const dmg = (a.dmg[this.tierI] ?? a.dmg[0]) * this.copyK(this.active.id);
+    let hits = 0; const dmg = (a.dmg[this.tierI] ?? a.dmg[0]) * this.powerK(this.current);
     for (const e of g.enemies) {
       if (!e.alive || e.absorbing || !e.hitSpheres?.[0]) continue;
       const c = e.hitSpheres[0].c; _a.subVectors(c, _o); const d = _a.length(); if (d > a.range || d < 0.05) continue;
@@ -285,7 +286,7 @@ export class Evolution {
     for (const arm of [vm.right, vm.left]) {
       const q = arm.showing;
       if (q) {
-        const G = arm.growths[q.m.id], front = 1.03 - q.grow * 1.03; G.front.value = front; arm.own.uFront.value = front; arm.own.uWound.value = q.wound;
+        const G = arm.growths[q.m.id], front = 1.03 - q.grow * 1.03; if (G) G.front.value = front; arm.own.uFront.value = front; arm.own.uWound.value = q.wound;
         if (q.moving && Math.random() < dt * 12) { arm.root.updateWorldMatrix(true, false); const p = arm.root.localToWorld(arm.pointLocal(clamp(front + 0.02, 0.45, 1), _a)); g.effects.glowP.emit(p.x, p.y, p.z, (Math.random() - 0.5) * 1.2, -Math.random() * 0.6, (Math.random() - 0.5) * 1.2, 0.24, 0.009, 0.2, 0.03, 0.025, 6, 0.3); }
       } else { arm.own.uFront.value = 1.2; arm.own.uWound.value = 0; }
     }
@@ -294,7 +295,7 @@ export class Evolution {
   // development: fill the wheel, to prove eight limbs work without having to absorb eight things
   devFill() {
     const ids = Object.values(MUTATIONS), fill = [];
-    for (let i = 0; i < SLOTS; i++) fill.push({ m: ids[i % ids.length], tier: 1 + (i % 3), grow: 1 });
+    for (let i = 0; i < SLOTS; i++) { const t = 1 + (i % 3); fill.push({ m: ids[i % ids.length], tier: t, n: t, grow: 1 }); }
     this.equipped = fill; this.selected = 0; this.lastSelected = 1; this.recompute(); this.applyLook(true); this.wheel.render();
   }
 }

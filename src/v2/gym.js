@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { M, boxGeo, kitMaterial } from '../world/materials.js';
 import { Shellback } from './shellback.js';
-import { MUTATIONS, SLOTS, TIER_GROW, MAX_TIER, COPY_BONUS } from './mutations.js';
+import { Bladderback } from './bladderback.js';
+import { BARE, MUTATIONS, SLOTS, MAX_TIER, STACK_BONUS } from './mutations.js';
 
 // THE EVOLUTION LAB. One room where everything about evolving can be tried and compared. No story, no chapter.
 //   north wall      four specimens, each lying ready to absorb; each comes back after you take it
@@ -11,9 +12,9 @@ import { MUTATIONS, SLOTS, TIER_GROW, MAX_TIER, COPY_BONUS } from './mutations.j
 const X0 = -15, X1 = 15, Z0 = 72, Z1 = 100, H = 5.5, CZ = 86;
 const BOUNDS = { minX: X0, maxX: X1, minZ: Z0, maxZ: Z1 };
 const SPAWN = { x: 0, z: 92 };
-const SPECIMENS = [{ who: 'shellback', x: -9, z: 76, label: 'SHELLBACK', sub: 'CHITIN HUSK' }, { who: 'trooper', x: -3, z: 76, label: 'TROOPER', sub: 'SHARD SIPHON' }, { who: 'scout', x: 3, z: 76, label: 'SCOUT', sub: 'SHARD SIPHON' }, { who: 'heavy', x: 9, z: 76, label: 'HEAVY', sub: 'ARC NERVES' }];
+const SPECIMENS = [{ who: 'shellback', x: -11, z: 76, label: 'SHELLBACK', sub: 'CHITIN HUSK' }, { who: 'bladder', x: -5.5, z: 76, label: 'BLADDERBACK', sub: 'ACID GLAND' }, { who: 'trooper', x: 0, z: 76, label: 'TROOPER', sub: 'SHARD SIPHON' }, { who: 'scout', x: 5.5, z: 76, label: 'SCOUT', sub: 'TENDON HOOK' }, { who: 'heavy', x: 11, z: 76, label: 'HEAVY', sub: 'ARC NERVES' }];
 const DUMMIES = [{ v: 'trooper', x: 8.5, z: 83 }, { v: 'scout', x: 12.5, z: 86 }, { v: 'trooper', x: 8.5, z: 89 }, { v: 'heavy', x: 12.5, z: 92 }];
-const PADS = [{ id: 'squad', x: -6, z: 97, label: 'WAKE A SQUAD', prompt: 'E  ·  WAKE A SQUAD' }, { id: 'fill', x: 0, z: 97, label: 'GROW EVERY LIMB', prompt: 'E  ·  GROW EVERY LIMB' }, { id: 'reset', x: 6, z: 97, label: 'A NEW BODY', prompt: 'E  ·  A NEW BODY' }];
+const PADS = [{ id: 'squad', x: -6, z: 97, label: 'WAKE A SQUAD', prompt: 'E  ·  WAKE A SQUAD' }, { id: 'fill', x: 0, z: 97, label: 'TRY THE 8-LIMB CHOICE', prompt: 'E  ·  FILL EMPTY LIMBS WITH STAND-INS' }, { id: 'reset', x: 6, z: 97, label: 'A NEW BODY', prompt: 'E  ·  A NEW BODY' }];
 const jumpOf = (k) => { const v = 9.9 * k; return (v * v) / 54; };
 
 function sign(text, sub, w = 3.2) {
@@ -60,13 +61,14 @@ export class Gym {
     // pads
     for (const p of PADS) { mark(p.x, p.z, 1.1, M.white).scale.y = 0.4; const t = sign(p.label, ''); t.position.set(p.x, 2.6, Z1 - 0.06); t.rotation.y = Math.PI; G.add(t); }
     // something to take cover behind in a fight
+    for (const [x, z] of [[-6.5, 85], [-3.2, 80], [4.2, 80.5], [5.6, 90]]) { blk(x - 0.6, x + 0.6, 0, 3.2, z - 0.6, z + 0.6, kitMaterial('PaintStructural')); blk(x - 0.64, x + 0.64, 0, 0.3, z - 0.64, z + 0.64, dark, false); }
     g.kit.solid(G, W, 'crate_A', -3, 84, 0, 0, 'gym'); g.kit.solid(G, W, 'crate_B', 3.4, 86, 0, 0, 'gym'); g.kit.solid(G, W, 'barrier_22', 0, 81, 0, 0, 'gym');
     this.buildHud();
   }
 
   buildHud() {
     const el = this.el = document.createElement('div'); el.id = 'v2-gym'; el.className = 'hidden';
-    el.innerHTML = '<h4>EVOLUTION LAB</h4><table><thead><tr><th></th><th>STAGE</th><th>LIMBS</th><th>SPEED</th><th>JUMP</th><th>HIT TAKEN</th><th>BEST DPS</th></tr></thead><tbody></tbody></table><div class="card"></div><div class="keys">Q HOLD: WHEEL &nbsp;·&nbsp; 1-8: RAISE A LIMB &nbsp;·&nbsp; RIGHT CLICK: ABSORB &nbsp;·&nbsp; HOLD V: SEE YOURSELF</div>';
+    el.innerHTML = '<h4>EVOLUTION LAB</h4><table><thead><tr><th></th><th>STAGE</th><th>ABSORBED</th><th>SPEED</th><th>JUMP</th><th>HIT TAKEN</th><th>BEST DPS</th></tr></thead><tbody></tbody></table><div class="card"></div><div class="keys">Q HOLD: WHEEL &nbsp;·&nbsp; 1-8: RAISE A LIMB &nbsp;·&nbsp; RIGHT CLICK: ABSORB &nbsp;·&nbsp; HOLD V: SEE YOURSELF</div>';
     document.body.appendChild(el); this.body = el.querySelector('tbody'); this.card = el.querySelector('.card');
     const st = document.createElement('style');
     st.textContent = '#v2-gym{position:fixed;left:24px;top:64px;z-index:5;width:430px;pointer-events:none;color:#d8d2c8;background:rgba(8,10,12,.42);border:1px solid rgba(214,208,200,.14);padding:10px 12px;font-size:10px;letter-spacing:.06em;line-height:1.4;text-shadow:0 1px 3px #000}#v2-gym.hidden{display:none}#v2-gym h4{margin:0 0 6px;font-size:11px;letter-spacing:.24em;font-weight:600;color:#e0a0a8}#v2-gym table{width:100%;border-collapse:collapse}#v2-gym th{font-weight:400;font-size:8.5px;letter-spacing:.08em;color:#a8a29a;text-align:right;padding:0 0 3px 6px}#v2-gym td{text-align:right;padding:2px 0 2px 6px}#v2-gym td:first-child{text-align:left;padding-left:0;white-space:nowrap}#v2-gym tr.up td{color:#fff;font-weight:600}#v2-gym tr.none td{opacity:.42}#v2-gym .card{margin-top:7px;border-top:1px solid rgba(214,208,200,.14);padding-top:6px}#v2-gym .card b{letter-spacing:.14em;font-weight:600}#v2-gym .card em{display:block;font-style:normal;margin-top:2px}#v2-gym .card em.p{color:#b6c8a8}#v2-gym .card em.m{color:#d4a0a0}#v2-gym .keys{margin-top:7px;font-size:8.5px;color:#a8a29a}body.v2-inspect #v2-gym{opacity:.25}';
@@ -101,7 +103,7 @@ export class Gym {
 
   spawnSpecimen(s) {
     const g = this.g;
-    if (s.who === 'shellback') { const c = new Shellback(g, s.x, s.z); c.home = [s.x, s.z]; c.tether = true; g.critters.push(c); this.specimens[s.who] = c; return; }
+    if (s.who === 'shellback' || s.who === 'bladder') { const c = s.who === 'bladder' ? new Bladderback(g, s.x, s.z) : new Shellback(g, s.x, s.z); c.home = [s.x, s.z]; g.critters.push(c); this.specimens[s.who] = c; return; }
     const e = g.makeEnemy({ type: 'android', variant: s.who, x: s.x, z: s.z }); e.noReboot = true; e.yaw = e.group.rotation.y = Math.PI; g.enemies.push(e); e.activate(); e.takeDamage(e.hp * 0.85, null); this.specimens[s.who] = e;
   }
   spawnDummy(d) { const g = this.g, e = g.makeEnemy({ type: 'android', variant: d.v, x: d.x, z: d.z }); e.warning = true; e.yaw = e.group.rotation.y = -Math.PI / 2; e.inert = true; g.enemies.push(e); this.dummies.push({ d, e }); }
@@ -116,16 +118,13 @@ export class Gym {
     this.dirty = true;
   }
 
+  // The test room can show the eight-limb choice before there are nine real mutations: stand-ins hold the empty limbs, and do nothing.
   fill() {
-    const E = this.g.evolution, have = Object.values(MUTATIONS).filter((m) => E.has(m.id)), pick = have.length ? have : [MUTATIONS.husk];
-    // one kind is left off on purpose if it can be: absorbing it then asks the eight-limb question
-    const kinds = pick.length === 3 ? pick : pick.length === 1 && pick[0].id === 'husk' ? [MUTATIONS.husk, MUTATIONS.shard] : pick;
-    let i = 0;
-    while (E.equipped.length < SLOTS) { const m = kinds[i++ % kinds.length]; E.equipped.push({ m, tier: MAX_TIER, grow: 1 }); E.codex.add(m.id); }
-    if (E.selected < 0) E.selected = 0;
+    const E = this.g.evolution;
+    while (E.equipped.length < SLOTS) { const k = E.equipped.length + 1; E.equipped.push({ m: { id: 'standin' + k, name: 'STAND-IN ' + k, kind: 'test', sources: [], nodes: [], infect: 0, note: '', role: 'FOR TESTING', plus: 'HOLDS THIS LIMB', minus: 'DOES NOTHING', style: BARE.style, attack: BARE.attack, mods: () => ({}), move: () => ({}), hud: '#55504c', limbK: 0, massK: 0 }, tier: 1, n: 1, grow: 1 }); }
     E.recompute(); E.wheel.render(); E.applyLook(false);
     E.toast('EIGHT LIMBS', 'NO LIMB LEFT', 'Now absorb something you do not carry. You will be asked.', 3);
-    this.g.audio.play('crack', { vol: 0.7 }); this.g.audio.play('gel', { vol: 0.8 });
+    this.g.audio.play('gel', { vol: 0.6 });
   }
 
   wake() {
@@ -158,11 +157,11 @@ export class Gym {
   renderHud() {
     const E = this.g.evolution, rows = [];
     for (const m of Object.values(MUTATIONS)) {
-      const list = E.equipped.filter((q) => q.m.id === m.id), t = list.reduce((a, q) => Math.max(a, q.tier), 0), T = t || 1, mv = m.move(T), mo = m.mods(T), raised = E.active.id === m.id;
-      rows.push(`<tr class="${raised ? 'up' : ''}${t ? '' : ' none'}"><td>${m.name}</td><td>${t || '-'}</td><td>${list.length || '-'}</td><td>${(7.2 * (mv.speed ?? 1)).toFixed(1)}</td><td>${jumpOf(mv.jump ?? 1).toFixed(2)}</td><td>${Math.round((mo.dmgTaken ?? 1) * 100)}%</td><td>${this.stats[m.id] ? Math.round(this.stats[m.id].dps) : '-'}</td></tr>`);
+      const q = E.equipped.find((x) => x.m.id === m.id), t = q ? q.tier : 0, T = t || 1, mv = m.move(T), mo = m.mods(T), raised = E.active.id === m.id;
+      rows.push(`<tr class="${raised ? 'up' : ''}${t ? '' : ' none'}"><td>${m.name}</td><td>${t || '-'}</td><td>${q ? q.n : '-'}</td><td>${(7.2 * (mv.speed ?? 1)).toFixed(1)}</td><td>${jumpOf(mv.jump ?? 1).toFixed(2)}</td><td>${Math.round((mo.dmgTaken ?? 1) * 100)}%</td><td>${this.stats[m.id] ? Math.round(this.stats[m.id].dps) : '-'}</td></tr>`);
     }
     this.body.innerHTML = rows.join('');
-    const a = E.active; const dash = a.move ? (a.move(E.current?.tier || 1).dash ?? 1) * 18 : 18, extra = E.current && E.copies(a.id) > 1 ? `  ·  ${E.copies(a.id)} LIMBS: +${Math.round(COPY_BONUS * 100 * (E.copies(a.id) - 1))}%` : '';
+    const a = E.active; const dash = a.move ? (a.move(E.current?.tier || 1).dash ?? 1) * 18 : 18, extra = E.current && E.current.n > MAX_TIER ? `  ·  ×${E.current.n}: +${Math.round((E.powerK(E.current) - 1) * 100)}%` : '';
     this.card.innerHTML = `<b>${a.name}</b>  ·  ${a.role}${extra}<em class="p">+ ${a.plus}</em><em class="m">− ${a.minus}</em><em>DASH ${dash.toFixed(0)} M/S</em>`;
   }
 }

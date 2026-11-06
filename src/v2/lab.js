@@ -1,5 +1,6 @@
 import { Shellback } from './shellback.js';
 import { Gym } from './gym.js';
+import { Bladderback } from './bladderback.js';
 
 // The testing chapter: a generated deck, security androids, something to absorb. Death starts the chapter again in a new body, in a newly generated place, knowing what you knew.
 // No story lives here. It exists to answer one question: is absorbing, evolving and using what you became satisfying?
@@ -50,8 +51,8 @@ export class Lab {
 
   populate() {
     const g = this.g;
-    for (const [x, z] of BAY) g.critters.push(new Shellback(g, x, z));
-    for (const r of g.run.rooms) if (r.voiceSpot && !r.voiceSpot.y) g.critters.push(new Shellback(g, r.voiceSpot.x, r.voiceSpot.z));
+    g.critters.push(new Shellback(g, BAY[0][0], BAY[0][1]), new Bladderback(g, BAY[1][0], BAY[1][1]));
+    let k = 0; for (const r of g.run.rooms) if (r.voiceSpot && !r.voiceSpot.y) g.critters.push(new (k++ % 2 ? Shellback : Bladderback)(g, r.voiceSpot.x, r.voiceSpot.z));
   }
 
   // Death. A new individual, a new place. The body and what grew on it are gone; what you discovered is not.

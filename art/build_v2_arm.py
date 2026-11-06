@@ -26,6 +26,8 @@ M = {
   'ceramic': mat('Ceramic', '#6f6a62', 0.34, 0.0),
   'shardglow': mat('ShardGlow', '#8ff5d8', 0.2, 0.0, '#7ff5d0', 3.5),
   'arcglow': mat('ArcGlow', '#a8d8ff', 0.2, 0.0, '#8fc8ff', 4.0),
+  'sac': mat('AcidSac', '#26280f', 0.18, 0.0, '#4c5812', 0.32),
+  'sacglow': mat('AcidDuct', '#6c7a22', 0.3, 0.0, '#a8c030', 1.6),
 }
 
 # ================================================================ THE SKIN
@@ -223,6 +225,49 @@ while s < 0.93:
 fl.make('Mut_ShardFlesh', M['flesh'], uv=8.0); rg.make('Mut_ShardRings', M['black'], grime=0.1, uv=10.0)
 fa.make('Mut_ArcFlesh', M['flesh'], uv=8.0); fc.make('Mut_CarapaceFlesh', M['flesh'], uv=8.0)
 
+# ================================================================ TENDON HOOK: biomechanical. A cable wound tight round the arm, reels let into the flesh, a barbed claw where the tip was.
+hs_ = B(); hd_ = B(); hc_ = B(); hf_ = B()
+pts = []; n = 150
+for q in range(n + 1):
+    k = q / n; s = 0.2 + 0.72 * k; pts.append(surf(s, BACK + k * 2 * PI * 7.5, 0.0035))
+hc_.tube(pts, [0.0072, 0.0066, 0.005], sides=6, rings=n + 1, cap=True)
+for s0, r0 in ((0.3, 0.036), (0.5, 0.031), (0.7, 0.025)):
+    hs_.tube([surf(s0 - 0.03, BACK, 0.03), surf(s0 + 0.03, BACK, 0.03)], [r0, r0], sides=14, rings=4)
+    hd_.tube([surf(s0 - 0.034, BACK, 0.03), surf(s0 - 0.026, BACK, 0.03)], [r0 + 0.007, r0 + 0.007], sides=14, rings=3)
+    hd_.tube([surf(s0 + 0.026, BACK, 0.03), surf(s0 + 0.034, BACK, 0.03)], [r0 + 0.007, r0 + 0.007], sides=14, rings=3)
+    hd_.blob(surf(s0, BACK, 0.03 + r0), 0.008, seg=8, rows=4)
+    scute(hf_, s0, 0.06, BACK, 0.7, 0.014, ridge=0.0, nu=10, nv=8)
+    flesh_ring(hf_, s0 - 0.05, 0.0, 0.0065); flesh_ring(hf_, s0 + 0.05, 0.0, 0.0065)
+for j in range(4):
+    a = BACK + j * PI / 2 + 0.4; p0 = surf(0.915, a, 0.002); out = Vector((math.cos(a), math.sin(a), 0))
+    p1 = p0 + out * 0.03 + Vector((0, 0, -0.04)); p2 = p0 + out * 0.058 + Vector((0, 0, -0.1)); p3 = p0 + out * 0.03 + Vector((0, 0, -0.155))
+    hs_.tube([p0, p1, p2, p3], [0.0135, 0.0125, 0.0085, 0.0015], sides=8, rings=14)           # a barb, curling back in
+    socket(hf_, 0.915, a, 0.012)
+hd_.tube([surf(0.885, BACK - PI, 0.006), surf(0.905, BACK - PI, 0.006)], [0.06, 0.056], sides=16, rings=3)
+n_ = 34; pts = [surf(0.9, BACK - PI + 2 * PI * q / (n_ - 1), 0.004) for q in range(n_)]; hd_.tube(pts, [0.009, 0.009], sides=8, rings=n_)
+hs_.make('Mut_Hook', M['steel'], grime=0.26, uv=9.0); hd_.make('Mut_HookDark', M['dark'], grime=0.24, uv=9.0); hc_.make('Mut_HookCable', M['black'], grime=0.1, uv=10.0); hf_.make('Mut_HookFlesh', M['flesh'], uv=8.0)
+
+# ================================================================ ACID GLAND: organic. Bloated sacs swollen out of the back of the arm, ducts running between them, a wet lipped opening at the tip.
+ac_ = B(); af_ = B(); ag_ = B()
+s = 0.2; j = 0
+while s < 0.88:
+    k = (s - 0.2) / 0.68; r0 = 0.05 - 0.024 * k
+    for sg in (-1, 1):
+        if j % 2 == 0 or sg == 1:
+            a = BACK + sg * (0.55 + 0.3 * math.sin(j * 1.7)); c = surf(s + 0.02 * sg * (j % 2), a, r0 * 0.5)
+            ac_.blob(c, r0 * (0.9 + 0.2 * math.sin(j * 2.3 + sg)), sx=1.0, sy=0.9, sz=1.35, seg=14, rows=10)
+            scute(af_, s + 0.02 * sg * (j % 2), r0 * 0.75, a, 0.62, r0 * 0.3, ridge=0.0, nu=8, nv=6)
+    s += r0 * 2.0 / 2.2 * 0.95; j += 1
+for sg in (-1, 1):
+    pts = []; m = 24
+    for q in range(m + 1):
+        k = q / m; pts.append(surf(0.18 + 0.74 * k, BACK + sg * (0.95 + 0.14 * math.sin(k * 19)), 0.003))
+    ag_.tube(pts, [0.0058, 0.005, 0.0035], sides=6, rings=m + 8)
+n_ = 30; pts = [surf(0.93, BACK - PI + 2 * PI * q / (n_ - 1), 0.0, ) for q in range(n_)]; af_.tube(pts, [0.016, 0.016], sides=9, rings=n_)
+n_ = 30; pts = [surf(0.955, BACK - PI + 2 * PI * q / (n_ - 1), -0.004) for q in range(n_)]; af_.tube(pts, [0.012, 0.012], sides=9, rings=n_)
+ag_.blob(surf(0.965, UNDER, -0.04), 0.03, seg=10, rows=6)
+ac_.make('Mut_Acid', M['sac'], uv=4.0); af_.make('Mut_AcidFlesh', M['flesh'], uv=8.0); ag_.make('Mut_AcidGlow', M['sacglow'], uv=1.0)
+
 # ================================================================ THE TORSO: what you see of yourself looking down. A heavy soft column from under your line of sight to the floor, folding out into the roots of the six limbs on the ground. Its top is out of view; there are no eyes on it, because you are looking out of them.
 ROOTS = [-1.18, 1.18, -1.96, 1.96, -2.75, 2.75, -0.39, 0.39]       # the limbs' angles in the game: x = sin(a), z = -cos(a)
 TOP, BOT = 1.42, 0.3
@@ -366,6 +411,35 @@ for a0, v1 in ((0.0, 0.08), (0.7, 0.12), (-0.7, 0.12), (1.6, 0.1), (-1.6, 0.1)):
     ag.tube(pts, [0.0095, 0.007, 0.0035], sides=6, rings=18)
 ac.make('Tor_Arc', M['copper'], grime=0.2, uv=10.0); ai.make('Tor_ArcCeramic', M['ceramic'], grime=0.2, uv=6.0); ad.make('Tor_ArcDark', M['dark'], grime=0.2, uv=8.0)
 ag.make('Tor_ArcGlow', M['arcglow'], uv=1.0); af.make('Tor_ArcFlesh', M['flesh'], uv=8.0)
+
+# --- HOOK: two great reels sunk in the flanks, cable running from them to every limb root and wound round the trunk. They stick out either side, so the outline widens.
+rs = B(); rd_ = B(); rc = B(); rf = B()
+for sg in (-1, 1):
+    a = sg * PI / 2; c = ts(a, 0.42, 0.06); out = Vector((c.x, 0, c.z - 0.2)).normalized()
+    rs.tube([c - out * 0.05, c + out * 0.09], [0.155, 0.155], sides=22, rings=3); rd_.tube([c + out * 0.085, c + out * 0.115], [0.11, 0.05], sides=18, rings=3); rd_.tube([c + out * 0.03, c + out * 0.05], [0.175, 0.175], sides=22, rings=3); rd_.tube([c - out * 0.055, c - out * 0.035], [0.175, 0.175], sides=22, rings=3)
+    tplate(rf, a, 0.62, 0.42, 0.19, 0.05, nu=10, nv=9, ridge=0.0, shade=False)
+    for a2 in (sg * 0.39, sg * 1.18, sg * 1.96, sg * 2.75):
+        rc.tube([c + out * 0.02, ts((a + a2) / 2, 0.62, 0.05), ts(a2, 0.8, 0.02), ts(a2, 0.84, -0.01)], [0.013, 0.012, 0.011, 0.01], sides=7, rings=16)
+        tsocket(rf, a2, 0.84, 0.016)
+for v in (0.16, 0.24):
+    tring(rc, v, 0.006, 0.0075, sides=6, n=48)
+rs.make('Tor_Hook', M['steel'], grime=0.26, uv=9.0); rd_.make('Tor_HookDark', M['dark'], grime=0.24, uv=9.0); rc.make('Tor_HookCable', M['black'], grime=0.1, uv=10.0); rf.make('Tor_HookFlesh', M['flesh'], uv=8.0)
+
+# --- ACID: sacs swollen out of the back and flanks, heavy and low, so the body sags with what it carries.
+ts_ = B(); tf_ = B(); tg_ = B()
+SACS = [(PI, 0.46, 0.2), (PI + 0.75, 0.62, 0.17), (PI - 0.75, 0.62, 0.17), (PI + 0.42, 0.26, 0.13), (PI - 0.42, 0.26, 0.13), (PI + 1.5, 0.76, 0.13), (PI - 1.5, 0.76, 0.13), (PI, 0.76, 0.14), (1.0, 0.72, 0.09), (-1.0, 0.72, 0.09)]
+for a0, v0, r0 in SACS:
+    c = ts(a0, v0, r0 * 0.5); ts_.blob(c, r0, sx=1.0, sy=1.12, sz=1.0, seg=20, rows=14)
+    tplate(tf_, a0, r0 * 3.1, v0, r0 * 0.75, r0 * 0.26, nu=9, nv=7, ridge=0.0, shade=False)
+    for q in range(3):
+        an = q * 2.1 + a0 * 3; d0 = c + Vector((math.cos(an) * r0 * 0.98, math.sin(an * 1.3) * r0 * 0.5, math.sin(an) * r0 * 0.98))
+        tg_.tube([d0, ts(a0 + 0.2 * math.cos(an), v0 + 0.1, 0.008)], [0.0065, 0.004], sides=5, rings=5)
+for a0 in ROOTS_:
+    pts = []; m = 10
+    for q in range(m + 1):
+        k = q / m; pts.append(ts(a0 * (0.8 + 0.2 * k) + (PI if a0 > 3 else 0) * 0, 0.58 + 0.28 * k, 0.006))
+    tg_.tube(pts, [0.0075, 0.006, 0.004], sides=6, rings=20)
+ts_.make('Tor_Acid', M['sac'], uv=4.0); tf_.make('Tor_AcidFlesh', M['flesh'], uv=8.0); tg_.make('Tor_AcidGlow', M['sacglow'], uv=1.0)
 
 save_v2(r"art\v2_arm.blend")
 export_all(r"public\models\v2_arm.glb")

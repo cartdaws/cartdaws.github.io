@@ -3,6 +3,7 @@ import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.j
 import { Enemy } from './enemy.js';
 import { clamp, damp, yawTo, angleDiff, lerp, smooth, rand } from '../../core/util.js';
 import { LAB } from '../../v2/flags.js';
+import { v2node, v2prefix } from '../../v2/assets.js';
 
 const SHOT_SPEED = 16;
 const _dir = { x: 0, z: 0 };
@@ -26,7 +27,16 @@ export const ANDROID_VARIANTS = {
   heavy: { hp: 110, scale: 1.18, speed: 2.2, burst: 3, dmg: 14, heal: 32, shot: 'plasma', shotSpeed: 10, body: 0x24292d, armor: 0x5d666d, trim: 0xa8281c, keep: [7, 14], aimT: 0.85, gap: 0.38, bulky: true },
 };
 
+// Where the joints of each Blender model are (art/build_v2_androids.py). The scout's legs bend the other way, so its knee sits forward and its ankle behind.
+const RIG = {
+  trooper: { key: 'T', hips: 0.95, torso: 0.08, head: 0.7, sh: [0.3, 0.56], el: -0.33, gun: -0.26, hip: [0.12, -0.04], kn: [0, -0.44, 0], ft: [0, -0.44, 0], muzzle: -0.4 },
+  scout: { key: 'S', hips: 0.95, torso: 0.08, head: 0.6, sh: [0.21, 0.46], el: -0.3, gun: -0.24, hip: [0.1, -0.04], kn: [0, -0.36, -0.14], ft: [0, -0.32, 0.2], muzzle: -0.4 },
+  heavy: { key: 'H', hips: 0.95, torso: 0.08, head: 0.66, sh: [0.44, 0.58], el: -0.32, gun: -0.24, hip: [0.16, -0.04], kn: [0, -0.44, 0], ft: [0, -0.44, 0], muzzle: -0.4 },
+};
 if (LAB) {
+  Object.assign(ANDROID_VARIANTS.trooper, { armor: 0x8d969c });
+  Object.assign(ANDROID_VARIANTS.scout, { armor: 0xa2aaa8 });
+  Object.assign(ANDROID_VARIANTS.heavy, { armor: 0x505a60 });
   Object.assign(ANDROID_VARIANTS.trooper, { hp: 40, speed: 4.2, dmg: 9, shotSpeed: 26, aimT: 0.5, gap: 0.16, keep: [5, 10] });
   Object.assign(ANDROID_VARIANTS.scout, { hp: 22, speed: 6.4, dmg: 5, shotSpeed: 34, aimT: 0.36, gap: 0.08, keep: [4, 9] });
   Object.assign(ANDROID_VARIANTS.heavy, { hp: 85, speed: 2.8, burst: 3, dmg: 16, shotSpeed: 15, aimT: 0.7, gap: 0.3, keep: [6, 12] });
@@ -57,7 +67,42 @@ export class SecurityAndroid extends Enemy {
     this.syncSpheres();
   }
 
+  // V2: the Blender machine, one piece at a time on its own joint, so that it can later be torn apart one piece at a time.
+  buildModel() {
+    const v = this.v, r = RIG[this.variant], src = (n) => v2node(n)?.material;
+    const grime = !!v2node('T__torso__plate__1')?.geometry.attributes.color;
+    const mk = (color, rough, metal, normal) => this.trackFlash(new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, emissive: 0x000000, vertexColors: grime, normalMap: normal || null }));
+    const mats = {
+      plate: mk(v.armor, 0.42, 0.3, src('T__torso__plate__1')?.normalMap), body: mk(v.body, 0.5, 0.45, src('T__torso__body__1')?.normalMap), trim: mk(v.trim, 0.45, 0.45), joint: mk(0x1a1e21, 0.52, 0.5),
+      cable: new THREE.MeshStandardMaterial({ color: 0x0e1012, roughness: 0.62, metalness: 0.1 }),
+    };
+    this.visorMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xff2a10, emissiveIntensity: 0.3 });
+    this.gunMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xff5a20, emissiveIntensity: 0.2 });
+    this.lightMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: v.trim, emissiveIntensity: 1.2 });
+    this.coreMat = new THREE.MeshStandardMaterial({ color: 0x201408, emissive: 0xff9a3c, emissiveIntensity: 1.8 });
+    Object.assign(mats, { visor: this.visorMat, gun: this.gunMat, light: this.lightMat, core: this.coreMat });
+    const pivot = (parent, x, y, z) => { const g = new THREE.Group(); g.position.set(x, y, z); parent.add(g); return g; };
+    this.hips = pivot(this.group, 0, r.hips, 0); this.torso = pivot(this.hips, 0, r.torso, 0); this.head = pivot(this.torso, 0, r.head, 0);
+    const parts = { hips: this.hips, torso: this.torso, head: this.head };
+    this.arms = [-1, 1].map((s) => {
+      const side = s < 0 ? 'L' : 'R', sh = pivot(this.torso, s * r.sh[0], r.sh[1], 0), el = pivot(sh, 0, r.el, 0); parts['sh' + side] = sh; parts['el' + side] = el;
+      let gun = null, muzzle = null;
+      if (s > 0) { gun = pivot(el, 0, r.gun, 0); parts.gun = gun; muzzle = new THREE.Object3D(); muzzle.position.set(0, 0, r.muzzle); gun.add(muzzle); }
+      return { s, sh, el, muzzle, gun };
+    });
+    this.muzzle = this.arms[1].muzzle;
+    this.legs = [-1, 1].map((s) => {
+      const side = s < 0 ? 'L' : 'R', hp = pivot(this.hips, s * r.hip[0], r.hip[1], 0), kn = pivot(hp, r.kn[0], r.kn[1], r.kn[2]), ft = pivot(kn, r.ft[0], r.ft[1], r.ft[2]); parts['hp' + side] = hp; parts['kn' + side] = kn; parts['ft' + side] = ft;
+      return { s, hp, kn, ft };
+    });
+    for (const name of v2prefix(r.key + '__')) {
+      const [, part, role] = name.split('__'), m = new THREE.Mesh(v2node(name).geometry, mats[role]);
+      m.castShadow = false; parts[part].add(m);
+    }
+  }
+
   build() {
+    if (LAB && v2node('T__torso__body__1')) { this.buildModel(); return; }
     const v = this.v, w = v.slim ? 0.86 : v.bulky ? 1.2 : 1;
     const body = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.body, roughness: 0.45, metalness: 0.45, emissive: 0x000000 }));
     const plate = this.trackFlash(new THREE.MeshStandardMaterial({ color: v.armor, roughness: 0.35, metalness: 0.25, emissive: 0x000000 }));
@@ -166,6 +211,7 @@ export class SecurityAndroid extends Enemy {
 
   // shots make it flinch and give ground
   hitReact(dx, dz, dmg) {
+    if (LAB && this.variant === 'heavy' && dmg < 25) return;
     this.flinch = Math.min(1, this.flinch + 0.35 + dmg / 60);
     const l = Math.hypot(dx, dz) || 1;
     this.vx += (dx / l) * 2.2; this.vz += (dz / l) * 2.2;
@@ -239,7 +285,8 @@ export class SecurityAndroid extends Enemy {
       const dx = p.x - this.pos.x, dz = p.z - this.pos.z, dist = Math.hypot(dx, dz) || 1;
       const face = (rate) => { this.yaw += angleDiff(this.yaw, yawTo(dx, dz)) * Math.min(1, rate * dt); };
       this.timer -= dt;
-      if (this.state === 'move') {
+      if (LAB) aiming = this.brain(dt, dx, dz, dist, face);
+      else if (this.state === 'move') {
         face(6);
         const los = this.canSee();
         this.goalT = (this.goalT || 0) - dt;
@@ -344,13 +391,15 @@ export class SecurityAndroid extends Enemy {
     this.head.rotation.y = (1 - this.aimK) * this.bootK * (Math.sin(this.lifeT * 0.83 + seedPh) * 0.55 + Math.sin(this.lifeT * 2.1 + seedPh) * 0.1);
     if (asleep > 0.01) for (const a of this.arms) { a.sh.rotation.x -= 0.2 * asleep; a.el.rotation.x += 0.15 * asleep; }
     this.torso.rotation.y = Math.sin(this.walk * 0.5) * 0.05 * m;
+    if (LAB && this.stompK > 0) { this.torso.rotation.x -= 0.4 * this.stompK; this.hips.position.y += 0.14 * this.stompK; for (const a of this.arms) a.sh.rotation.x += 0.6 * this.stompK; }
   }
 
   fire() {
     const g = this.game, p = g.player.pos;
     this.group.updateMatrixWorld(true);
     const from = this.muzzle.getWorldPosition(_v);
-    const to = _w.set(p.x + rand(-0.25, 0.25), p.y + 1.1 + rand(-0.2, 0.2), p.z + rand(-0.25, 0.25));
+    const s = LAB && this.suppress && this.seen ? this.seen : null;
+    const to = s ? _w.set(s.x + rand(-0.6, 0.6), s.y + rand(-0.4, 0.4), s.z + rand(-0.6, 0.6)) : _w.set(p.x + rand(-0.25, 0.25), p.y + 1.1 + rand(-0.2, 0.2), p.z + rand(-0.25, 0.25));
     const dir = to.sub(from).normalize();
     g.projectiles.spawnEnemy(from.clone(), dir.clone(), this.v.shotSpeed || SHOT_SPEED, this.v.dmg, this.v.shot);
     g.sfxAt('droneShot', this.pos, 1.1);
@@ -365,12 +414,132 @@ export class SecurityAndroid extends Enemy {
     this.visorMat.emissive.setRGB(0.1, 0.55, 1);
     this.gunMat.emissive.setRGB(0.1, 0.55, 1);
     this.lightMat.emissive.setRGB(0.1, 0.55, 1);
+    if (this.coreMat) { this.coreMat.emissive.setRGB(0.1, 0.55, 1); this.coreMat.emissiveIntensity = 1.1; }
     this.fallDir = Math.random() < 0.5 ? -1 : 1;
     this.game.sfxAt(this.variant === 'heavy' ? 'groan' : 'powerdown', this.pos, 1.3);
   }
 
+  // ---------------------------------------------------------------- how each one fights
+  // A squad does not all shoot at once: only so many may be lining up a shot, so being outnumbered is about being surrounded, not being erased in one volley.
+  tokenFree() { let n = 0; for (const e of this.game.enemies) if (e !== this && e.alive && e.active && !e.disabled && (e.state === 'aim' || e.state === 'burst')) n++; return n < 2; }
+  // follow the current goal across the map
+  steer(dt, sp) {
+    let tx = 0, tz = 0; const g = this.game;
+    if (this.goal) {
+      const gx = this.goal.x - this.pos.x, gz = this.goal.z - this.pos.z, gd = Math.hypot(gx, gz);
+      if (gd > 0.5) { if (this.field && g.nav && g.nav.dirIn(this.field, this.pos.x, this.pos.z, _dir)) { tx = _dir.x; tz = _dir.z; } else { tx = gx / gd; tz = gz / gd; } }
+    } else if (g.nav && g.nav.dir(this.pos.x, this.pos.z, _dir)) { tx = _dir.x; tz = _dir.z; }
+    const l = Math.hypot(tx, tz); if (l > 0.001) { tx /= l; tz /= l; }
+    const k = sp * (1 - 0.6 * this.flinch);
+    this.vx = damp(this.vx, tx * k, 8, dt); this.vz = damp(this.vz, tz * k, 8, dt);
+    return l > 0.001;
+  }
+  // somewhere close that the player cannot see
+  findCover() {
+    const g = this.game, nav = g.nav, p = g.player.pos, a = g.arena; let best = null, bs = 1e9;
+    if (!nav) return null;
+    for (let i = 0; i < 14; i++) {
+      const an = (i / 14) * Math.PI * 2, r = 2 + (i % 3) * 1.5, x = this.pos.x + Math.cos(an) * r, z = this.pos.z + Math.sin(an) * r;
+      if (x < a.minX + 0.8 || x > a.maxX - 0.8 || z < a.minZ + 0.8 || z > a.maxZ - 0.8 || !nav.open(x, z)) continue;
+      if (!g.world.blocked(x, 1.35, z, p.x, p.y + 1.2, p.z)) continue;
+      const d = Math.hypot(x - this.pos.x, z - this.pos.z); if (d < bs) { bs = d; best = { x, z }; }
+    }
+    return best;
+  }
+  brain(dt, dx, dz, dist, face) {
+    const p = this.game.player.pos, los = this.canSee();
+    if (los) this.seen = { x: p.x, y: p.y + 1.1, z: p.z, t: 0 }; else if (this.seen) this.seen.t += dt;
+    return this.variant === 'scout' ? this.brainScout(dt, dx, dz, dist, face, los) : this.variant === 'heavy' ? this.brainHeavy(dt, dx, dz, dist, face, los) : this.brainTrooper(dt, dx, dz, dist, face, los);
+  }
+  // TROOPER: disciplined. Shoot from cover, duck back behind it, come out somewhere else. If you hide, it keeps firing at where you were.
+  brainTrooper(dt, dx, dz, dist, face, los) {
+    const g = this.game;
+    if (this.state === 'cover') {
+      face(5); this.steer(dt, this.v.speed);
+      if (this.timer <= 0 || (this.goal && Math.hypot(this.goal.x - this.pos.x, this.goal.z - this.pos.z) < 0.5 && this.timer < 0.4)) { this.state = 'move'; this.timer = rand(0.1, 0.4); this.pickSpot(); }
+      return 0;
+    }
+    if (this.state === 'aim') {
+      face(10); const sk = this.v.speed * 0.42 * this.strafe; this.vx = damp(this.vx, (-dz / dist) * sk, 10, dt); this.vz = damp(this.vz, (dx / dist) * sk, 10, dt);
+      this.charge = clamp(1 - this.timer / this.v.aimT, 0, 1);
+      if (this.timer <= 0) { if (los || this.suppress) { this.state = 'burst'; this.shots = 0; this.timer = 0; } else { this.state = 'move'; this.timer = 0.4; } }
+      return 1;
+    }
+    if (this.state === 'burst') {
+      face(12); this.vx = damp(this.vx, 0, 10, dt); this.vz = damp(this.vz, 0, 10, dt);
+      if (this.timer <= 0) {
+        const n = this.suppress ? this.v.burst + 2 : this.v.burst;
+        if (this.shots < n) { this.fire(); this.shots++; this.timer = this.v.gap; }
+        else { const c = this.findCover(); this.suppress = false; this.strafe = Math.random() < 0.5 ? -1 : 1; if (c) { this.goal = c; this.field = g.nav.field(c.x, c.z); this.state = 'cover'; this.timer = rand(0.8, 1.6); } else { this.state = 'move'; this.timer = rand(0.9, 1.7); } }
+      }
+      return 1;
+    }
+    face(6); this.goalT = (this.goalT || 0) - dt;
+    if (!this.goal || this.goalT <= 0 || dist < this.v.keep[0] * 0.55) this.pickSpot();
+    this.steer(dt, this.v.speed);
+    if (this.timer <= 0 && this.tokenFree()) {
+      if (los && dist < 20) { this.state = 'aim'; this.timer = this.v.aimT; this.suppress = false; g.sfxAt('droneCharge', this.pos, 1.0); }
+      else if (!los && this.seen && this.seen.t < 1.8 && dist < 18 && !g.world.blocked(this.hitSpheres[0].c.x, 1.3, this.hitSpheres[0].c.z, this.seen.x, 1.3, this.seen.z, (b) => b.maxY < 1.2)) { this.state = 'aim'; this.timer = this.v.aimT * 0.7; this.suppress = true; g.sfxAt('droneCharge', this.pos, 0.8); }
+    }
+    return 0;
+  }
+  // SCOUT: never stops. It runs for your side, shoots on the move, and jumps sideways when it feels your aim on it.
+  brainScout(dt, dx, dz, dist, face, los) {
+    const g = this.game, P = g.player;
+    face(9); this.state = 'move'; this.goalT = (this.goalT || 0) - dt; this.dodgeCd = (this.dodgeCd || 0) - dt;
+    if (!this.goal || this.goalT <= 0 || dist < 3.2) { this.pickSpot(); this.goalT = rand(1.1, 2.1); }
+    if (this.dodgeT > 0) { this.dodgeT -= dt; }
+    else {
+      this.steer(dt, this.v.speed);
+      // the crosshair is on me
+      const cp = Math.cos(P.pitch), fx = -Math.sin(P.yaw) * cp, fz = -Math.cos(P.yaw) * cp, d = Math.hypot(dx, dz) || 1;
+      if (this.dodgeCd <= 0 && dist < 26 && (-dx / d) * fx + (-dz / d) * fz > 0.975 * cp) { this.dodgeCd = rand(1.5, 2.8); this.dodgeT = 0.24; const sg = Math.random() < 0.5 ? -1 : 1; this.vx = (-dz / d) * sg * 11; this.vz = (dx / d) * sg * 11; this.dodges = (this.dodges || 0) + 1; g.sfxAt('botstep', this.pos, 0.5); }
+    }
+    this.shotT = (this.shotT ?? rand(0.5, 1)) - dt;
+    if (this.shotT <= 0 && los && dist < 18) {
+      if ((this.shots || 0) < this.v.burst) { this.fire(); this.shots = (this.shots || 0) + 1; this.shotT = this.v.gap; }
+      else { this.shots = 0; this.shotT = rand(0.8, 1.4); }
+    }
+    this.charge = this.shotT < 0.2 && los ? 1 - this.shotT / 0.2 : 0;
+    return los && dist < 20 ? 1 : 0;
+  }
+  // HEAVY: walks straight at you behind its plating, firing as it comes. Get close enough and it brings its whole weight down.
+  brainHeavy(dt, dx, dz, dist, face, los) {
+    const g = this.game;
+    this.stompCd = (this.stompCd || 0) - dt;
+    if (this.state === 'stomp') {
+      face(3); this.vx = damp(this.vx, 0, 12, dt); this.vz = damp(this.vz, 0, 12, dt);
+      const k = clamp(1 - this.timer / 0.6, 0, 1); this.stompK = Math.sin(k * Math.PI * 0.5);
+      if (this.timer <= 0) {
+        this.state = 'move'; this.timer = rand(0.5, 0.9); this.stompCd = 4; this.stompK = 0; this.stomps = (this.stomps || 0) + 1;
+        g.addShake(0.5); g.sfxAt('clatter', this.pos, 1.6); g.effects.ring(this.pos.clone().setY(0.05), _v.set(0, 1, 0), 0xffb060, 3.8, 0.35);
+        for (let i = 0; i < 14; i++) { const a = (i / 14) * 6.283; g.effects.smokeP.emit(this.pos.x, 0.12, this.pos.z, Math.cos(a) * 3, rand(0.1, 0.5), Math.sin(a) * 3, rand(0.4, 0.8), rand(0.3, 0.5), 0.14, 0.14, 0.15, -0.2, 1, 1.2); }
+        if (dist < 3.8 && g.player.pos.y < 1) { g.damagePlayer(22 * (1 - dist / 6), this.pos); const l = dist || 1; g.player.knock((-dx / l) * 9, (-dz / l) * 9); g.player.vy = Math.max(g.player.vy, 3.5); }
+      }
+      return 0;
+    }
+    if (dist < 3.1 && this.stompCd <= 0) { this.state = 'stomp'; this.timer = 0.6; g.sfxAt('groan', this.pos, 1.2); return 0; }
+    // it comes on, and stops only when it is on top of you
+    this.goal = null; this.field = null; face(this.state === 'move' ? 5 : 7);
+    if (dist > 2.6) this.steer(dt, this.v.speed * (this.state === 'move' ? 1 : 0.6)); else { this.vx = damp(this.vx, 0, 8, dt); this.vz = damp(this.vz, 0, 8, dt); }
+    if (this.state === 'aim') {
+      this.charge = clamp(1 - this.timer / this.v.aimT, 0, 1);
+      if (this.timer <= 0) { if (los) { this.state = 'burst'; this.shots = 0; this.timer = 0; } else { this.state = 'move'; this.timer = 0.4; } }
+      return 1;
+    }
+    if (this.state === 'burst') {
+      if (this.timer <= 0) { if (this.shots < this.v.burst) { this.fire(); this.shots++; this.timer = this.v.gap; } else { this.state = 'move'; this.timer = rand(0.9, 1.7); } }
+      return 1;
+    }
+    this.state = 'move';
+    if (this.timer <= 0 && los && dist < 22 && dist > 3.4 && this.tokenFree()) { this.state = 'aim'; this.timer = this.v.aimT; g.sfxAt('droneCharge', this.pos, 1.2); }
+    return 0;
+  }
+  // is this point in front of its plating?
+  facing(x, z) { const dx = x - this.pos.x, dz = z - this.pos.z, d = Math.hypot(dx, dz) || 1; return (dx / d) * -Math.sin(this.yaw) + (dz / d) * -Math.cos(this.yaw); }
+
   // Knocked senseless or locked up by current: it cannot act, and it loses whatever it was doing.
-  stagger(dur) { if (this.disabled || !this.alive) return; this.stunT = Math.max(this.stunT || 0, dur); if (this.state === 'aim' || this.state === 'burst') { this.state = 'move'; this.timer = Math.max(0.3, dur); } }
+  stagger(dur) { if (this.disabled || !this.alive) return; if (this.variant === 'heavy') dur *= 0.6; this.stompK = 0; this.stunT = Math.max(this.stunT || 0, dur); if (this.state === 'aim' || this.state === 'burst' || this.state === 'stomp') { this.state = 'move'; this.timer = Math.max(0.3, dur); } }
 
   // Left alone, it gets up: damaged, but it gets up. Absorb it or finish it while you can.
   reboot() {
@@ -378,7 +547,7 @@ export class SecurityAndroid extends Enemy {
     this.riseFrom = { rx: this.group.rotation.x, rz: this.group.rotation.z, gy: this.group.position.y, hy: this.hips.position.y, tx: this.torso.rotation.x, hx: this.head.rotation.x, l: this.legs.map((l) => [l.hp.rotation.x, l.kn.rotation.x]), a: this.arms.map((a) => [a.sh.rotation.x, a.el.rotation.x]) };
     this.riseT = RISE; this.disabled = false; this.downDone = false; this.downIdle = 0; this.warned = false; this.hp = this.maxHp * 0.45;
     this.state = 'move'; this.timer = RISE + 0.3; this.goal = null; this.group.rotation.order = 'XYZ'; this.aimK = 0; this.flinch = 0;
-    this.visorMat.emissive.setHex(0xff2a10); this.gunMat.emissive.setHex(0xff5a20); this.lightMat.emissive.setHex(this.v.trim);
+    this.visorMat.emissive.setHex(0xff2a10); this.gunMat.emissive.setHex(0xff5a20); this.lightMat.emissive.setHex(this.v.trim); if (this.coreMat) { this.coreMat.emissive.setHex(0xff9a3c); this.coreMat.emissiveIntensity = 1.8; }
     this.sparks(this.hitSpheres[0].c, 16, [1, 0.6, 0.3], 4, 0.08); g.sfxAt('clatter', this.pos, 1); g.effects.flashLight(this.hitSpheres[0].c, 0xff5030, 10, 0.2);
   }
 

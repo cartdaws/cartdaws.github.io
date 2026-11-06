@@ -139,10 +139,10 @@ export class V2Limbs {
 
   // The body itself carries what the limbs carry: bulk, bruised skin, and each mutation's growths, climbing from the limb roots as it deepens.
   updateTrunk() {
-    let mass = 0; const best = {}, copies = {};
-    for (const q of this.slots) { if (!q) continue; const g = q.grow ?? 1; mass += g * (q.m.massK || 0); best[q.m.id] = Math.max(best[q.m.id] || 0, g); copies[q.m.id] = (copies[q.m.id] || 0) + 1; }
+    let mass = 0; const best = {};
+    for (const q of this.slots) { if (!q) continue; const g = q.grow ?? 1; mass += g * (q.m.massK || 0) * (1 + 0.14 * Math.max(0, (q.n || 1) - 3)); best[q.m.id] = g; }
     for (const [id, T] of Object.entries(this.trunk)) {
-      const g = best[id] || 0, prog = g <= 0 ? 0 : Math.min(1, g * 0.86 + 0.07 * ((copies[id] || 1) - 1));
+      const g = best[id] || 0, prog = g <= 0 ? 0 : Math.min(1, g * 1.0);
       T.front.value = 1 - prog * 1.16;
       const on = this.visible && prog > 0.02; for (const me of T.meshes) me.visible = on;
     }
@@ -196,7 +196,7 @@ export class V2Limbs {
       if ((L.pres > 0.02) !== L.on || (L.on && !this.visible)) this.applyLimb(L);
       if (L.pres <= 0.02) { L.init = false; continue; }
       const d = L.leg.d, sg = Math.sign(d.a) || 1, pres = L.pres;
-      { const lk = L.q ? (L.q.m.limbK || 0) * (L.q.grow ?? 1) : 0; L.U.uK.value = 1.42 * (1 + lk) * (0.5 + 0.5 * pres); }
+      { const lk = L.q ? ((L.q.m.limbK || 0) * (L.q.grow ?? 1)) + 0.025 * Math.min(12, Math.max(0, (L.q.n || 1) - 3)) : 0; L.U.uK.value = 1.42 * (1 + lk) * (0.5 + 0.5 * pres); }
       // where this limb wants to lie, in the body's own frame
       const a = d.a + sg * trail * (Math.PI - Math.abs(d.a)) * 0.62;
       const reach = (d.reach * 0.68) * (1 + trail * 0.18) * (1 + 0.5 * (B.deathK || 0));

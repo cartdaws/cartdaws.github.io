@@ -99,7 +99,10 @@ export class Player {
       else this.dashDir.set(-sin, -cos);
     }
 
-    if (this.dashing) {
+    if (this.pull) {
+      // the hook has you: nothing but the cable decides where you go
+      this.vx = this.pull.x * this.pull.speed; this.vz = this.pull.z * this.pull.speed; this.vy = this.pull.y * this.pull.speed; this.grounded = false; this.dashing = false;
+    } else if (this.dashing) {
       this.vx = this.dashDir.x * DASH_SPEED * (this.evoDash ?? 1);
       this.vz = this.dashDir.y * DASH_SPEED * (this.evoDash ?? 1);
       this.dashT -= dt;
@@ -112,6 +115,7 @@ export class Player {
       const lambda = (this.grounded ? (l > 0.01 ? 16 : 19) : (l > 0.01 ? 7 : 11)) * (this.evoAccel ?? 1);       // enough air control to actually land on what you jumped at
       this.vx = damp(this.vx, wx * SP, lambda, dt);
       this.vz = damp(this.vz, wz * SP, lambda, dt);
+      if (this.vault) { this.vault.t -= dt; this.vx = this.vault.x; this.vz = this.vault.z; if (this.vault.t <= 0) this.vault = null; }      // hauled up and over an edge: keep going until you are on it
     }
 
     // Coyote time and buffered jump.
@@ -123,7 +127,7 @@ export class Player {
       this.jumpBuf = 0;
       this.game.audio.play('jump', { vol: 0.8 });
     }
-    if (!this.grounded || this.vy > 0) this.vy -= GRAVITY * (A ? A.grav : 1) * (this.gravMul ?? 1) * dt;
+    if (!this.pull && (!this.grounded || this.vy > 0)) this.vy -= GRAVITY * (A ? A.grav : 1) * (this.gravMul ?? 1) * dt;
     // what the drones taught you: hold jump and your body spreads and drifts
     if (!this.grounded && this.vy < -2.4 && input.down('Space') && this.game.arsenal && this.game.arsenal.unlocked.has('gel')) { this.vy = Math.max(this.vy, -2.4); this.gliding = true; } else this.gliding = false;
 

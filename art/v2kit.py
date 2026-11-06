@@ -110,6 +110,7 @@ class B:
                 if grime: k *= max(0.4, 1.0 - grime * (0.4 + 0.9 * max(0, noise.noise(p * 11.0)) + 0.5 * max(0, noise.noise(p * 37.0 + Vector((5, 1, 2))))))
                 l[cl] = (k, k, k, 1.0)
         bm.to_mesh(me); bm.free()
+        if me.color_attributes: me.color_attributes.active_color = me.color_attributes[0]      # or the exporter leaves the baked grime behind
         print(name, len(me.polygons), 'faces')
         return o
 

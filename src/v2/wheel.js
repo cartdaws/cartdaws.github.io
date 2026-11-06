@@ -34,7 +34,7 @@ export class MutationWheel {
     this.items.forEach((el, k) => {
       const q = e.equipped[k];
       el.classList.toggle('empty', !q); el.classList.toggle('cur', e.selected === k);
-      el.innerHTML = q ? `<span>${q.m.name}</span><i>${'▲'.repeat(q.tier)}</i>${q.m.moveNote ? `<u>${q.m.moveNote(q.tier)}</u>` : ''}` : `<span>${k + 1}</span>`;
+      el.innerHTML = q ? `<span>${q.m.name}</span><i>${'▲'.repeat(q.tier)}${q.n > q.tier ? ` ×${q.n}` : ''}</i>${q.m.moveNote ? `<u>${q.m.moveNote(q.tier)}</u>` : ''}` : `<span>${k + 1}</span>`;
     });
   }
 

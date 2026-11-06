@@ -87,7 +87,7 @@ export class Absorber {
     input.absorbTap = false;
     if (LAB) tickV2(this, dt);
     if (this.drawing) { if (LAB) runV2(this, dt); else this.run(dt); return; }
-    if (LAB && g.evolution.wheel.open) { ui.setPrompt(''); return; }
+    if (LAB && (g.evolution.wheel.open || g.evolution.abilities.busy)) { ui.setPrompt(''); return; }
     g.absorbFov = lerp(g.absorbFov || 0, 0, Math.min(1, dt * 8));
 
     const target = this.pick();
@@ -250,7 +250,7 @@ export class Absorber {
     if (LAB) {
       e.die(true);
       // what it was made of decides what it gives: flesh mends you, metal and current feed the arms
-      p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14) * (e.organic ? 1 : 0.6));
+      p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14) * (e.organic ? 1 : 0.6) * g.evolution.mods.absorbHeal);
       g.evolution.energy = Math.min(100, g.evolution.energy + (e.organic ? 15 : 45));
       g.evolution.onAbsorbed(e);
       g.ui.setHealth(p.health, p.maxHealth); g.ui.hitMarker(true); g.addShake(0.05);

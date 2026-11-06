@@ -3,7 +3,7 @@ import { Enemy } from '../game/enemies/enemy.js';
 import { v2node } from './assets.js';
 
 // It goes soft when it is absorbed: cracks open across it, it darkens and wets, and it sags and spreads as it empties.
-function meltable(src, uMelt) {
+export function meltable(src, uMelt) {
   const m = src.clone();
   m.onBeforeCompile = function (shader) {
     THREE.Material.prototype.onBeforeCompile.call(this, shader);
