@@ -1,6 +1,6 @@
 import { nextMemory } from './memories.js';
 import { LAB } from '../v2/flags.js';
-import { beginV2, runV2, endV2 } from '../v2/absorbfx.js';
+import { beginV2, runV2, endV2, tickV2, clearResidue } from '../v2/absorbfx.js';
 import * as THREE from 'three';
 import { clamp, lerp, smooth, rand } from '../core/util.js';
 import { progress } from './progress.js';
@@ -49,7 +49,7 @@ export class Absorber {
 
   reset() {
     const g = this.game;
-    if (LAB) endV2(this);
+    if (LAB) { endV2(this); clearResidue(this); }
     if (this.drawing) { const e = this.drawing.e; e.absorbing = false; e.group.scale.setScalar(e.baseScale); e.group.rotation.x = 0; e.group.rotation.z = 0; }
     this.target = null; this.progress = 0; this.drawing = null; this.env = 0;
     this.hideTongues();
@@ -85,6 +85,7 @@ export class Absorber {
     const g = this.game, vm = g.viewmodel, input = g.input, ui = g.ui;
     const tap = input.clicked(2) || input.was('KeyE') || input.absorbTap;
     input.absorbTap = false;
+    if (LAB) tickV2(this, dt);
     if (this.drawing) { if (LAB) runV2(this, dt); else this.run(dt); return; }
     if (LAB && g.evolution.wheel.open) { ui.setPrompt(''); return; }
     g.absorbFov = lerp(g.absorbFov || 0, 0, Math.min(1, dt * 8));
@@ -248,8 +249,9 @@ export class Absorber {
     e.group.scale.setScalar(e.baseScale); e.group.rotation.x = 0; e.group.rotation.z = 0;
     if (LAB) {
       e.die(true);
-      p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14));
-      g.evolution.energy = Math.min(100, g.evolution.energy + 30);
+      // what it was made of decides what it gives: flesh mends you, metal and current feed the arms
+      p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14) * (e.organic ? 1 : 0.6));
+      g.evolution.energy = Math.min(100, g.evolution.energy + (e.organic ? 15 : 45));
       g.evolution.onAbsorbed(e);
       g.ui.setHealth(p.health, p.maxHealth); g.ui.hitMarker(true); g.addShake(0.05);
       return;

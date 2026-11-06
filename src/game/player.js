@@ -77,7 +77,7 @@ export class Player {
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     // forward = (-sin, -cos), right = (cos, -sin)
     const wx = -sin * mz + cos * mx, wz = -cos * mz - sin * mx;
-    const SP = SPEED * (A ? A.speed : 1) * (this.speedMul ?? 1) * (this.evoSpeed ?? 1);
+    const SP = SPEED * (A ? A.speed : 1) * (this.speedMul ?? 1) * (this.evoSpeed ?? 1) * (this.evoFire ?? 1);
 
     // admin noclip: free flight straight through everything
     if (A && A.noclip && controllable) {
@@ -92,7 +92,7 @@ export class Player {
     if (this.dashBuf > 0 && this.dashCd <= 0 && !this.dashing) {
       this.dashBuf = 0;
       this.dashing = true;
-      this.dashT = DASH_TIME;
+      this.dashT = DASH_TIME * (this.evoDashT ?? 1);
       this.dashCd = DASH_COOLDOWN;
       this.justDashed = true;
       if (l > 0.01) this.dashDir.set(wx, wz).normalize();
@@ -100,8 +100,8 @@ export class Player {
     }
 
     if (this.dashing) {
-      this.vx = this.dashDir.x * DASH_SPEED * (this.evoSpeed ?? 1);
-      this.vz = this.dashDir.y * DASH_SPEED * (this.evoSpeed ?? 1);
+      this.vx = this.dashDir.x * DASH_SPEED * (this.evoDash ?? 1);
+      this.vz = this.dashDir.y * DASH_SPEED * (this.evoDash ?? 1);
       this.dashT -= dt;
       if (this.dashT <= 0) {
         this.dashing = false;
@@ -109,7 +109,7 @@ export class Player {
         this.vz = this.dashDir.y * SP * 1.1;
       }
     } else {
-      const lambda = this.grounded ? (l > 0.01 ? 16 : 19) : (l > 0.01 ? 7 : 11);       // enough air control to actually land on what you jumped at
+      const lambda = (this.grounded ? (l > 0.01 ? 16 : 19) : (l > 0.01 ? 7 : 11)) * (this.evoAccel ?? 1);       // enough air control to actually land on what you jumped at
       this.vx = damp(this.vx, wx * SP, lambda, dt);
       this.vz = damp(this.vz, wz * SP, lambda, dt);
     }
@@ -117,7 +117,7 @@ export class Player {
     // Coyote time and buffered jump.
     this.coyote = this.grounded ? 0.1 : Math.max(0, this.coyote - dt);
     if (this.jumpBuf > 0 && this.coyote > 0 && !this.dashing) {
-      this.vy = JUMP_V * (A ? A.jump : 1);
+      this.vy = JUMP_V * (A ? A.jump : 1) * (this.evoJump ?? 1);
       this.grounded = false;
       this.coyote = 0;
       this.jumpBuf = 0;

@@ -15,6 +15,7 @@ export async function loadV2Assets() {
   const dress = (node, map, normal, ns = 0.8) => { const m = NODES[node]?.material; if (!m) return; if (map) { m.map = map; m.color.multiplyScalar(1.7); } if (normal) { m.normalMap = normal; m.normalScale = new THREE.Vector2(ns, ns); } m.needsUpdate = true; };
   for (const n of ['Mut_ShardGlow', 'Mut_ArcGlow', 'ShellPores']) { const m = NODES[n].material; m.emissiveIntensity = 0.62; m.color.multiplyScalar(0.3); }
   NODES.ArmSuckers.material.color.multiplyScalar(0.62);
+  { const c = NODES.Mut_Carapace.material; c.color.multiplyScalar(0.62); c.roughness = 0.58; }
   dress('Mut_Shard', plate, plateN); dress('Mut_ShardDark', rust, rustN); dress('Mut_ArcCable', null, rustN, 0.5);
   dress('Mut_Carapace', null, rockN, 0.55); dress('Mut_ShardRings', null, plateN, 0.6); dress('Shell', null, rockN, 0.8);
 }

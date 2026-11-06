@@ -2,16 +2,40 @@ import * as THREE from 'three';
 import { Enemy } from '../game/enemies/enemy.js';
 import { v2node } from './assets.js';
 
+// It goes soft when it is absorbed: cracks open across it, it darkens and wets, and it sags and spreads as it empties.
+function meltable(src, uMelt) {
+  const m = src.clone();
+  m.onBeforeCompile = function (shader) {
+    THREE.Material.prototype.onBeforeCompile.call(this, shader);
+    shader.uniforms.uMelt = uMelt;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uMelt; varying vec3 vMeltP;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        vMeltP = position;
+        { float n = sin(position.x * 23.0 + position.z * 19.0) * sin(position.z * 31.0 - position.x * 13.0);
+          float low = 1.0 - smoothstep(0.0, 0.5, position.y);
+          transformed.y *= 1.0 - 0.72 * uMelt; transformed.xz *= 1.0 + 0.2 * uMelt * low; transformed += normal * (-0.07 * uMelt * (0.5 + 0.5 * n)); }`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uMelt; varying vec3 vMeltP;')
+      .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+        { float c = abs(sin(vMeltP.x * 17.0 + sin(vMeltP.z * 11.0) * 2.2)) * abs(sin(vMeltP.z * 15.0 + sin(vMeltP.x * 13.0) * 2.0));
+          float crack = (1.0 - smoothstep(0.0, 0.03 + 0.1 * uMelt, c)) * smoothstep(0.02, 0.2, uMelt);
+          gl_FragColor.rgb *= (1.0 - 0.55 * uMelt) * (1.0 - 0.92 * crack); }`);
+  };
+  m.customProgramCacheKey = () => 'v2-melt-' + (m.map ? 'm' : '') + (m.normalMap ? 'n' : '');
+  return m;
+}
+
 // A slow, harmless grazer. It cannot be shot and it does not fight. Walk up and absorb it: this is how the body learns what it can do.
 export class Shellback extends Enemy {
   constructor(game, x, z) {
     super(game, x, 0, z);
-    this.kind = 'creature'; this.organic = true; this.sourceId = 'shellback'; this.heal = 12; this.radius = 0.7;
+    this.kind = 'creature'; this.organic = true; this.sourceId = 'shellback'; this.heal = 26; this.radius = 0.7;
     this.home = [x, z]; this.goal = null; this.wait = Math.random() * 2; this.t = Math.random() * 9; this.yaw = Math.random() * 6.28;
-    this.hitSpheres = [{ c: new THREE.Vector3(x, 0.35, z), r: 0.62 }];
+    this.hitSpheres = [{ c: new THREE.Vector3(x, 0.35, z), r: 0.62 }]; this.uMelt = { value: 0 };
     const G = this.body = new THREE.Group(); this.group.add(G);
-    const add = (n, parent = G) => { const s = v2node(n), m = new THREE.Mesh(s.geometry, s.material); m.castShadow = true; parent.add(m); return m; };
-    const shellMat = v2node('Shell').material.clone(); shellMat.emissive = new THREE.Color(0, 0, 0); this.trackFlash(shellMat);
+    const add = (n, parent = G) => { const s = v2node(n), m = new THREE.Mesh(s.geometry, meltable(s.material, this.uMelt)); m.castShadow = true; parent.add(m); return m; };
+    const shellMat = meltable(v2node('Shell').material, this.uMelt); shellMat.emissive = new THREE.Color(0, 0, 0); this.trackFlash(shellMat);
     this.shell = add('Shell'); this.shell.material = shellMat; add('ShellFoot'); add('ShellPores');
     this.stalks = [['ShellStalkL', -0.1], ['ShellStalkR', 0.1]].map(([n, x0]) => { const p = new THREE.Group(); p.position.set(x0, 0.13, -1.0); G.add(p); add(n, p); add(n + 'Eye', p); return p; });
     this.group.rotation.y = this.yaw;

@@ -4,7 +4,9 @@ import { v2node } from './assets.js';
 import { SKIN_FRAG, SKIN_VARYINGS } from './armskin.js';
 import { clamp, damp, angleDiff } from '../core/util.js';
 import { SpringChain } from '../presentation/tentacle.js';
+import { MUTATIONS } from './mutations.js';
 
+// THE EIGHT LIMBS. Each slot on the wheel is one limb at one place round the body, and what grows on it stays on it. The two you have raised leave the ground; the rest walk.
 // THE WALKING LIMBS. The same Blender arm as the raised ones, laid along a spine the game works out each frame. The graphics card does the bending, so skin, suckers and any mutation all follow it exactly.
 // They move the way an octopus does: not stepping on points but lying along the ground, gripping and hauling, a hump rolling down the limb as it re-grips, streaming behind when you run.
 const SEG = 16, NSPINE = 14, GRAB_SEG = 32;
@@ -21,15 +23,16 @@ const limbGlsl = (seg) => `
 
 function skinMaterial(shared, U, seg = SEG) {
   return new THREE.ShaderMaterial({
-    uniforms: { uRim: shared.uRim, uEnv: shared.uEnv, uAlpha: { value: 1 }, uGlow: { value: 0 }, uHeat: { value: 0 }, tTime: shared.tTime, uFront: U.uFront, uInfect: U.uInfect, uWound: U.uWound, uPump: U.uPump, uGain: U.uGain, uC: U.uC, uNn: U.uNn, uBn: U.uBn, uK: U.uK },
+    uniforms: { uRim: shared.uRim, uEnv: shared.uEnv, uAlpha: { value: 1 }, uGlow: { value: 0 }, uHeat: { value: 0 }, tTime: shared.tTime, uFront: U.uFront, uInfect: U.uInfect, uWound: U.uWound, uPump: U.uPump, uGain: U.uGain, uC: U.uC, uNn: U.uNn, uBn: U.uBn, uK: U.uK, uTint: U.uTint },
     vertexShader: `${limbGlsl(seg)}\n${SKIN_VARYINGS}
       void main() {
         vec3 q = limbPoint(position);
         vec4 mv = viewMatrix * vec4(q, 1.0);
         vN = normalize(mat3(viewMatrix) * limbNormal(position, normal));
-        vV = normalize(-mv.xyz); vBand = 0.0; vP = position;
+        vV = normalize(-mv.xyz); vP = position;
         vVent = position.y / max(0.001, length(position.xy));
         vS = clamp(limbS(position.z), 0.0, 1.0);
+        { float dp = (vS - uPump) / 0.06; vBand = exp(-dp * dp) * uGain; }
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: SKIN_FRAG,
@@ -51,8 +54,24 @@ function partMaterial(src, U, front, seg = SEG) {
   m.customProgramCacheKey = () => 'v2-limbpart-' + seg + (m.map ? 'm' : '') + (m.normalMap ? 'n' : '');
   return m;
 }
-const spineU = (seg, k) => ({ uC: { value: new Float32Array((seg + 1) * 3) }, uNn: { value: new Float32Array((seg + 1) * 3) }, uBn: { value: new Float32Array((seg + 1) * 3) }, uK: { value: k }, uFront: { value: 1.2 }, uInfect: { value: 0 }, uWound: { value: 0 }, uPump: { value: 2 }, uGain: { value: 0 } });
+const spineU = (seg, k) => ({ uC: { value: new Float32Array((seg + 1) * 3) }, uNn: { value: new Float32Array((seg + 1) * 3) }, uBn: { value: new Float32Array((seg + 1) * 3) }, uK: { value: k }, uFront: { value: 1.2 }, uInfect: { value: 0 }, uWound: { value: 0 }, uPump: { value: 2 }, uGain: { value: 0 }, uTint: { value: new THREE.Vector3() } });
 
+// A growth on the trunk comes up out of the flesh from the limb roots toward the top: below the front it is sunk inside the body.
+function trunkMaterial(src, front) {
+  const m = src.clone();
+  m.onBeforeCompile = function (shader) {
+    THREE.Material.prototype.onBeforeCompile.call(this, shader);
+    shader.uniforms.uFront = front;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uFront;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+        { float y01 = clamp((1.98 - position.y) / 1.68, 0.0, 1.0), gk = smoothstep(uFront, uFront + 0.14, y01); vec2 ax = vec2(0.0, 0.2);
+          transformed.xz = ax + (position.xz - ax) * mix(0.5, 1.0, gk); transformed.y = mix(min(position.y, 1.15), position.y, gk); }`);
+  };
+  m.customProgramCacheKey = () => 'v2-trunk-' + (m.map ? 'm' : '') + (m.normalMap ? 'n' : '');
+  return m;
+}
+const _p = new THREE.Vector3(), _c = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3(), _f = new THREE.Vector3(), _q = new THREE.Vector3();
 const _t = new THREE.Vector3(), _n = new THREE.Vector3(), _b = new THREE.Vector3();
 const smooth = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
 const legR = (w) => (0.112 + (0.05 - 0.112) * Math.pow(w, 1.2));       // the arm's own radius; each limb multiplies it by uK
@@ -72,12 +91,18 @@ export class V2Limbs {
         void main() {
           vec4 mv = modelViewMatrix * vec4(position, 1.0);
           vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); vBand = 0.0; vP = position * vec3(0.42, 0.42, 0.42);
-          vVent = -0.4 + 0.6 * smoothstep(0.75, 0.3, position.y); vS = 1.5;
+          vVent = -0.4 + 0.6 * smoothstep(0.75, 0.3, position.y); vS = clamp((1.42 - position.y) / 1.12, 0.0, 1.0);
           gl_Position = projectionMatrix * mv;
         }`,
       fragmentShader: SKIN_FRAG,
     }));
     this.torso.frustumCulled = false; G.add(this.torso);
+    this.trunk = {};
+    for (const m of Object.values(MUTATIONS)) {
+      const front = { value: 1.2 }, meshes = (m.trunk || []).map((n) => { const s = v2node(n), me = new THREE.Mesh(s.geometry, trunkMaterial(s.material, front)); me.frustumCulled = false; me.visible = false; this.torso.add(me); return me; });
+      this.trunk[m.id] = { front, meshes };
+    }
+    this.slots = []; this.raisedArms = null; this.inspecting = false;
     this.limbs = body.legs.map((leg, i) => this.makeLimb(leg, i));
     for (const leg of body.legs) leg.mesh.mesh.visible = false;
   }
@@ -87,25 +112,63 @@ export class V2Limbs {
     const skin = new THREE.Mesh(v2node('ArmSkin').geometry, skinMaterial(this.shared, U)); skin.frustumCulled = false;
     const suck = new THREE.Mesh(v2node('ArmSuckers').geometry, partMaterial(v2node('ArmSuckers').material, U, { value: -1 })); suck.frustumCulled = false;
     this.scene.add(skin, suck);
-    return { leg, U, skin, suck, parts: {}, q: null, chain: new SpringChain(NSPINE, 260, 26, 1), ideal: Array.from({ length: NSPINE }, () => new THREE.Vector3()), spine: Array.from({ length: SEG + 1 }, () => new THREE.Vector3()), ph: i * 1.37, tip: new THREE.Vector3(), planted: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), stepT: -1, init: false, dur: 0.4 };
+    return { leg, U, skin, suck, parts: {}, q: null, chain: new SpringChain(NSPINE, 260, 26, 1), ideal: Array.from({ length: NSPINE }, () => new THREE.Vector3()), spine: Array.from({ length: SEG + 1 }, () => new THREE.Vector3()), ph: i * 1.37, tip: new THREE.Vector3(), planted: new THREE.Vector3(), from: new THREE.Vector3(), to: new THREE.Vector3(), stepT: -1, init: false, dur: 0.4, pres: 1, want: 1, on: true, showT: 0, showFor: 1.3 };
   }
 
-  setVisible(v) { this.visible = v; this.torso.visible = v; for (const L of this.limbs) { L.skin.visible = L.suck.visible = v; for (const p of Object.values(L.parts)) for (const me of p.meshes) me.visible = v && !!L.q && L.q.m.id === p.id; } }
+  setVisible(v) { this.visible = v; this.torso.visible = v; for (const L of this.limbs) this.applyLimb(L); if (this.raisedArms && !v) for (const a of this.raisedArms) a.setVisible(false); }
+  applyLimb(L) {
+    const on = this.visible && L.pres > 0.02; L.on = on;
+    L.skin.visible = L.suck.visible = on;
+    for (const p of Object.values(L.parts)) for (const me of p.meshes) me.visible = on && !!L.q && L.q.m.id === p.id;
+  }
 
-  sync() { /* progress is read straight off each mutation in update() */ }
-
-  // what the walking limbs are carrying
-  set(list) {
+  // What every limb carries, in slot order, and which two are raised. Nothing moves between limbs when you change arms: the limb itself comes up.
+  set(slots, raised) {
+    this.slots = slots;
     this.limbs.forEach((L, i) => {
-      const q = list[i] || null; L.q = q;
-      for (const p of Object.values(L.parts)) for (const me of p.meshes) me.visible = false;
-      if (!q) { L.U.uInfect.value = 0; L.U.uFront.value = 1.2; L.part = null; return; }
+      const q = slots[i] || null; L.q = q; L.want = raised.includes(i) ? 0 : 1;
+      if (!q) { L.U.uInfect.value = 0; L.U.uFront.value = 1.2; L.U.uWound.value = 0; L.part = null; this.applyLimb(L); return; }
       let p = L.parts[q.m.id];
       if (!p) { const front = { value: 1.2 }; p = L.parts[q.m.id] = { id: q.m.id, front, meshes: q.m.nodes.map((n) => { const s = v2node(n), me = new THREE.Mesh(s.geometry, partMaterial(s.material, L.U, front)); me.frustumCulled = false; this.scene.add(me); return me; }) }; }
-      for (const me of p.meshes) me.visible = this.visible;
-      L.U.uInfect.value = q.m.infect; L.part = p;
+      L.U.uInfect.value = q.m.infect; L.part = p; this.applyLimb(L);
     });
   }
+
+  // A limb that has just changed lifts into the corner of your view while it happens, so you see it even if it is not the arm in your hand.
+  showLimb(i, dur = 1.3) { const L = this.limbs[i]; if (L && L.want > 0.5) { L.showT = dur; L.showFor = dur; } }
+
+  // The body itself carries what the limbs carry: bulk, bruised skin, and each mutation's growths, climbing from the limb roots as it deepens.
+  updateTrunk() {
+    let mass = 0; const best = {}, copies = {};
+    for (const q of this.slots) { if (!q) continue; const g = q.grow ?? 1; mass += g * (q.m.massK || 0); best[q.m.id] = Math.max(best[q.m.id] || 0, g); copies[q.m.id] = (copies[q.m.id] || 0) + 1; }
+    for (const [id, T] of Object.entries(this.trunk)) {
+      const g = best[id] || 0, prog = g <= 0 ? 0 : Math.min(1, g * 0.86 + 0.07 * ((copies[id] || 1) - 1));
+      T.front.value = 1 - prog * 1.16;
+      const on = this.visible && prog > 0.02; for (const me of T.meshes) me.visible = on;
+    }
+    this.mass = Math.min(0.26, mass);
+    this.torsoU.uInfect.value = Math.min(0.9, mass * 3); this.torsoU.uFront.value = 1.05 - Math.min(1, mass * 2.4);
+  }
+
+  // Only ever needed from outside: the two raised arms, when you look at yourself.
+  updateRaised(rq, lq, t) {
+    if (!this.raisedArms) { this.raisedArms = [new SpineArm(this.scene, this.shared, GRAB_SEG), new SpineArm(this.scene, this.shared, GRAB_SEG)]; }
+    const G = this.body.group; G.updateWorldMatrix(true, false);
+    this.raisedArms.forEach((A, i) => {
+      const sg = i ? -1 : 1, q = i ? lq : rq;
+      if (A.q !== q) A.carry(q);
+      A.setVisible(this.visible); A.U.uK.value = 1.05;
+      const n = A.seg, pts = [[0.26, 0.98, -0.02], [0.5, 1.12, -0.42], [0.62, 1.34, -0.88], [0.56, 1.62, -1.2], [0.36, 1.76, -1.26]];
+      for (let k = 0; k <= n; k++) {
+        const f = (k / n) * (pts.length - 1), j = Math.min(pts.length - 2, Math.floor(f)), u = f - j, P0 = pts[j], P1 = pts[j + 1], w = k / n;
+        const sw = Math.sin(t * 1.3 + i * 2 - w * 3) * 0.03 * w;
+        _q.set((P0[0] + (P1[0] - P0[0]) * u) * sg + sw, P0[1] + (P1[1] - P0[1]) * u + Math.cos(t * 1.1 + i - w * 2) * 0.02 * w, P0[2] + (P1[2] - P0[2]) * u);
+        G.localToWorld(A.S[k].copy(_q));
+      }
+      A.relax(); A.write(); A.tick();
+    });
+  }
+  hideRaised() { if (this.raisedArms) for (const a of this.raisedArms) a.setVisible(false); }
 
   update(dt) {
     const B = this.body, P = B.player, t = (B.time += dt), world = B.world;
@@ -117,7 +180,8 @@ export class V2Limbs {
     B.lean.x = damp(B.lean.x, clamp(lz * 0.018, -0.2, 0.2), 6, dt); B.lean.y = damp(B.lean.y, clamp(-lx * 0.018, -0.2, 0.2), 6, dt);
     const breathe = 1 + Math.sin(t * 1.5) * 0.018;
     B.group.position.copy(P.pos); B.group.rotation.set(B.lean.x * 0.5, B.yaw, B.lean.y * 0.5, 'YXZ');
-    this.torso.scale.set(breathe, 1 / Math.sqrt(breathe), breathe);
+    this.updateTrunk();
+    { const b = 1 + (this.mass || 0); this.torso.scale.set(breathe * b, (1 / Math.sqrt(breathe)) * (1 + (b - 1) * 0.22), breathe * b); }   // never tall enough to swallow your own eye
     this.torso.position.y = -Math.abs(Math.sin(t * (1.2 + speed * 0.6))) * 0.018 * Math.min(1, speed / 4);
 
     const trail = smooth(2.2, 5.8, speed);                  // slow: gripping and hauling. Fast: streaming behind you
@@ -127,7 +191,12 @@ export class V2Limbs {
     const rootY = P.pos.y + 0.44;
 
     for (const L of this.limbs) {
-      const d = L.leg.d, sg = Math.sign(d.a) || 1;
+      // a raised limb has left the ground: it draws up under you, and comes back down the same way
+      L.pres += clamp(L.want - L.pres, -dt / 0.2, dt / 0.2);
+      if ((L.pres > 0.02) !== L.on || (L.on && !this.visible)) this.applyLimb(L);
+      if (L.pres <= 0.02) { L.init = false; continue; }
+      const d = L.leg.d, sg = Math.sign(d.a) || 1, pres = L.pres;
+      { const lk = L.q ? (L.q.m.limbK || 0) * (L.q.grow ?? 1) : 0; L.U.uK.value = 1.42 * (1 + lk) * (0.5 + 0.5 * pres); }
       // where this limb wants to lie, in the body's own frame
       const a = d.a + sg * trail * (Math.PI - Math.abs(d.a)) * 0.62;
       const reach = (d.reach * 0.68) * (1 + trail * 0.18) * (1 + 0.5 * (B.deathK || 0));
@@ -137,6 +206,7 @@ export class V2Limbs {
       let hx = P.pos.x + hx0 * cy + hz0 * sy, hz = P.pos.z - hx0 * sy + hz0 * cy;
       // never through a wall or a prop: the limb stops short of it
       { const dx = hx - Rx, dz = hz - Rz, dist = Math.hypot(dx, dz) || 1; const hit = world.raycast(Rx, rootY - 0.15, Rz, dx / dist, 0, dz / dist, dist, (b) => b.tag !== 'door' || b.enabled); if (hit && hit.t < dist) { hx = Rx + (dx / dist) * Math.max(0.25, hit.t - 0.2); hz = Rz + (dz / dist) * Math.max(0.25, hit.t - 0.2); } }
+      hx = Rx + (hx - Rx) * pres; hz = Rz + (hz - Rz) * pres;
       const gyHome = world.groundHeight(hx, hz, P.pos.y + 0.4, 0.15);
       if (!L.init || L.tip.distanceTo(P.pos) > 5) { L.tip.set(hx, gyHome, hz); L.planted.copy(L.tip); L.init = true; L.stepT = -1; L.chain.ready = false; }
       let hump = 0;
@@ -146,7 +216,7 @@ export class V2Limbs {
         L.tip.x += (Rx + (hx - Rx) * 0.45 - L.tip.x) * k; L.tip.z += (Rz + (hz - Rz) * 0.45 - L.tip.z) * k;
         L.tip.y += (P.pos.y - 0.32 + Math.sin(t * 3 + L.ph) * 0.1 - Math.min(0, P.vy) * 0.02 - L.tip.y) * k;
         L.planted.copy(L.tip); L.stepT = -1;
-      } else if (trail > 0.5) {
+      } else if (trail > 0.5 || pres < 0.98) {
         // running: nothing is planted for long, they stream and flick along the floor
         const k = 1 - Math.exp(-11 * dt);
         L.tip.x += (hx - L.tip.x) * k; L.tip.z += (hz - L.tip.z) * k; L.tip.y = gyHome; L.planted.copy(L.tip); L.stepT = -1;
@@ -180,9 +250,40 @@ export class V2Limbs {
         const r = legR(w) * L.U.uK.value * 0.88;
         q.y = rootY + (g + r - rootY) * touch + hump * Math.sin(Math.min(1, w * 1.15) * Math.PI) * 0.17 * (1 - tipK) + tipK * tipK * tipK * 0.05;
       }
+      if (L.showT > 0) {
+        // lifted into the corner of your view, writhing, while it changes
+        L.showT -= dt; const e = L.showFor - L.showT, k = smooth(0, 0.24, e) * smooth(0, 0.32, L.showT), cam = P.game.camera, side = sg;
+        _r.setFromMatrixColumn(cam.matrixWorld, 0); _u.setFromMatrixColumn(cam.matrixWorld, 1); cam.getWorldDirection(_f);
+        _p.copy(cam.position).addScaledVector(_f, 0.95).addScaledVector(_r, side * 0.92).addScaledVector(_u, -0.3);
+        _c.set(Rx, rootY, Rz).lerp(_p, 0.5).addScaledVector(_r, side * 0.24).addScaledVector(_u, -0.22);
+        for (let i = 0; i < NSPINE; i++) {
+          const w = i / (NSPINE - 1), iw = 1 - w, q = L.ideal[i];
+          _q.set(iw * iw * Rx + 2 * iw * w * _c.x + w * w * _p.x, iw * iw * rootY + 2 * iw * w * _c.y + w * w * _p.y, iw * iw * Rz + 2 * iw * w * _c.z + w * w * _p.z);
+          _q.addScaledVector(_u, w * w * w * 0.3 + Math.sin(t * 14 + w * 6) * 0.018 * w).addScaledVector(_r, Math.sin(t * 11 - w * 7) * 0.024 * w - side * w * w * w * 0.2);
+          q.lerp(_q, k * smooth(0, 0.3, w));
+        }
+      }
       L.chain.step(L.ideal, dt);
+      if (L.showT <= 0) this.keepOut(L.chain.p);
       this.writeFrames(L, Rx, rootY, Rz);
       if (L.q && L.part) { const fr = 1.03 - (L.q.grow ?? 1) * 1.03; L.part.front.value = fr; L.U.uFront.value = fr; L.U.uWound.value = L.q.wound || 0; }
+    }
+  }
+
+  // A limb lying along the floor must never pass through anything solid. Whatever is close is kept in a short list, and any joint inside a box is pushed out of its nearest side.
+  keepOut(P) {
+    const W = this.body.world, me = this.body.player.pos;
+    if (!this.nearT || --this.nearT <= 0) {
+      this.nearT = 10; this.near = [];
+      for (const b of W.boxes) { if (b.enabled === false || b.minY > me.y + 1.2 || b.maxY < me.y) continue; if (b.maxX > me.x - 3.2 && b.minX < me.x + 3.2 && b.maxZ > me.z - 3.2 && b.minZ < me.z + 3.2) this.near.push(b); }
+    }
+    for (let i = 2; i < P.length; i++) {
+      const q = P[i];
+      for (const b of this.near) {
+        if (q.y < b.minY || q.y > b.maxY || q.x < b.minX || q.x > b.maxX || q.z < b.minZ || q.z > b.maxZ) continue;
+        const a = q.x - b.minX, c = b.maxX - q.x, d = q.z - b.minZ, e = b.maxZ - q.z, m = Math.min(a, c, d, e), gap = 0.05;
+        if (m === a) q.x = b.minX - gap; else if (m === c) q.x = b.maxX + gap; else if (m === d) q.z = b.minZ - gap; else q.z = b.maxZ + gap;
+      }
     }
   }
 

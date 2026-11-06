@@ -13,8 +13,8 @@ const LEGS8 = [ // an octopus: eight arms evenly round the body. Angle from forw
   { a: -1.96, reach: 1.8, g: 0, c: 1 }, { a: 1.96, reach: 1.8, g: 1, c: -1 },
   { a: -2.75, reach: 1.7, g: 1, c: 1 }, { a: 2.75, reach: 1.7, g: 0, c: -1 },
 ];
-// V2: the two raised arms ARE two of the eight, so six walk
-const LEGS = LAB ? LEGS8.slice(2) : LEGS8;
+// V2: all eight exist, in the order of the wheel; whichever two are raised leave the ground
+const LEGS = LAB ? [1, 3, 5, 7, 6, 4, 2, 0].map((i) => LEGS8[i]) : LEGS8;
 const N = 14;
 
 // Leg thickness along its length (0 = hip, 1 = foot): stays thick all the way down, swells into a padded foot, ends rounded.
@@ -132,7 +132,7 @@ export class AlienBody {
   setupV2Limbs() { this.v2Pending = true; this.limbQ = []; }
   installV2(scene, shared) { this.v2 = new V2Limbs(this, scene, shared); this.v2.setVisible(this.group.visible); }
   // what the walking limbs carry, in order
-  setLimbs(list) { this.limbQ = list; this.v2?.set(list); }
+  setLimbs(slots, raised) { this.limbQ = slots; this.v2?.set(slots, raised); }
 
   dispose(scene) { scene.remove(this.group); for (const l of this.legs) scene.remove(l.mesh.mesh); }
 

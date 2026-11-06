@@ -153,6 +153,34 @@ export class Arsenal {
     g.audio.play('spark', { vol: 0.8 }); g.audio.play('shot', { vol: 0.3 });
   }
 
+  // V2: the nerves find their own target and the current conducts machine to machine. The more metal it runs through, the harder it hits all of it, and each one locks up. A downed machine conducts too, and burns out.
+  arcV2({ range, links, radius, dmg, stun }) {
+    const g = this.g, { origin, dir, muzzle } = this.aim();
+    let first = null, best = 0.82;
+    for (const e of this.targets()) {
+      const c = e.hitSpheres[0].c; _a.subVectors(c, origin); const dist = _a.length(); if (dist > range || dist < 0.4) continue;
+      const dot = _a.divideScalar(dist).dot(dir); if (dot < best) continue;
+      if (g.world.blocked(origin.x, origin.y, origin.z, c.x, c.y, c.z, (b) => b.tag !== 'barrel')) continue;
+      first = e; best = dot;
+    }
+    const pts = [muzzle.clone()]; let hits = 0;
+    if (!first) pts.push(g.pickAim(origin, dir, 7).clone());
+    else {
+      const chain = [first]; let cur = first;
+      while (chain.length < links) {
+        let next = null, nd = radius;
+        for (const e of this.targets()) { if (chain.includes(e)) continue; const d = e.hitSpheres[0].c.distanceTo(cur.hitSpheres[0].c); if (d < nd) { nd = d; next = e; } }
+        if (!next) break; chain.push(next); cur = next;
+      }
+      const k = 1 + 0.25 * (chain.length - 1); hits = chain.length;
+      for (const e of chain) { const c = e.hitSpheres[0].c.clone(); pts.push(c); g.onPlayerHit(e, dmg * k, c); if (e.alive) e.stagger?.(stun); }
+    }
+    this.bolt(pts); this.fireFeel(0.8);
+    g.effects.flashLight(muzzle, 0x8fe8ff, 30, 0.08);
+    g.audio.play('spark', { vol: 0.8 }); g.audio.play('shot', { vol: 0.3 });
+    return hits;
+  }
+
   // A jagged lightning path through the points, drawn as glowing line segments plus crackling particles; fades in a fraction of a second.
   bolt(pts) {
     const g = this.g, verts = [];

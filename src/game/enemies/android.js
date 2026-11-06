@@ -217,7 +217,7 @@ export class SecurityAndroid extends Enemy {
     const g = this.game;
     if (this.disabled) {
       this.powerDown(dt);
-      if (LAB && this.downDone && !this.absorbing) {
+      if (LAB && this.downDone && !this.absorbing && !this.noReboot) {
         this.downIdle = (this.downIdle || 0) + dt;
         const left = REBOOT_AFTER - this.downIdle;
         // it warns you: the visor comes back, stuttering, and it starts to spark
@@ -226,6 +226,11 @@ export class SecurityAndroid extends Enemy {
       }
       this.syncSpheres();
       return;
+    }
+    if (LAB && this.stunT > 0) {
+      this.stunT -= dt; this.charge = 0; this.vx = damp(this.vx, 0, 10, dt); this.vz = damp(this.vz, 0, 10, dt); this.aimK = damp(this.aimK, 0, 16, dt); this.flinch = 1;
+      this.pos.x += this.vx * dt; this.pos.z += this.vz * dt; this.pose(dt, 0); this.group.rotation.y = this.yaw + Math.sin(this.stunT * 70) * 0.02; this.visorMat.emissiveIntensity = Math.random() < 0.5 ? 0.1 : 1.5;
+      this.syncSpheres(); return;
     }
     let move = 0, aiming = 0;
     this.flinch = Math.max(0, this.flinch - dt * 3);
@@ -363,6 +368,9 @@ export class SecurityAndroid extends Enemy {
     this.fallDir = Math.random() < 0.5 ? -1 : 1;
     this.game.sfxAt(this.variant === 'heavy' ? 'groan' : 'powerdown', this.pos, 1.3);
   }
+
+  // Knocked senseless or locked up by current: it cannot act, and it loses whatever it was doing.
+  stagger(dur) { if (this.disabled || !this.alive) return; this.stunT = Math.max(this.stunT || 0, dur); if (this.state === 'aim' || this.state === 'burst') { this.state = 'move'; this.timer = Math.max(0.3, dur); } }
 
   // Left alone, it gets up: damaged, but it gets up. Absorb it or finish it while you can.
   reboot() {

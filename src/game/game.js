@@ -624,6 +624,7 @@ export class Game {
   }
 
   onPlayerHit(enemy, dmg, point) {
+    if (LAB) dmg = this.evolution.hitDamage(enemy, dmg);
     this.effects.hitSparks(point, [1, 0.8, 0.3], 14);
     this.effects.glowP.emit(point.x, point.y, point.z, 0, 0, 0, 0.12, 0.45, 0.7, 1, 1);
     this.effects.flashLight(point, 0x9ff6ff, 14, 0.06);
@@ -713,6 +714,7 @@ export class Game {
     const live = this.state === 'playing' && !player.dead;
     if (live && input.locked) {
       if (LAB && this.evolution.wheel.open) { this.evolution.wheel.feed(lx, ly); this.lookX = this.lookY = 0; }
+      else if (LAB && this.evolution.inspect.active) { this.evolution.inspect.feed(lx, ly); this.lookX = this.lookY = 0; }
       else player.look(lx, ly, this.sens);
       player.latch(input);
     }
@@ -727,8 +729,8 @@ export class Game {
 
     if (this.state === 'dead') this.updateDeath();
     if (this.ending) this.updateEnding(dt);
-    if (this.state === 'playing' && this.encounter.won && !this.ending) { if (LAB) this.lab.clear(); else this.complete(); }
-    if (LAB) this.evolution.update(dt);
+    if (this.state === 'playing' && this.encounter.won && !this.ending && !(LAB && this.lab.gym.active)) { if (LAB) this.lab.clear(); else this.complete(); }
+    if (LAB) { this.evolution.update(dt); this.lab.gym.update(dt); }
 
     this.level.update(this.time);
     if (this.surface.active) this.surface.update(dt);
@@ -796,7 +798,7 @@ export class Game {
     for (const c of this.critters) if (c.alive && !c.absorbing) c.update(dt);
     if (playing) {
       if (this.nav) this.nav.setTarget(player.pos.x, player.pos.z);
-      if (!this.surface.active) this.encounter.update(dt);
+      if (!this.surface.active && !(LAB && this.lab.gym.active)) this.encounter.update(dt);
     }
   }
 

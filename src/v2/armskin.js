@@ -3,7 +3,7 @@ import { POSE_GLSL, Z0, L0 } from '../presentation/arm.js';
 
 export const SKIN_VARYINGS = 'varying vec3 vN, vV, vP; varying float vBand, vVent, vS;';
 export const SKIN_FRAG = `
-      uniform vec3 uRim, uEnv; uniform float uAlpha, uGlow, uHeat, tTime, uFront, uInfect, uWound;
+      uniform vec3 uRim, uEnv, uTint; uniform float uAlpha, uGlow, uHeat, tTime, uFront, uInfect, uWound;
       varying vec3 vN, vV, vP; varying float vBand, vVent, vS;
       float h3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
       float n3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -31,7 +31,8 @@ export const SKIN_FRAG = `
         c += uRim * vein * 0.42;
         // the edge of the growth, while it is growing: raw
         float d = (vS - uFront) / 0.035; c = mix(c, vec3(0.17, 0.035, 0.04), 0.8 * exp(-d * d) * uWound) + vec3(0.025, 0.005, 0.005) * exp(-d * d) * uWound;
-        c += uRim * (uGlow * 0.05 + uHeat * 0.1 + vBand * 0.32);
+        if (dot(uTint, uTint) > 0.0) c = mix(c, uTint, clamp(vBand, 0.0, 1.0) * 0.8); else c += uRim * vBand * 0.32;      // what is being swallowed shows through the skin as it passes
+        c += uRim * (uGlow * 0.05 + uHeat * 0.1);
         #ifdef SUCKER
           c *= 0.58;     // the suckers sit darker than the skin they grow from, as they do on the raised arms
         #endif

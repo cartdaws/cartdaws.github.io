@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { rand } from '../../core/util.js';
+import { LAB } from '../../v2/flags.js';
 
 // Shared behaviour for all enemies: hit spheres, damage flash, death bookkeeping.
 // Hurt badly enough (below DISABLE_AT of max health) a machine powers down, helpless but intact: it can be absorbed, or finished off.
@@ -55,7 +56,10 @@ export class Enemy {
     if (!this.alive || this.absorbing) return false;
     this.hp -= amount;
     this.flashT = 0.1;
-    if (this.hp <= 0) { this.die(false); return true; }
+    if (this.hp <= 0) {
+      if (LAB && this.active && !this.disabled && this.onDisable) { this.hp = 1; this.disable(); return false; }
+      this.die(false); return true;
+    }
     // every hit knocks sparks out of the hull, more for harder hits
     const at = point || this.centerPoint();
     this.sparks(at, Math.min(24, 9 + Math.round(amount / 3)), AMBER, 5.5);

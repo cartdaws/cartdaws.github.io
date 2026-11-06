@@ -54,7 +54,7 @@ export class Shardcaster {
     _o.normalize();
 
     // Slight bloom while the trigger stays held, none on the first shot.
-    const bloom = Math.min(this.heldTime / 1.2, 1) * 0.006;
+    const bloom = Math.min(this.heldTime / 1.2, 1) * (this.bloomK ?? 0.006);
     if (bloom > 0) {
       _right.crossVectors(_o, cam.up).normalize();
       _up.crossVectors(_right, _o).normalize();

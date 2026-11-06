@@ -250,6 +250,123 @@ ct = tb.add(Vector((0, TOP + 0.05, 0.2)))
 for i in range(96): tb.f.append((i, (i + 1) % 96, ct))
 tb.make('V2Torso', M['skin'], uv=3.0)
 
+# ================================================================ WHAT GROWS ON THE TRUNK. The silhouette changes with what you have become: each mutation also takes hold of the body itself, spreading up from the roots of the limbs.
+def ts(a, v, lift=0.0):
+    """A point on the trunk at angle a (0 forward, pi back) and height v (0 top, 1 skirt), raised off the skin by lift."""
+    v = max(0.0, min(1.0, v))
+    p = torso(((a + PI) / (2 * PI)) % 1.0, v)
+    n = Vector((p.x, (1 - v) * 0.22, p.z - 0.2))
+    if n.length < 1e-4: n = Vector((0, 1, 0))
+    return p + n.normalized() * lift
+def tplate(bld, a0, da, v0, dv, h, nu=10, nv=8, ridge=0.2, shade=True):
+    """A soft rounded plate on the trunk: its lower edge stands proud of the one beneath, like a shell."""
+    def fn(u, v):
+        U, V = u * 2 - 1, v * 2 - 1
+        fall = pow(max(0.0, 1 - U * U), 0.55) * pow(max(0.0, 1 - V * V), 0.5)
+        lift = -0.01 + h * fall * (1 + 0.45 * V) * (1 + ridge * math.exp(-U * U * 9)) + noise.noise(Vector((U * 2 + a0 * 7, V * 2, v0 * 19))) * h * 0.1
+        return ts(a0 + U * da, v0 + V * dv, lift)
+    def col(u, v):
+        U, V = u * 2 - 1, v * 2 - 1
+        return min(1.0, 0.1 + 0.8 * math.exp(-U * U * 18) * (0.55 + 0.45 * V) + 0.7 * pow(max(0.0, V), 6) + 0.25 * pow(abs(U), 8))
+    bld.grid(fn, nu, nv, col=col if shade else None)
+def tring(bld, v, lift, th, sides=7, n=48, wob=0.0):
+    pts = [ts(-PI + 2 * PI * q / n, v + (noise.noise(Vector((q * 0.35, v * 40, 2))) * wob), lift) for q in range(n + 1)]
+    bld.tube(pts, [th, th], sides=sides, rings=n + 1, cap=False)
+def tsocket(bld, a, v, r):
+    """A raw puckered hole in the trunk where something goes in."""
+    c = ts(a, v, -0.002); e1 = (ts(a + 0.02, v) - ts(a - 0.02, v)).normalized(); e2 = (ts(a, v + 0.01) - ts(a, v - 0.01)).normalized(); out = e1.cross(e2).normalized()
+    if out.dot(Vector((c.x, 0.1, c.z - 0.2))) < 0: out = -out
+    seg = 12; base = len(bld.v)
+    for rho, h in ((0.5, -0.4), (0.82, 0.26), (1.05, 0.42), (1.45, 0.2), (1.95, -0.2)):
+        for j in range(seg):
+            t = 2 * PI * j / seg; pk = 1 + 0.12 * math.sin(t * 5)
+            bld.add(c + e1 * (math.cos(t) * rho * r * pk) + e2 * (math.sin(t) * rho * r * pk) + out * h * r)
+    for k in range(4):
+        for j in range(seg): bld.f.append((base + k * seg + j, base + k * seg + (j + 1) % seg, base + (k + 1) * seg + (j + 1) % seg, base + (k + 1) * seg + j))
+ROOTS_ = [1.18, -1.18, 1.96, -1.96, 2.75, -2.75, 0.39, -0.39]
+
+# --- HUSK: a shell closing over the back from the limb roots upward, heaviest over the shoulders. It makes you a humped, armoured thing.
+hk = B(); hf = B()
+v = 0.04; row = 0
+while v < 0.86:
+    span = 2.05 if v < 0.34 else (2.55 if v < 0.55 else PI)      # the chest stays soft until it is low down
+    da = 0.34 + 0.16 * v; dv = 0.055 + 0.055 * v; step = da * 1.5; a = PI - span + (step * 0.5 if row % 2 else 0.0)
+    while a <= PI + span + 1e-3:
+        backk = max(0.0, -math.cos(a))
+        h = (0.032 + 0.06 * backk) * (1.0 + 0.5 * (1 - abs(v - 0.42) * 2))
+        tplate(hk, a, da, v, dv * 1.25, h, nu=8, nv=6)
+        tplate(hf, a, da * 1.08, v + dv * 0.5, dv * 0.7, h * 0.3, nu=5, nv=4, ridge=0.0, shade=False)
+        a += step
+    v += dv * 1.35; row += 1
+for a0 in (1.18, -1.18, 1.96, -1.96):     # great rounded plates over the limb roots
+    tplate(hk, a0, 0.46, 0.76, 0.15, 0.13, nu=12, nv=8, ridge=0.35)
+    tplate(hf, a0, 0.5, 0.86, 0.08, 0.05, nu=8, nv=4, ridge=0.0, shade=False)
+hk.make('Tor_Husk', M['chitin'], grime=0.28, uv=9.0); hf.make('Tor_HuskFlesh', M['flesh'], uv=8.0)
+
+# --- SHARD: machinery plugged into the spine. A feed housing and two tanks on the back, exhaust stacks over the shoulders, black rings cinched round the trunk, hoses running to every limb root.
+ss = B(); sd = B(); sr = B(); sf = B(); sg_ = B()
+hs = [ts(PI, 0.1 + 0.68 * j / 10, 0.075) for j in range(11)]
+ss.tube(hs, [0.075, 0.07, 0.06, 0.05, 0.04], sides=12, rings=34)
+for j in range(6):
+    v = 0.14 + 0.1 * j; sd.tube([ts(PI, v, 0.078), ts(PI, v + 0.014, 0.078)], [0.083 - 0.006 * j] * 2, sides=12, rings=3)
+    sg_.tube([ts(PI + 0.1, v + 0.03, 0.128 - 0.006 * j), ts(PI + 0.1, v + 0.07, 0.124 - 0.006 * j)], [0.0085, 0.0085], sides=6, rings=4)
+    sg_.tube([ts(PI - 0.1, v + 0.03, 0.128 - 0.006 * j), ts(PI - 0.1, v + 0.07, 0.124 - 0.006 * j)], [0.0085, 0.0085], sides=6, rings=4)
+for sg in (-1, 1):
+    a = PI + sg * 0.6
+    ss.tube([ts(a, 0.12, 0.1), ts(a, 0.3, 0.115), ts(a, 0.48, 0.1)], [0.08, 0.088, 0.08], sides=12, rings=12)     # tanks, half sunk into the flesh
+    for v in (0.15, 0.3, 0.45): sd.tube([ts(a, v, 0.103), ts(a, v + 0.012, 0.103)], [0.094, 0.094], sides=12, rings=3)
+    tplate(sf, a, 0.3, 0.3, 0.27, 0.05, nu=9, nv=9, ridge=0.0, shade=False)                                         # the welt the tank sits in
+    p0 = ts(PI + sg * 1.05, 0.1, 0.05); p1 = p0 + Vector((sg * 0.05, 0.16, 0.06)); p2 = p0 + Vector((sg * 0.09, 0.36, 0.1))
+    ss.tube([p0, p1, p2], [0.044, 0.04, 0.034], sides=10, rings=10)                                                 # exhaust stacks: they break the outline
+    sd.tube([p2 - Vector((sg * 0.012, 0.03, 0.006)), p2 + Vector((sg * 0.004, 0.01, 0.002))], [0.043, 0.043], sides=10, rings=3)
+    sd.blob(p2 + Vector((sg * 0.002, 0.012, 0.002)), 0.03, seg=10, rows=5)
+    tsocket(sf, PI + sg * 1.05, 0.11, 0.05)
+for v in (0.22, 0.44, 0.66):
+    tring(sr, v, 0.008, 0.017, sides=8, n=56, wob=0.002)
+    tring(sf, v - 0.017, 0.0, 0.016, wob=0.003); tring(sf, v + 0.017, 0.0, 0.016, wob=0.003)
+for a in ROOTS_:
+    sg = 1 if a > 0 else -1; v0 = 0.5 + abs(a) * 0.02
+    sd.tube([ts(PI - sg * 0.1 * -1, v0 - 0.12, 0.085), ts((a + sg * PI) / 2, v0 + 0.05, 0.06), ts(a, 0.78, 0.035), ts(a, 0.82, -0.012)], [0.024, 0.022, 0.02, 0.018], sides=8, rings=16)
+    tsocket(sf, a, 0.82, 0.024)
+tplate(ss, 0.0, 0.5, 0.37, 0.1, 0.03, nu=10, nv=7, ridge=0.0)      # a plate let into the chest, the first thing you see looking down
+for sg in (-1, 1):
+    sd.tube([ts(sg * 0.32, 0.33, 0.035), ts(sg * 0.6, 0.48, 0.04), ts(sg * 0.8, 0.66, -0.008)], [0.018, 0.016, 0.015], sides=7, rings=12); tsocket(sf, sg * 0.8, 0.66, 0.02)
+    for q in (-1, 1): sd.blob(ts(sg * 0.42, 0.37 + q * 0.07, 0.03), 0.012, seg=8, rows=4)
+ss.make('Tor_Shard', M['steel'], grime=0.26, uv=9.0); sd.make('Tor_ShardDark', M['dark'], grime=0.24, uv=9.0); sr.make('Tor_ShardRings', M['black'], grime=0.1, uv=10.0)
+sf.make('Tor_ShardFlesh', M['flesh'], uv=8.0); sg_.make('Tor_ShardGlow', M['shardglow'], uv=1.0)
+
+# --- ARC: a coil round the waist, nerves running from it across the skin, and insulated prongs rising off the shoulders, so the outline is unmistakable and nothing protects you.
+ac = B(); ai = B(); ad = B(); ag = B(); af = B()
+v = 0.27; n = 0
+while v < 0.45:
+    tring(ac, v, 0.016, 0.0115, sides=6, n=48); v += 0.0135; n += 1
+tring(ad, 0.26, 0.016, 0.018, sides=8, n=48); tring(ad, 0.46, 0.016, 0.018, sides=8, n=48)
+tring(af, 0.243, 0.0, 0.017, wob=0.003); tring(af, 0.477, 0.0, 0.017, wob=0.003)
+for a0, v0, H, r0 in ((PI + 0.62, 0.07, 0.62, 0.05), (PI - 0.62, 0.07, 0.62, 0.05), (PI + 1.45, 0.17, 0.42, 0.042), (PI - 1.45, 0.17, 0.42, 0.042)):
+    base = ts(a0, v0, 0.01); out = Vector((base.x, 0, base.z - 0.2)).normalized()
+    dirn = (out * 0.38 + Vector((0, 1, 0))).normalized()
+    ad.tube([base - dirn * 0.02, base + dirn * H], [r0 * 0.5, r0 * 0.28], sides=8, rings=4)
+    m = 7
+    for j in range(m):
+        k = j / m; rr = r0 * (1.05 - 0.55 * k); q = base + dirn * (H * k + 0.02)
+        ai.tube([q, q + dirn * (H / m * 0.34), q + dirn * (H / m * 0.72)], [rr, rr * 0.82, rr * 0.34], sides=11, rings=5)
+    ag.blob(base + dirn * (H + 0.015), r0 * 0.5, seg=10, rows=6)
+    tsocket(af, a0, v0, r0 * 0.95)
+for j, (a0, v1) in enumerate(zip(ROOTS_, [0.82] * 8)):
+    pts = []; m = 9; a_s = a0 * 0.75
+    for q in range(m + 1):
+        k = q / m; aa = a_s + (a0 - a_s) * k + noise.noise(Vector((j * 3.1, k * 3.0, 1.0))) * 0.16
+        pts.append(ts(aa, 0.47 + (v1 - 0.47) * k, 0.008 + 0.007 * math.sin(k * 3.14)))
+    ag.tube(pts, [0.0105, 0.009, 0.0065], sides=6, rings=26)
+for a0, v1 in ((0.0, 0.08), (0.7, 0.12), (-0.7, 0.12), (1.6, 0.1), (-1.6, 0.1)):         # up the chest, where you can see them
+    pts = []; m = 7
+    for q in range(m + 1):
+        k = q / m; aa = a0 + noise.noise(Vector((a0 * 3.1, k * 3.0, 4.0))) * 0.2
+        pts.append(ts(aa, 0.26 + (v1 - 0.26) * k, 0.008))
+    ag.tube(pts, [0.0095, 0.007, 0.0035], sides=6, rings=18)
+ac.make('Tor_Arc', M['copper'], grime=0.2, uv=10.0); ai.make('Tor_ArcCeramic', M['ceramic'], grime=0.2, uv=6.0); ad.make('Tor_ArcDark', M['dark'], grime=0.2, uv=8.0)
+ag.make('Tor_ArcGlow', M['arcglow'], uv=1.0); af.make('Tor_ArcFlesh', M['flesh'], uv=8.0)
+
 save_v2(r"art\v2_arm.blend")
 export_all(r"public\models\v2_arm.glb")
 print('RESULT faces', sum(len(o.data.polygons) for o in bpy.data.objects), 'file', bpy.data.filepath)
