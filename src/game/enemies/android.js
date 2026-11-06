@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Enemy } from './enemy.js';
 import { clamp, damp, yawTo, angleDiff, lerp, smooth, rand } from '../../core/util.js';
 import { LAB } from '../../v2/flags.js';
@@ -41,6 +42,7 @@ if (LAB) {
   Object.assign(ANDROID_VARIANTS.scout, { hp: 22, speed: 6.4, dmg: 5, shotSpeed: 34, aimT: 0.36, gap: 0.08, keep: [4, 9] });
   Object.assign(ANDROID_VARIANTS.heavy, { hp: 85, speed: 2.8, burst: 3, dmg: 16, shotSpeed: 15, aimT: 0.7, gap: 0.3, keep: [6, 12] });
 }
+const MERGED = new Map();
 const REBOOT_AFTER = 6.5, RISE = 0.7;     // seconds you have to deal with a machine that is down; how long it takes to stand
 
 export class SecurityAndroid extends Enemy {
@@ -95,10 +97,14 @@ export class SecurityAndroid extends Enemy {
       const side = s < 0 ? 'L' : 'R', hp = pivot(this.hips, s * r.hip[0], r.hip[1], 0), kn = pivot(hp, r.kn[0], r.kn[1], r.kn[2]), ft = pivot(kn, r.ft[0], r.ft[1], r.ft[2]); parts['hp' + side] = hp; parts['kn' + side] = kn; parts['ft' + side] = ft;
       return { s, hp, kn, ft };
     });
-    for (const name of v2prefix(r.key + '__')) {
-      const [, part, role] = name.split('__'), m = new THREE.Mesh(v2node(name).geometry, mats[role]);
-      m.castShadow = false; parts[part].add(m);
+    let built = MERGED.get(r.key);
+    if (!built) {
+      const groups = {};
+      for (const name of v2prefix(r.key + '__')) { const [, part, role] = name.split('__'), k = part + '|' + role; (groups[k] || (groups[k] = [])).push(v2node(name).geometry); }
+      built = Object.entries(groups).map(([k, list]) => { const [part, role] = k.split('|'); return { part, role, geo: list.length > 1 ? mergeGeometries(list, false) : list[0] }; });
+      MERGED.set(r.key, built);
     }
+    for (const { part, role, geo } of built) { const m = new THREE.Mesh(geo, mats[role]); m.castShadow = false; parts[part].add(m); }
   }
 
   build() {

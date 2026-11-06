@@ -118,7 +118,9 @@ export class Abilities {
   acid(a, ti, kc) {
     const g = this.g, cam = g.camera; cam.updateMatrixWorld(); g.viewmodel.syncToCamera(cam); g.viewmodel.muzzleWorld(_a); cam.getWorldDirection(_d);
     const m = new THREE.Mesh(this.globGeo, this.globMat); m.position.copy(_a); this.group.add(m);
-    this.globs.push({ m, vel: _d.clone().multiplyScalar(a.speed).add(_b.set(0, a.lift, 0)), t: 0, dmg: a.dmg[ti] * kc, dot: a.dot[ti] * kc, radius: a.radius[ti], life: a.life });
+    const at = g.pickAim(cam.position, _d, a.range), T = Math.max(0.28, Math.min(1.1, at.distanceTo(_a) / a.speed));
+    const vel = new THREE.Vector3((at.x - _a.x) / T, (at.y - _a.y) / T + 8 * T, (at.z - _a.z) / T);
+    this.globs.push({ m, vel, t: 0, dmg: a.dmg[ti] * kc, dot: a.dot[ti] * kc, radius: a.radius[ti], life: a.life });
     g.viewmodel.fireKick(); g.viewmodel.recoilVel += 4; g.addShake(0.05); g.viewmodel.bulge = Math.max(g.viewmodel.bulge, 0.8);
     g.audio.play('gel', { vol: 0.9 }); g.audio.play('swallow', { vol: 0.4 });
     for (let i = 0; i < 6; i++) g.effects.glowP.emit(_a.x, _a.y, _a.z, _d.x * 3 + rand(-1, 1), _d.y * 3 + rand(-0.4, 1), _d.z * 3 + rand(-1, 1), 0.3, 0.02, 0.4, 0.46, 0.08, 8, 0.6);

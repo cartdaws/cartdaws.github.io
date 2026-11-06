@@ -4,76 +4,66 @@
 
 **Controls:** WASD move, Space jump, Shift dash, left click attack, right click or E absorb. Q tap: next mutation. Q hold: the wheel. 1 to 8: raise that limb. 0: bare arms. **Hold V: see your whole body.** In the lab, E on a floor pad.
 
-**Checkpoint before Evolution 2.0:** tag `v2-checkpoint-pre-evolution2`, and `Desktop/Intruder-Backups/intruder-v2-127c929-pre-evolution2.bundle`.
+**Checkpoints:** tags `v2-checkpoint-pre-evolution2` and `v2-checkpoint-pre-androids`, with bundles in `Desktop/Intruder-Backups`.
 
 ## Implemented
 
 | Area | What exists | Where |
 |---|---|---|
-| Separation | The prototype runs by default; `?legacy` runs the old game | `src/v2/flags.js` |
-| Eight limbs | Eight real limbs, one per wheel slot at a fixed place round the body. A mutation stays on its limb. Choosing it raises that limb; the rest walk | `src/v2/limbs.js`, `src/v2/evolution.js` |
-| Wheel | A plan of your body from above: each sector sits where its limb is. Shows role, strengths and limits. Hold Q, world slows, mouse steers | `src/v2/wheel.js` |
-| Ninth mutation | When all eight are taken and you absorb something you do not carry, the wheel asks: replace a limb or keep your body. Nothing is ever overwritten. Something you already carry does not ask | `src/v2/wheel.js`, `src/v2/evolution.js` |
-| Silhouette | Each mutation also grows on the trunk, climbing from the limb roots as it deepens: a humped shell; tanks, spine housing and exhaust stacks; a coil and insulated prongs. The trunk bulks up, and limbs carrying husk thicken | `art/build_v2_arm.py`, `src/v2/limbs.js` |
-| Transformation | The arm swells in lumps ahead of a raw dark edge, convulses, and parts force out and settle. A walking limb lifts into the corner of your view while it changes. It never stops you moving | `src/v2/armskin.js`, `src/v2/limbs.js` |
-| Absorption: machine | Arms coil round it and haul it up. Each real part is wrenched off in turn, outermost first, and dragged into the coils; each sends a metal-grey lump up the arm. Sparks and clatter. Its blue power drains. Nothing is left. Gives more energy, less healing | `src/v2/absorbfx.js` |
-| Absorption: living | Too heavy to lift: the arms squeeze it on the floor. The shell cracks, darkens and sags, dark drips fall, and slow wide swallows run up the arms. The empty shell stays behind. Gives more healing, less energy | `src/v2/absorbfx.js`, `src/v2/shellback.js` |
-| Machines go down first | A machine that is awake always goes down before it can die, however hard the blow, so there is something to absorb. Finishing it off is a choice | `src/game/enemies/enemy.js` |
-| See yourself | Hold V: the camera steps out and the mouse orbits it, with the world slowed | `src/v2/inspect.js` |
-| Evolution Lab | One compact room: four specimens that come back, inert machines to measure against, two ledges and a dash lane, pads to wake a squad / grow every limb / start a new body, and a live comparison panel | `src/v2/gym.js` |
-| Test chapter | Short generated deck, androids only, harmless shellbacks to absorb | `src/v2/lab.js`, `src/v2/shellback.js` |
-| Death | New body, new layout, chapter restarts. Discoveries persist; no permanent stats. In the lab you return with your build | `src/v2/lab.js`, `src/v2/gym.js` |
+| Eight limbs | One real limb per wheel slot, at a fixed place round the body. A mutation holds one limb and stays on it. Choosing it raises that limb; the rest walk | `src/v2/limbs.js`, `src/v2/evolution.js` |
+| Stacking | No multiples of a mutation. Each enemy gives one mutation. Absorbs 1 to 3 are stages that spread it over the limb and body; every absorb after that adds 12% power with no cap, and the limb and body keep getting bigger | `src/v2/evolution.js` |
+| Wheel | A plan of your body from above. Shows stage, absorb count, role, strengths and limits | `src/v2/wheel.js` |
+| Eight-limb choice | With all eight taken, absorbing something you do not carry asks: replace a limb or keep your body. Absorbing something you carry just strengthens it | `src/v2/wheel.js`, `src/v2/evolution.js` |
+| Silhouette | Each mutation grows on the trunk, from the limb roots up: shell, machinery and stacks, coil and prongs, side reels, bloated sacs | `art/build_v2_arm.py`, `src/v2/limbs.js` |
+| Transformation | Lumpy swelling ahead of a raw edge, convulsion, parts forcing out. A walking limb lifts into view while it changes. You never stop moving | `src/v2/armskin.js`, `src/v2/limbs.js` |
+| Absorption | Machines are hauled up and stripped part by part. Living things are squeezed where they lie, crack, sag and leave a shell. Different healing and energy | `src/v2/absorbfx.js` |
+| Androids | Three Blender machines: plates over frame over cables and a lit core, with 46 to 49 pieces each | `art/build_v2_androids.py`, `src/game/enemies/android.js` |
+| Behaviour | See below | `src/game/enemies/android.js` |
+| Evolution Lab | Five specimens that come back, inert machines to measure against, ledges and a dash lane, cover pillars, pads to wake a squad / try the eight-limb choice / start a new body, and a live comparison panel | `src/v2/gym.js` |
+| See yourself | Hold V: the camera steps out, the mouse orbits it, the world slows | `src/v2/inspect.js` |
+| Test chapter, death | Short generated deck; death restarts it. Discoveries persist; no permanent stats. In the lab you return with your build | `src/v2/lab.js` |
 
-## The three mutations
+## The five mutations
 
-Measured at stage 3 unless noted. Baseline with bare arms or Shard raised: 7.2 m/s, 0.17 s to reach speed, no slide, dash 18 m/s for 3.2 m, jump 1.73 m (test figures; the panel shows the calculated peak).
+| | **Chitin Husk** | **Shard Siphon** | **Arc Nerves** | **Tendon Hook** | **Acid Gland** |
+|---|---|---|---|---|---|
+| Nature | Organic | Biomechanical | Biomechanical | Biomechanical | Organic |
+| Absorb to get it | Shellback | Trooper | Heavy | Scout | Bladderback |
+| Purpose | Close and brutal | At a distance | Against many | Control and movement | Controlling ground |
+| Strength | Armour wherever carried. Blows stagger. Dash becomes a charge | Hits at any range | Finds its own target, conducts through machines, stops them firing. Raised, you are quick | Yanks light machines to you. Pulls you to heavies and any surface, up and over ledges. Raised, you are agile | Pool damages, slows, and makes machines take 40% more from everything. Absorbing heals 30% more |
+| Limit | No reach. Raised: slow, slides, jumps low | Uses energy. Spreads as held. Slows you firing. Half damage to a heavy's front | Weak on one target. Huge cost. You take more damage. Burns out downed machines | Barely hurts. One target. Brings them into your face. You cannot steer while pulled. You take 5% more damage | Slow arc. Little damage at once. The pool burns you too |
 
-| | **Chitin Husk** (organic) | **Shard Siphon** (biomechanical gun) | **Arc Nerves** (biomechanical) |
-|---|---|---|---|
-| Source | Shellback | Trooper, scout | Heavy |
-| Purpose | Close and brutal | At a distance | Against many |
-| Strength | Armour wherever carried (damage taken 59%). Blows stagger. Dash becomes a charge that damages, knocks back and stuns | Hits at any range | Finds its own target. Conducts through nearby machines, +25% per machine, and stops them firing. Raised, you are quicker |
-| Limit | No reach. Raised: slow, slides, jumps low | Drinks energy. Spreads as you hold it. Slows you 16% while firing. Half damage to heavies. Slower energy recovery | Weak on one target. Huge cost. You take 6 to 10% more damage. Burns out downed machines you could have absorbed |
-| Top speed, raised | 6.05 | 7.2 | 7.63 |
-| Time to reach speed | 0.37 s | 0.17 s | 0.13 s |
-| Slide after stopping | 0.39 m | none | none |
-| Dash | 13 m/s for 0.3 s, 3.8 m, a charge | 18 m/s, 3.2 m | 18 m/s, 3.2 m |
-| Jump (test figure) | 1.24 m | 1.73 m | 1.91 m |
-| The 2.25 m ledge | **Cannot reach** | Can | Can |
-| Inert trooper | 0.2 s, only within 4 m | 0.3-0.37 s at any range | 0.73 s |
-| Inert heavy | 0.9 s, only within 4 m | 1.5 s | 3.17 s, and all its energy |
-| Four machines at once | One at a time | One at a time | All four: 32 damage each, all stopped firing |
+Measured, stage 3: Husk 6.05 m/s and cannot reach the 2.25 m ledge; Shard 7.2 m/s; Arc 7.63 m/s. Inert trooper: Husk 0.2 s within 4 m, Shard 0.3-0.37 s at any range, Arc 0.73 s. Inert heavy: Husk 0.9 s, Shard 1.5 s, Arc 3.17 s and all its energy. Arc on four machines: 32 damage each, all stopped. Hook: dragged a trooper 10.3 m, hauled the player 8.9 m to a heavy that did not move, carried the player onto the 2.25 m ledge. Acid: lands within 0.5 m at 4 to 16 m, flight 0.3 to 1.07 s; 19 on impact and 16 per second at stage 3; burns you 8 per second.
 
-Further limbs: once a mutation reaches stage 3, absorbing its source grows it on another free limb, and each extra limb makes that mutation 10% stronger. Passive armour and costs do not stack.
+Stacking, measured: Shard stage 3 does 15 per shot; at 8 absorbs, 24. Still one limb.
 
-## Machines
+## How machines fight
 
-| | Health | Speed | Shot speed | Damage | Aim time | Rest after burst |
-|---|---|---|---|---|---|---|
-| Trooper | 40 | 4.2 | 26 | 9 | 0.5 | 0.9-1.7 |
-| Scout | 22 | 6.4 | 34 | 5 | 0.36 | same |
-| Heavy | 85 | 2.8 | 15 | 16 | 0.7 | same |
+| | Health | Speed | Shot speed | Damage | Behaviour, measured |
+|---|---|---|---|---|---|
+| Trooper | 40 | 4.2 | 26 | 9 | Fires, then ducks into cover nearby (32% of its time, hidden from you 33%) and comes out elsewhere. If you hide it keeps firing at where you were (8 shots while hidden 81% of the time) |
+| Scout | 22 | 6.4 | 34 | 5 | Never stops: 86% of its time moving, circled 201 degrees in 8 seconds, shoots on the run, dodges when your aim is on it (4 dodges in 8 seconds) |
+| Heavy | 85 | 2.8 | 15 | 16 | Marches straight at you, firing as it comes (20.9 m to 2.2 m in 12 seconds). Its plating halves shard hits from the front only. Ignores small hits. Close up, it stomps: 0.6 s warning, up to 22 damage and knockback |
 
-A machine left down for 6.5 seconds gets up at 45 percent, with a warning. Lab specimens do not.
+All: never more than two lining up shots at once (measured), go down before they can die, and get back up after 6.5 seconds if left alone. Lab specimens do not.
 
 ## Verified, realistic mode
 
-- **Limb assignment:** changing arms leaves every mutation on the same limb.
-- **Clipping and ground contact, measured:** 2808 samples on walking limbs, twice: none inside anything solid, 1.2 cm into the floor at worst, 8 cm above it at worst.
-- **The lab through real input:** the pads with the E key; specimens absorbed through the real absorb and respawned; the eight-limb question reached by the fill pad and a real absorb; keeping, replacing limb 3, and no question for something already carried; a new body; a squad awake and lethal with real damage; dying and returning with the build kept; leaving for the test chapter, which cleans up.
-- **Ninth-mutation routes:** Q, E, right click, number keys and mouse with click. Only the chosen limb changes. Healing and energy apply either way. The trigger is off while it asks. Several queue.
-- **Absorb:** 1.07 seconds, you keep moving, nothing slows. All three android types from every side at 3.4 m.
-- **Test chapter, a bot with real damage, 17 layouts over three runs:** 10 clears in 53 to 82 seconds, 6 deaths in 27 to 71 seconds, 1 stall where it stopped making progress at 57 health. It reached eight limbs in normal play. Runs varied a lot: 3 of 6, 5 of the 5 recorded, and 2 of 6 cleared. The bot aims perfectly and cannot dodge, so this shows direction, not difficulty for a person.
-- **Inherited game via `?legacy`:** three playthroughs won with nothing stuck, the journey script and the road test complete. The script audit's `board` step reports false, as it did before this work.
-- **Cost, worst case, every limb mutated:** 128 draw calls, 504k triangles, 0.11 ms to update the body. Measured on a software renderer, so the frame rate on real hardware is unknown. `v2_arm.glb` grew from 2.5 to 4.1 MB.
+- **Limb assignment and clipping:** changing arms leaves every mutation in place. 2808 samples on walking limbs: none inside anything solid.
+- **The lab through real input:** pads, specimens absorbed through the real absorb and respawned, the eight-limb question via stand-ins, keeping, replacing, stacking at a full body with no question, new body, live squad, dying and returning, leaving for the chapter.
+- **Choice routes:** Q, E, right click, number keys, mouse with click. Only the chosen limb changes. Benefits apply either way.
+- **Downed machines:** troopers and heavies absorbable from 3.4 m on every side, 12 of 12. Scouts fall away from you, so 6 of 12 needed one more step.
+- **Test chapter, a bot with real damage, 12 layouts:** 4 clears in 60 to 95 seconds, 8 deaths in 26 to 56 seconds. Harder than the previous round (10 clears in 17). The bot aims perfectly, but cannot dodge or use cover, and uses only Shard, Husk and Arc. It shows direction, not difficulty for a person.
+- **Inherited game via `?legacy`:** three playthroughs won, journey script and road test complete. The audit's `board` step reports false, as it did before.
+- **Cost, worst case:** all five mutations and six machines awake: 959 draw calls, 742k triangles, 0.24 ms for the body, 0.04 ms per machine per step. Measured on a software renderer, so the frame rate on real hardware is unknown.
 
 ## Experimental, not proven
 
-- **How it feels.** No person has played this. Every number is a measured first guess.
-- **Further limbs of the same mutation** were added so eight limbs can be reached with only three mutations. Whether this is the right rule is a design question.
-- **The limb lifting into view** can pass partly behind a raised arm on the same side.
-- **Seen from outside,** the raised arms hold one pose; they do not strike or fire. Their mutation plates face away from you while absorbing, because the underside faces you.
-- **Long-range grabs** stretch the arm, and the suckers elongate near the far end. A kneeling heavy gives the least tidy coils.
+- **How it feels.** No person has played this round. Every number is a measured first guess.
+- **The eight-limb choice cannot happen in normal play.** With no multiples, five mutations can never fill eight limbs. It needs nine. In the lab, stand-ins hold the empty limbs so it can be tried.
+- **Stacking has no cap.** In the lab specimens respawn, so numbers can get very large.
+- **Draw calls** are still high with many machines (about 49 per android, down from about 70). They could be merged further until torn apart.
+- **Acid** has no trajectory marker. **The lifting limb** can pass behind a raised arm. **From outside**, raised arms hold one pose.
+- **Long-range grabs** stretch the arm; a kneeling heavy gives the least tidy coils.
 - **Phone and Retro mode:** not tested. On a phone there is no way to hold V or press E on a pad yet.
-- **Androids, rooms:** still V1 art. The android redesign and new mutations wait for approval.
-- **Rigging:** nothing uses a skeleton.
+- **Rooms** are still V1 art. **Rigging:** nothing uses a skeleton.

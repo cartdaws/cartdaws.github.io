@@ -71,7 +71,7 @@ export const MUTATIONS = {
     note: 'SPITS A GLOB ON A SLOW ARC. THE POOL EATS MACHINES AND WEAKENS THEM. IT CAN HURT YOU TOO.',
     role: 'CONTROLLING GROUND', plus: 'POOL DAMAGES, SLOWS, AND MAKES MACHINES TAKE 40% MORE FROM EVERYTHING. ABSORBING HEALS YOU 30% MORE', minus: 'SLOW ARC, EASY TO DODGE. LITTLE DAMAGE AT ONCE. THE POOL BURNS YOU TOO',
     style: { rim: 0xb0c050, suck: 0x000000, suckI: 0, grip: 0, spread: 0, swell: 0.3, weapon: 0.8, noMouth: false, roll: 2.2 },
-    attack: { type: 'acid', dmg: [8, 11, 14], dot: [12, 16, 21], radius: [2.4, 2.8, 3.2], speed: 17, lift: 4.5, life: 4, rate: [1.0, 0.9, 0.8], cost: [16, 16, 16], corrode: 1.4 },
+    attack: { type: 'acid', dmg: [8, 11, 14], dot: [12, 16, 21], radius: [2.4, 2.8, 3.2], speed: 14, range: 24, life: 4, rate: [1.0, 0.9, 0.8], cost: [16, 16, 16], corrode: 1.4 },
     mods: () => ({ absorbHeal: 1.3 }),
     move: () => ({}),
     moveNote: () => 'WET, CORROSIVE',
