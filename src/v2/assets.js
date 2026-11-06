@@ -28,7 +28,9 @@ export async function loadV2Assets() {
   applyTrypo();
   const tex = async (n, srgb) => { const t = await T.loadAsync(base + 'textures/' + n + '.jpg'); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4; if (srgb) t.colorSpace = THREE.SRGBColorSpace; return t; };
   const [plate, plateN, rust, rustN, rockN, armor, armorN, worn, wornN, rock, rockFaceN, skin, skinN] = await Promise.all([tex('metal_plate', true), tex('metal_plate_n'), tex('rusty_metal_02', true), tex('rusty_metal_02_n'), tex('rocky_terrain_02_n'), tex('blue_metal_plate', true), tex('blue_metal_plate_n'), tex('metal_plate_02', true), tex('metal_plate_02_n'), tex('rock_face_03', true), tex('rock_face_03_n'), tex('fabric_leather_02', true), tex('fabric_leather_02_n')]);
-  Object.assign(ENEMY_TEX, { armor, armorN, worn, wornN });
+  // the maps give wear and grain; each machine's own colour comes from its tint, so they are flattened to grey first
+  const grey = (t, filter) => { const im = t.image, c = document.createElement('canvas'); c.width = im.width; c.height = im.height; const x = c.getContext('2d'); x.filter = filter; x.drawImage(im, 0, 0); const o = new THREE.CanvasTexture(c); o.wrapS = o.wrapT = THREE.RepeatWrapping; o.anisotropy = 4; o.colorSpace = THREE.SRGBColorSpace; return o; };
+  Object.assign(ENEMY_TEX, { armor: grey(armor, 'grayscale(1) contrast(1.15) brightness(1.7)'), armorN, worn: grey(worn, 'grayscale(1) contrast(1.1) brightness(1.5)'), wornN });
   const dress = (node, map, normal, ns = 0.8) => { const m = NODES[node]?.material; if (!m) return; if (map) { m.map = map; m.color.multiplyScalar(1.7); } if (normal) { m.normalMap = normal; m.normalScale = new THREE.Vector2(ns, ns); } m.needsUpdate = true; };
   for (const n of ['Mut_ShardGlow', 'Mut_ArcGlow', 'ShellPores']) { const m = NODES[n].material; m.emissiveIntensity = 0.62; m.color.multiplyScalar(0.3); }
   NODES.ArmSuckers.material.color.multiplyScalar(0.62);

@@ -3,6 +3,7 @@ import { ShipLife } from '../world/shipLife.js';
 import { Surface } from '../world/surface.js';
 import { Campaign } from './campaign.js';
 import { LAB } from '../v2/flags.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { trypoSafe, setTrypoSafe } from '../v2/assets.js';
 import { Evolution } from '../v2/evolution.js';
 import { Lab } from '../v2/lab.js';
@@ -61,6 +62,8 @@ export class Game {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x04070a);
     this.scene.fog = new THREE.FogExp2(0x050709, 0.016);
+    // Image-based light: without it every metal surface has nothing to reflect and goes black. A small interior room, blurred, kept dim so the dark stays dark but the materials read.
+    { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.06).texture; this.scene.environmentIntensity = 0.42; pm.dispose(); }
     this.baseHemi = new THREE.HemisphereLight(0x7f95a4, 0x14181b, 0.42); this.scene.add(this.baseHemi);       // the ship's own interior fill; anywhere with a sky has its own light
 
     this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.08, 500);

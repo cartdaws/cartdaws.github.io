@@ -73,9 +73,9 @@ export class SecurityAndroid extends Enemy {
   buildModel() {
     const v = this.v, r = RIG[this.variant], src = (n) => v2node(n)?.material;
     const grime = !!v2node('T__torso__plate__1')?.geometry.attributes.color;
-    const mk = (color, rough, metal, normal, map) => this.trackFlash(new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: metal, emissive: 0x000000, vertexColors: grime, normalMap: normal || null, map: map || null }));
+    const mk = (color, rough, metal, normal, map, lift = 1) => this.trackFlash(new THREE.MeshStandardMaterial({ color: map ? new THREE.Color(color).multiplyScalar(lift) : color, roughness: rough, metalness: metal, emissive: 0x000000, vertexColors: grime, normalMap: normal || null, map: map || null }));
     const mats = {
-      plate: mk(v.armor, 0.42, 0.3, src('T__torso__plate__1')?.normalMap, ENEMY_TEX.armor), body: mk(v.body, 0.5, 0.45, src('T__torso__body__1')?.normalMap, ENEMY_TEX.worn), trim: mk(v.trim, 0.45, 0.45), joint: mk(0x1a1e21, 0.52, 0.5),
+      plate: mk(v.armor, 0.42, 0.3, src('T__torso__plate__1')?.normalMap, ENEMY_TEX.armor, 2.4), body: mk(v.body, 0.5, 0.45, src('T__torso__body__1')?.normalMap, ENEMY_TEX.worn, 2.2), trim: mk(v.trim, 0.5, 0.4, src('T__torso__body__1')?.normalMap, ENEMY_TEX.worn, 1.9), joint: mk(0x1a1e21, 0.52, 0.5),
       cable: new THREE.MeshStandardMaterial({ color: 0x0e1012, roughness: 0.62, metalness: 0.1 }),
     };
     this.visorMat = new THREE.MeshStandardMaterial({ color: 0x000000, emissive: 0xff2a10, emissiveIntensity: 0.3 });
