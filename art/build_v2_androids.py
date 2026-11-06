@@ -73,6 +73,17 @@ def arm_lower(V, s, side, k, hand=True, L=0.26):
         h = pc(V, 'el' + side, 'joint'); sb(h, (0, -L - 0.02, 0), (0.042 * k, 0.038, 0.05 * k))
         for f in (-1, 0, 1): cyl(h, (f * 0.028 * k, -L - 0.05, -0.02 * k), (f * 0.03 * k, -L - 0.11, -0.034 * k), 0.011 * k, 0.008 * k, sides=7)
 
+def piston(V, side, k, z, L=0.44):
+    """A hydraulic ram down the back of a straight leg: its housing rides the thigh, its rod comes up out of the shin and slides into it as the knee bends."""
+    f = L / 0.44
+    h = pc(V, 'hp' + side, 'body'); cyl(h, (0, -0.07, z * k), (0, -0.27 * f, z * k), 0.024 * k, sides=10)
+    c = pc(V, 'hp' + side, 'trim'); cyl(c, (0, -0.075, z * k), (0, -0.095, z * k), 0.03 * k, sides=10); cyl(c, (0, -0.255 * f, z * k), (0, -0.275 * f, z * k), 0.03 * k, sides=10)
+    r = pc(V, 'kn' + side, 'joint'); cyl(r, (0, 0.17 * f, z * k), (0, -0.06, z * k), 0.011 * k, sides=8)
+    m = pc(V, 'kn' + side, 'body'); sb(m, (0, -0.06, z * k), (0.018 * k, 0.018, 0.022 * k))
+def slack(b, a, c, sag, r, sides=7, rings=11):
+    """A cable that is longer than the gap it crosses: it hangs in a loop."""
+    mid = ((a[0] + c[0]) / 2, min(a[1], c[1]) - sag, (a[2] + c[2]) / 2); q1 = ((a[0] * 2 + c[0]) / 3, mid[1] + sag * 0.35, (a[2] * 2 + c[2]) / 3); q2 = ((a[0] + c[0] * 2) / 3, mid[1] + sag * 0.35, (a[2] + c[2] * 2) / 3)
+    b.tube([a, q1, mid, q2, c], [r, r * 0.95, r, r * 0.95, r], sides=sides, rings=rings)
 def spine_core(V, y0, y1, r):
     c = pc(V, 'torso', 'cable')
     for a in (-0.7, 0.7): cyl(c, (a * r, y0, 0.03), (a * r * 0.8, y1, 0.02), 0.012, sides=7)
@@ -80,7 +91,9 @@ def spine_core(V, y0, y1, r):
 
 # ================================================================ TROOPER
 V = 'T'
-for s, side in ((-1, 'L'), (1, 'R')): leg_straight(V, s, side, 1.0)
+for s, side in ((-1, 'L'), (1, 'R')):
+    leg_straight(V, s, side, 1.0); piston(V, side, 1.0, 0.072)
+    q = pc(V, 'hp' + side, 'cable'); slack(q, (s * 0.05, -0.06, 0.07), (s * 0.052, -0.3, 0.066), 0.05, 0.009)
 j = pc(V, 'hips', 'joint'); sb(j, (0, 0, 0), (0.15, 0.07, 0.105))
 p = pc(V, 'hips', 'plate'); sb(p, (0, -0.04, -0.112), (0.13, 0.06, 0.026), rot=(0.16, 0, 0), taper=(1.2, 1)); sb(p, (0, -0.03, 0.11), (0.12, 0.05, 0.024))
 for s in (-1, 1): sb(p, (s * 0.175, -0.05, 0), (0.042, 0.08, 0.1), rot=(0, 0, s * 0.18))
@@ -98,6 +111,9 @@ l = pc(V, 'torso', 'light')
 for i in range(3): sb(l, (0, 0.34 + i * 0.075, 0.238), (0.105, 0.012, 0.008))
 c = pc(V, 'torso', 'cable')
 for s in (-1, 1): c.tube([(s * 0.1, 0.56, 0.2), (s * 0.2, 0.63, 0.12), (s * 0.28, 0.6, 0.03)], [0.016, 0.014, 0.012], sides=7, rings=9)
+for s in (-1, 1):
+    slack(c, (s * 0.07, 0.24, 0.17), (s * 0.06, 0.04, 0.1), 0.07, 0.013, sides=8)      # the harness from pack to hip
+    h = pc(V, 'torso', 'body'); cyl(h, (s * 0.11, 0.3, 0.24), (s * 0.11, 0.58, 0.24), 0.016, sides=8); cyl(h, (s * 0.11, 0.3, 0.24), (s * 0.11, 0.32, 0.24), 0.024, sides=8)
 j = pc(V, 'head', 'joint'); cyl(j, (0, -0.04, 0), (0, 0.06, 0), 0.05, 0.042, sides=10)
 c = pc(V, 'head', 'cable'); [cyl(c, (s * 0.06, -0.05, 0.03), (s * 0.05, 0.05, 0.05), 0.009, sides=6) for s in (-1, 1)]
 p = pc(V, 'head', 'plate'); sb(p, (0, 0.135, 0.008), (0.104, 0.118, 0.118), taper=(0.84, 0.88))
@@ -117,7 +133,10 @@ g = pc(V, 'gun', 'light'); sb(g, (0, 0.074, -0.05), (0.014, 0.012, 0.03), rows=6
 
 # ================================================================ SCOUT: all lean and leg
 V = 'S'
-for s, side in ((-1, 'L'), (1, 'R')): leg_reversed(V, s, side)
+for s, side in ((-1, 'L'), (1, 'R')):
+    leg_reversed(V, s, side)
+    st = pc(V, 'hp' + side, 'joint'); cyl(st, (0, -0.06, 0.03), (0, -0.3, -0.06), 0.012, sides=8)      # the tendon strut
+    q = pc(V, 'kn' + side, 'cable'); slack(q, (s * 0.03, -0.04, 0.03), (s * 0.03, -0.28, 0.16), 0.04, 0.007, sides=6)
 j = pc(V, 'hips', 'joint'); sb(j, (0, 0, 0), (0.11, 0.058, 0.082))
 p = pc(V, 'hips', 'plate'); sb(p, (0, -0.012, 0.09), (0.09, 0.05, 0.05), taper=(0.7, 0.7))
 t = pc(V, 'hips', 'trim'); sb(t, (0, 0.03, 0.14), (0.018, 0.012, 0.06))
@@ -147,7 +166,9 @@ g = pc(V, 'gun', 'light'); sb(g, (0, 0.048, -0.04), (0.01, 0.008, 0.02), rows=6)
 
 # ================================================================ HEAVY: shoulders first
 V = 'H'
-for s, side in ((-1, 'L'), (1, 'R')): leg_straight(V, s, side, 1.36)
+for s, side in ((-1, 'L'), (1, 'R')):
+    leg_straight(V, s, side, 1.36); piston(V, side, 1.36, 0.075)
+    q = pc(V, 'hp' + side, 'cable'); slack(q, (s * 0.08, -0.08, 0.1), (s * 0.085, -0.42, 0.09), 0.09, 0.014, sides=8)
 for side in ('L', 'R'):
     t = pc(V, 'kn' + side, 'plate'); sb(t, (0, -0.36, -0.03), (0.09, 0.05, 0.09), taper=(1.2, 1.2))
 j = pc(V, 'hips', 'joint'); sb(j, (0, 0, 0), (0.2, 0.09, 0.14))
@@ -168,6 +189,9 @@ for s in (-1, 1):
     l = pc(V, 'torso', 'light'); cyl(l, (s * 0.174, 0.898, 0.303), (s * 0.174, 0.904, 0.303), 0.038, sides=10)
 c = pc(V, 'torso', 'cable')
 for s in (-1, 1): c.tube([(s * 0.14, 0.6, 0.26), (s * 0.3, 0.68, 0.16), (s * 0.42, 0.62, 0.04)], [0.022, 0.02, 0.018], sides=8, rings=9)
+for s in (-1, 1):
+    h = pc(V, 'torso', 'body'); cyl(h, (s * 0.26, 0.6, 0.0), (s * 0.34, 0.45, 0.0), 0.028, 0.024, sides=10)       # shoulder rams
+    c2 = pc(V, 'torso', 'cable'); slack(c2, (s * 0.2, 0.3, 0.255), (s * 0.12, 0.05, 0.19), 0.1, 0.018, sides=8)
 p = pc(V, 'head', 'plate'); sb(p, (0, 0.07, 0.0), (0.105, 0.085, 0.115), taper=(0.8, 0.84))
 b = pc(V, 'head', 'body'); sb(b, (0, 0.04, -0.09), (0.082, 0.05, 0.04))
 v = pc(V, 'head', 'visor'); sb(v, (0, 0.075, -0.122), (0.07, 0.012, 0.01), rows=6)
