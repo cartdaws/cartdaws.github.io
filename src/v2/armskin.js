@@ -1,24 +1,8 @@
 import * as THREE from 'three';
 import { POSE_GLSL, Z0, L0 } from '../presentation/arm.js';
 
-// The arm's skin. An ordinary living animal first: mottled plum on the back, pale on the underside, wet. Mutations raise bruised flesh and veins around themselves as they spread.
-export function makeV2Skin(shared, U, own) {
-  return new THREE.ShaderMaterial({
-    transparent: true, depthWrite: true,
-    uniforms: { ...shared, ...U, ...own },
-    vertexShader: `
-      ${POSE_GLSL}
-      varying vec3 vN, vV, vP; varying float vBand, vVent, vS;
-      void main() {
-        float band; vec3 q = tentaclePoint(position, normal, band);
-        vec4 mv = modelViewMatrix * vec4(q, 1.0);
-        vN = normalize(normalMatrix * tentacleNormal(position, normal));
-        vV = normalize(-mv.xyz); vBand = band; vP = position;
-        vVent = position.y / max(0.001, length(position.xy));
-        vS = clamp((${Z0.toFixed(2)} - position.z) / ${L0.toFixed(2)}, 0.0, 1.0);
-        gl_Position = projectionMatrix * mv;
-      }`,
-    fragmentShader: `
+export const SKIN_VARYINGS = 'varying vec3 vN, vV, vP; varying float vBand, vVent, vS;';
+export const SKIN_FRAG = `
       uniform vec3 uRim, uEnv; uniform float uAlpha, uGlow, uHeat, tTime, uFront, uInfect, uWound;
       varying vec3 vN, vV, vP; varying float vBand, vVent, vS;
       float h3(vec3 p) { return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453); }
@@ -49,7 +33,26 @@ export function makeV2Skin(shared, U, own) {
         float d = (vS - uFront) / 0.035; c += vec3(1.0, 0.34, 0.2) * exp(-d * d) * uWound;
         c += uRim * (uGlow * 0.05 + uHeat * 0.1 + vBand * 0.32);
         gl_FragColor = vec4(pow(max(c, vec3(0.0)), vec3(2.2)), uAlpha);
+      }`;
+
+// The arm's skin. An ordinary living animal first: mottled plum on the back, pale on the underside, wet. Mutations raise bruised flesh and veins around themselves as they spread.
+export function makeV2Skin(shared, U, own) {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: true,
+    uniforms: { ...shared, ...U, ...own },
+    vertexShader: `
+      ${POSE_GLSL}
+      varying vec3 vN, vV, vP; varying float vBand, vVent, vS;
+      void main() {
+        float band; vec3 q = tentaclePoint(position, normal, band);
+        vec4 mv = modelViewMatrix * vec4(q, 1.0);
+        vN = normalize(normalMatrix * tentacleNormal(position, normal));
+        vV = normalize(-mv.xyz); vBand = band; vP = position;
+        vVent = position.y / max(0.001, length(position.xy));
+        vS = clamp((${Z0.toFixed(2)} - position.z) / ${L0.toFixed(2)}, 0.0, 1.0);
+        gl_Position = projectionMatrix * mv;
       }`,
+    fragmentShader: SKIN_FRAG,
   });
 }
 

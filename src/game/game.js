@@ -736,7 +736,7 @@ export class Game {
     this.baseHemi.visible = !(this.surface.active || this.flight.active || (this.opening.home && this.opening.home.shown));
     if (this.state === 'playing' && !this.surface.active && !(this.opening.active && this.opening.phase !== 'gas')) { this.shipLife.group.visible = true; this.shipLife.update(dt); } else if (this.shipLife) this.shipLife.group.visible = false;
     this.effects.update(dt);
-    this.body.setVisible(!this.cinePose && !this.opening.hideBody && this.state !== 'dead');     // the camera ends up on the floor: your own body would fill the view
+    this.body.setVisible(this.debugBody || (!this.cinePose && !this.opening.hideBody && this.state !== 'dead'));     // the camera ends up on the floor: your own body would fill the view
     this.body.update(dt);
     this.ui.update(dt);
     if (this.touchUI) this.touchUI.setVisible(this.paused ? false : this.state === 'flight' ? 'flight' : this.state === 'playing', this.opening.active ? this.opening.buttons() : null);

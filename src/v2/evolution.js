@@ -20,6 +20,7 @@ export class Evolution {
     this.energy = ENERGY_MAX; this.cool = 0; this.pending = null; this.dryT = 0; this.qT = -1; this.timeScale = 1; this.beat = null; this.swap = null; this.mods = { dmgTaken: 1, speed: 1, regen: 1 };
     this.wheel = new MutationWheel(this);
     this.installArms();
+    game.body.installV2(game.scene, game.viewmodel.skinShared);
     this.buildHud();
     this.applyLook(true);
   }

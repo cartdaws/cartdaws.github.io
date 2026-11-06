@@ -3,7 +3,7 @@ import { lerp, damp, clamp, angleDiff } from '../core/util.js';
 import { makeGel } from '../world/materials.js';
 import { buildAlien, alienReady } from './alien.js';
 import { LAB } from '../v2/flags.js';
-import { LimbGrowth } from '../v2/limbgrowth.js';
+import { V2Limbs } from '../v2/limbs.js';
 import { v2node } from '../v2/assets.js';
 import { TentacleMesh, makeTentacleGel, updateTentacleGels, bezier, SpringChain } from '../presentation/tentacle.js';
 
@@ -128,16 +128,11 @@ export class AlienBody {
     this.torso.visible = false; for (const r of this.ribs) r.visible = false; this.core.visible = false; for (const s of this.sats) s.m.visible = false;
   }
 
-  // V2: an ordinary animal's skin, and room for whatever grows on each walking limb
-  setupV2Limbs() {
-    const skin = (m) => { m.transparent = false; m.depthWrite = true; m.uniforms.uSpec.value = 0.2; m.uniforms.uColor.value.setRGB(0.11, 0.075, 0.09); m.uniforms.uRim.value.setRGB(0.3, 0.22, 0.26); m.uniforms.uSpots.value = 0; };
-    { const G = this.hub, add = (n) => { const s = v2node(n), me = new THREE.Mesh(s.geometry, s.material); me.frustumCulled = false; me.castShadow = true; me.receiveShadow = true; G.add(me); return me; };
-      G.geometry = new THREE.BufferGeometry(); G.visible = true; G.scale.set(1, 1, 1); G.position.y = -0.2; add('V2Mantle'); add('V2MantleLid'); add('V2MantleEye'); }
-    for (const leg of this.legs) { const m = this.legGel.clone(); skin(m); m.uniforms.uSucker.value = 1; leg.mesh.mesh.material = m; leg.baseMat = m; leg.growth = new LimbGrowth(this.world.scene || this.group.parent, leg); }
-    this.limbQ = [];
-  }
+  // V2: a real torso and limbs built from the same arm as the raised ones (src/v2/limbs.js)
+  setupV2Limbs() { this.v2Pending = true; this.limbQ = []; }
+  installV2(scene, shared) { this.v2 = new V2Limbs(this, scene, shared); this.v2.setVisible(this.group.visible); }
   // what the walking limbs carry, in order
-  setLimbs(list) { if (!this.limbQ) return; this.limbQ = list; this.legs.forEach((leg, i) => leg.growth?.set(list[i] || null)); }
+  setLimbs(list) { this.limbQ = list; this.v2?.set(list); }
 
   dispose(scene) { scene.remove(this.group); for (const l of this.legs) scene.remove(l.mesh.mesh); }
 
@@ -160,9 +155,10 @@ export class AlienBody {
     return out;
   }
 
-  setVisible(v) { this.group.visible = v; for (const l of this.legs) l.mesh.mesh.visible = v; }
+  setVisible(v) { this.group.visible = v; if (this.v2) { this.v2.setVisible(v); return; } for (const l of this.legs) l.mesh.mesh.visible = v; }
 
   update(dt) {
+    if (this.v2) { this.v2.update(dt); return; }
     const p = this.player, t = (this.time += dt);
     const speed = Math.hypot(p.vx, p.vz);
     this.yaw += angleDiff(this.yaw, p.yaw) * Math.min(1, 5 * dt);

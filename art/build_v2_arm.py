@@ -173,36 +173,29 @@ ce.make('Mut_ArcCeramic', M['ceramic'], grime=0.25, uv=8.0)
 cb.make('Mut_ArcCable', M['dark'], grime=0.12, uv=10.0)
 ag.make('Mut_ArcGlow', M['arcglow'], uv=1.0)
 
-# ================================================================ THE MANTLE: what you see of yourself looking straight down. Soft wrinkled flesh, folding out into the roots of all eight limbs, eye domes at the front.
-ROOTS = [-0.39, 0.39, -1.18, 1.18, -1.96, 1.96, -2.75, 2.75]       # the limbs' angles in the game: x = sin(a), z = -cos(a)
-def mantle(u, v):
+# ================================================================ THE TORSO: what you see of yourself looking down. A heavy soft column from under your line of sight to the floor, folding out into the roots of the six limbs on the ground. Its top is out of view; there are no eyes on it, because you are looking out of them.
+ROOTS = [-1.18, 1.18, -1.96, 1.96, -2.75, 2.75, -0.39, 0.39]       # the limbs' angles in the game: x = sin(a), z = -cos(a)
+TOP, BOT = 1.42, 0.3
+def torso(u, v):
     a = u * 2 * PI - PI                                             # a = 0 points forward (-z)
-    th = v * PI * 0.62
+    y = TOP + (BOT - TOP) * v
+    prof = catmull([(0.13, 0, 0), (0.25, 0, 0), (0.31, 0, 0), (0.36, 0, 0), (0.42, 0, 0), (0.5, 0, 0), (0.46, 0, 0)], 61)[min(60, int(v * 60))].x
     lobe = 0.0
-    for r in ROOTS:
-        d = math.atan2(math.sin(a - r), math.cos(a - r)); lobe += math.exp(-d * d / 0.05)
-    skirt = pow(v, 2.6)
-    k = 1 + lobe * 0.26 * skirt - (1 - min(1.0, lobe)) * 0.1 * skirt
-    d3 = Vector((math.sin(a) * 2.2, math.cos(a) * 2.2, v * 5.0))
-    k *= 1 + noise.noise(d3) * 0.06 + noise.noise(d3 * 3.3) * 0.022 + math.sin(v * 46 + noise.noise(d3) * 4) * 0.006
-    back = 1 + 0.2 * max(0.0, -math.cos(a)) * (1 - v)              # the sac swells toward the rear
-    R0 = 0.32
-    x = math.sin(a) * math.sin(th) * R0 * k; z = -math.cos(a) * math.sin(th) * R0 * k * (1 + 0.08 + 0.12 * max(0.0, -math.cos(a)))
-    y = (math.cos(th) * 0.22 * back - 0.03) - skirt * 0.05
-    return Vector((x, y, z))
-def mantle_col(u, v):
-    a = u * 2 * PI - PI; d3 = Vector((math.sin(a) * 9, math.cos(a) * 9, v * 16.0))
-    m = noise.noise(d3) * 0.6 + noise.noise(d3 * 2.7) * 0.3
-    return max(0.3, min(1.0, 0.72 + m * 1.1))
-mb = B(); mb.grid(mantle, 72, 26, closed_u=True, col=mantle_col); top = mb.add(mantle(0, 0))
-mb.make('V2Mantle', M['mantle'], uv=3.0)
-ey = B(); el = B()
-for sg in (-1, 1):
-    a = sg * 0.72; c = Vector((math.sin(a) * 0.235, 0.098, -math.cos(a) * 0.25))
-    ey.blob(c, 0.043, sx=1.25, sy=0.56, sz=0.9, seg=16, rows=9)                  # the lid: a soft dome of skin
-    el.blob(c + Vector((math.sin(a) * 0.016, 0.012, -math.cos(a) * 0.016)), 0.022, sx=1.5, sy=0.5, sz=0.62, seg=14, rows=8)  # the eye sits in it, dark and wet
-ey.make('V2MantleLid', M['mantle'], uv=3.0)
-el.make('V2MantleEye', mat('EyeDark', '#090808', 0.08), uv=3.0)
+    for i, r in enumerate(ROOTS):
+        d = math.atan2(math.sin(a - r), math.cos(a - r)); lobe += math.exp(-d * d / (0.075 if i < 6 else 0.05)) * (1.0 if i < 6 else 0.45)
+    low = pow(v, 2.3)
+    k = 1 + lobe * 0.34 * low - (1 - min(1.0, lobe)) * 0.14 * low
+    d3 = Vector((math.sin(a) * 1.5, math.cos(a) * 1.5, v * 3.2))
+    k *= 1 + noise.noise(d3) * 0.07 + noise.noise(d3 * 2.8) * 0.024                                       # muscle under loose skin
+    k *= 1 + 0.018 * math.sin(a * 14 + noise.noise(d3) * 3) * (1 - low) * min(1.0, v * 3)                 # long vertical folds in the chest
+    k *= 1 + math.sin(v * 58 + noise.noise(d3) * 4) * 0.005                                               # fine rings across them
+    back = 1 + 0.2 * max(0.0, -math.cos(a)) * (1 - low)                                                   # the sac swells toward the rear, behind you
+    r = prof * k
+    return Vector((math.sin(a) * r, y + low * lobe * 0.04, -math.cos(a) * r * back + 0.2))
+tb = B(); tb.grid(torso, 96, 60, closed_u=True)
+base = len(tb.v) - 96; cc = tb.add(Vector((0, BOT + 0.08, 0.2)))
+for i in range(96): tb.f.append((base + (i + 1) % 96, base + i, cc))
+tb.make('V2Torso', M['skin'], uv=3.0)
 
 save_v2(r"art\v2_arm.blend")
 export_all(r"public\models\v2_arm.glb")
