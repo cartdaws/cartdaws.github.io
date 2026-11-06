@@ -1,5 +1,6 @@
 import { nextMemory } from './memories.js';
 import { LAB } from '../v2/flags.js';
+import { beginV2, runV2, endV2 } from '../v2/absorbfx.js';
 import * as THREE from 'three';
 import { clamp, lerp, smooth, rand } from '../core/util.js';
 import { progress } from './progress.js';
@@ -35,7 +36,7 @@ export class Absorber {
     this.hinted = false;
     this.env = 0;        // travelling swell in the forearm, driven by energy arriving
     // pieces of the machine, torn off and dragged along the tongues
-    const shardMat = new THREE.MeshStandardMaterial({ color: 0x4a5560, roughness: 0.55, metalness: 0.6, emissive: 0x124a66, emissiveIntensity: 1.1 });
+    const shardMat = this.shardMat = new THREE.MeshStandardMaterial({ color: 0x4a5560, roughness: 0.55, metalness: 0.6, emissive: 0x124a66, emissiveIntensity: 1.1 });
     shardMat.userData.noSnap = true;
     const shardGeo = new THREE.DodecahedronGeometry(1, 0);
     this.shards = Array.from({ length: 16 }, () => { const m = new THREE.Mesh(shardGeo, shardMat); m.visible = false; m.renderOrder = 7; m.frustumCulled = false; game.viewmodel.scene.add(m); return { m, t: -1, tg: 0, spin: new THREE.Vector3(), size: 0.03 }; });
@@ -48,6 +49,7 @@ export class Absorber {
 
   reset() {
     const g = this.game;
+    if (LAB) endV2(this);
     if (this.drawing) { const e = this.drawing.e; e.absorbing = false; e.group.scale.setScalar(e.baseScale); e.group.rotation.x = 0; e.group.rotation.z = 0; }
     this.target = null; this.progress = 0; this.drawing = null; this.env = 0;
     this.hideTongues();
@@ -83,7 +85,7 @@ export class Absorber {
     const g = this.game, vm = g.viewmodel, input = g.input, ui = g.ui;
     const tap = input.clicked(2) || input.was('KeyE') || input.absorbTap;
     input.absorbTap = false;
-    if (this.drawing) { this.run(dt); return; }
+    if (this.drawing) { if (LAB) runV2(this, dt); else this.run(dt); return; }
     g.absorbFov = lerp(g.absorbFov || 0, 0, Math.min(1, dt * 8));
 
     const target = this.pick();
@@ -98,7 +100,7 @@ export class Absorber {
     ui.setPrompt(g.touchMode ? 'ABSORB' : 'ABSORB  ·  RMB');
     const c = target.hitSpheres[0].c;
     if (Math.random() < 0.5) g.effects.glowP.emit(c.x + rand(-0.25, 0.25), c.y + rand(-0.2, 0.2), c.z + rand(-0.25, 0.25), 0, 0.6, 0, 0.3, 0.04, 0.15, 0.6, 1);
-    if (tap) this.begin(target);
+    if (tap) { if (LAB) beginV2(this, target); else this.begin(target); }
   }
 
   begin(e) {
@@ -248,7 +250,7 @@ export class Absorber {
       p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14));
       g.evolution.energy = Math.min(100, g.evolution.energy + 30);
       g.evolution.onAbsorbed(e);
-      g.ui.setHealth(p.health, p.maxHealth); g.ui.hitMarker(true); g.viewmodel.pulseGlow(0.8); g.addShake(0.05);
+      g.ui.setHealth(p.health, p.maxHealth); g.ui.hitMarker(true); g.addShake(0.05);
       return;
     }
     g.arsenal.onAbsorbed(e);

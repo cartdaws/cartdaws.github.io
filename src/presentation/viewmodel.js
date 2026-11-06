@@ -107,8 +107,6 @@ class HandArm {
       if (this.rollK > 0.001) this.root.quaternion.multiply(_q.setFromAxisAngle(_zAxis, -side * this.rollK));
       pos.y -= 0.5 * (vm.swapK || 0);
       { const up = Math.min(1, this.rollK); pos.y += 0.075 * up; pos.z -= 0.05 * up; this.root.rotateX(0.11 * up); }
-      const insp = (vm.inspectK || 0) * (this.weapon ? 1 : 0);
-      if (insp > 0) { pos.x -= 0.1 * insp; pos.y += 0.05 * insp; pos.z -= 0.16 * insp; this.root.rotateZ(Math.sin(t * 2.2) * 0.12 * insp); }
     }
     // V2: a blow. Coiled back, then the whole arm thrown forward and across
     let hit = 0, wind = 0;
@@ -162,6 +160,7 @@ class HandArm {
     U.uMouth.value = (this.weapon && !vm.styleTarget.noMouth ? f * f * f : 0) * (1 - rk) * (1 - 0.7 * limp);
     if (hit > 0 || wind > 0) { U.uCurl.value = lerp(lerp(U.uCurl.value, 4.4, wind), 0.18, hit); U.uLen.value *= 1 + 0.42 * hit * (vm.strikeHeavy ? 1.2 : 1); U.uSide.value += 0.5 * hit - 0.25 * wind; U.uThick.value *= 1 + 0.18 * hit; U.uWave.value *= 1 - 0.8 * hit; }
     if (this.weapon) { U.uPump.value = vm.pump ?? 2; U.uGain.value = vm.pumpGain ?? 1; }
+    { const wnd = this.own ? this.own.uWound.value : 0; if (wnd > 0) { U.uWave.value += 1.3 * wnd; U.uCurl.value += Math.sin(t * 13 + p0) * 0.5 * wnd + Math.sin(t * 29) * 0.22 * wnd; U.uThick.value *= 1 + 0.05 * Math.sin(t * 11) * wnd; } }
 
     if (!this.weapon) return;
     this.pointLocal(1, this.tip.position);      // the end of the arm, as it is bent right now

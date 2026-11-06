@@ -30,7 +30,7 @@ export const SKIN_FRAG = `
         vec3 c = body * (0.5 + 1.0 * lam) * uEnv + vec3(0.42, 0.32, 0.36) * f * 0.26 * uEnv + vec3(spec * 0.34);
         c += uRim * vein * 0.42;
         // the edge of the growth, while it is growing: raw
-        float d = (vS - uFront) / 0.035; c += vec3(1.0, 0.34, 0.2) * exp(-d * d) * uWound;
+        float d = (vS - uFront) / 0.035; c = mix(c, vec3(0.3, 0.05, 0.05), 0.75 * exp(-d * d) * uWound) + vec3(0.1, 0.02, 0.015) * exp(-d * d) * uWound;
         c += uRim * (uGlow * 0.05 + uHeat * 0.1 + vBand * 0.32);
         gl_FragColor = vec4(pow(max(c, vec3(0.0)), vec3(2.2)), uAlpha);
       }`;
@@ -43,8 +43,14 @@ export function makeV2Skin(shared, U, own) {
     vertexShader: `
       ${POSE_GLSL}
       varying vec3 vN, vV, vP; varying float vBand, vVent, vS;
+      uniform float uFront, uWound;
       void main() {
-        float band; vec3 q = tentaclePoint(position, normal, band);
+        float band;
+        // where it is forcing its way through, the arm swells, in lumps, ahead of the edge
+        float sp = clamp((${Z0.toFixed(2)} - position.z) / ${L0.toFixed(2)}, 0.0, 1.0), de = (sp - uFront + 0.03) / 0.07;
+        float lump = 0.72 + 0.28 * sin(position.x * 90.0 + position.y * 70.0 + sp * 60.0);
+        vec3 grown = position + vec3(position.xy * 0.7 * exp(-de * de) * uWound * lump, 0.0);
+        vec3 q = tentaclePoint(grown, normal, band);
         vec4 mv = modelViewMatrix * vec4(q, 1.0);
         vN = normalize(normalMatrix * tentacleNormal(position, normal));
         vV = normalize(-mv.xyz); vBand = band; vP = position;
@@ -57,17 +63,18 @@ export function makeV2Skin(shared, U, own) {
 }
 
 // Any Blender mesh authored along the straight arm, drawn with its own material and bent with the arm. uFront is how far it has spread: anything behind the front stays inside the flesh.
-export function makeGrowthMaterial(src, shared, U, front) {
+export function makeGrowthMaterial(src, shared, U, front, wound = { value: 0 }) {
   const m = src.clone();
   m.onBeforeCompile = function (shader) {
     THREE.Material.prototype.onBeforeCompile.call(this, shader);      // keeps the retro vertex snapping hook
-    Object.assign(shader.uniforms, { tTime: shared.tTime, uFront: front }, U);
+    Object.assign(shader.uniforms, { tTime: shared.tTime, uFront: front, uWound: wound }, U);
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\n' + POSE_GLSL + '\nuniform float uFront;')
+      .replace('#include <common>', '#include <common>\n' + POSE_GLSL + '\nuniform float uFront, uWound;')
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n  objectNormal = tentacleNormal(position, objectNormal);')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         float tb, gs = clamp((${Z0.toFixed(2)} - position.z) / ${L0.toFixed(2)}, 0.0, 1.0), gk = smoothstep(uFront, uFront + 0.09, gs);
-        transformed = tentaclePoint(vec3(position.xy * gk, position.z), normal, tb);`);
+        float over = 1.0 + 0.32 * sin(gk * 3.14159) * uWound;
+        transformed = tentaclePoint(vec3(position.xy * gk * over, position.z), normal, tb);`);
   };
   m.customProgramCacheKey = () => 'v2-growth-' + (m.map ? 'm' : '') + (m.normalMap ? 'n' : '');
   return m;

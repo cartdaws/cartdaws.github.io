@@ -2,27 +2,27 @@ import * as THREE from 'three';
 import { Z0, L0 } from '../presentation/arm.js';
 import { v2node } from './assets.js';
 import { SKIN_FRAG, SKIN_VARYINGS } from './armskin.js';
-import { TIER_GROW } from './mutations.js';
 import { clamp, damp, angleDiff } from '../core/util.js';
 import { SpringChain } from '../presentation/tentacle.js';
 
 // THE WALKING LIMBS. The same Blender arm as the raised ones, laid along a spine the game works out each frame. The graphics card does the bending, so skin, suckers and any mutation all follow it exactly.
 // They move the way an octopus does: not stepping on points but lying along the ground, gripping and hauling, a hump rolling down the limb as it re-grips, streaming behind when you run.
-const SEG = 16, NSPINE = 14;
-const LIMB_GLSL = `
-  uniform vec3 uC[${SEG + 1}], uNn[${SEG + 1}], uBn[${SEG + 1}]; uniform float uK;
+const SEG = 16, NSPINE = 14, GRAB_SEG = 32;
+const limbGlsl = (seg) => `
+  uniform vec3 uC[${seg + 1}], uNn[${seg + 1}], uBn[${seg + 1}]; uniform float uK, uFront, uWound, uPump, uGain;
   void limbFrame(float s, out vec3 C, out vec3 N, out vec3 B) {
-    float f = clamp(s, 0.0, 1.0) * ${SEG}.0; int i = int(min(floor(f), ${SEG - 1}.0)); float u = f - float(i);
+    float f = clamp(s, 0.0, 1.0) * ${seg}.0; int i = int(min(floor(f), ${seg - 1}.0)); float u = f - float(i);
     C = mix(uC[i], uC[i + 1], u); N = normalize(mix(uNn[i], uNn[i + 1], u)); B = normalize(mix(uBn[i], uBn[i + 1], u));
   }
   float limbS(float z) { return (${Z0.toFixed(2)} - z) / ${L0.toFixed(2)}; }
-  vec3 limbPoint(vec3 p) { vec3 C, N, B; limbFrame(limbS(p.z), C, N, B); return C + N * p.y * uK + B * p.x * uK; }
-  vec3 limbNormal(vec3 p, vec3 n) { vec3 C, N, B; limbFrame(limbS(p.z), C, N, B); vec3 T = normalize(cross(N, B)); return normalize(B * n.x + N * n.y + T * n.z); }`;
+  float limbSwell(float s) { float d = (s - uPump) / 0.06, de = (s - uFront + 0.03) / 0.07; return 1.0 + uGain * exp(-d * d) + 0.7 * uWound * exp(-de * de); }
+  vec3 limbPoint(vec3 p) { float s = limbS(p.z); vec3 C, N, B; limbFrame(s, C, N, B); return C + (N * p.y + B * p.x) * uK * limbSwell(s); }
+  vec3 limbNormal(vec3 p, vec3 n) { vec3 C, N, B; limbFrame(limbS(p.z), C, N, B); vec3 T = normalize(cross(B, N)); return normalize(B * n.x + N * n.y + T * n.z); }`;   // (B, N, T) must stay right-handed, or every triangle turns inside out
 
-function skinMaterial(shared, U) {
+function skinMaterial(shared, U, seg = SEG) {
   return new THREE.ShaderMaterial({
-    uniforms: { uRim: shared.uRim, uEnv: shared.uEnv, uAlpha: { value: 1 }, uGlow: { value: 0 }, uHeat: { value: 0 }, tTime: shared.tTime, uFront: U.uFront, uInfect: U.uInfect, uWound: U.uWound, uC: U.uC, uNn: U.uNn, uBn: U.uBn, uK: U.uK },
-    vertexShader: `${LIMB_GLSL}\n${SKIN_VARYINGS}
+    uniforms: { uRim: shared.uRim, uEnv: shared.uEnv, uAlpha: { value: 1 }, uGlow: { value: 0 }, uHeat: { value: 0 }, tTime: shared.tTime, uFront: U.uFront, uInfect: U.uInfect, uWound: U.uWound, uPump: U.uPump, uGain: U.uGain, uC: U.uC, uNn: U.uNn, uBn: U.uBn, uK: U.uK },
+    vertexShader: `${limbGlsl(seg)}\n${SKIN_VARYINGS}
       void main() {
         vec3 q = limbPoint(position);
         vec4 mv = viewMatrix * vec4(q, 1.0);
@@ -35,22 +35,23 @@ function skinMaterial(shared, U) {
     fragmentShader: SKIN_FRAG,
   });
 }
-function partMaterial(src, U, front) {
+function partMaterial(src, U, front, seg = SEG) {
   const m = src.clone();
   m.onBeforeCompile = function (shader) {
     THREE.Material.prototype.onBeforeCompile.call(this, shader);
-    Object.assign(shader.uniforms, { uC: U.uC, uNn: U.uNn, uBn: U.uBn, uK: U.uK, uFront: front });
+    Object.assign(shader.uniforms, { uC: U.uC, uNn: U.uNn, uBn: U.uBn, uK: U.uK, uFront: front, uWound: U.uWound, uPump: U.uPump, uGain: U.uGain });
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\n' + LIMB_GLSL + '\nuniform float uFront;')
+      .replace('#include <common>', '#include <common>\n' + limbGlsl(seg))
       .replace('#include <beginnormal_vertex>', '#include <beginnormal_vertex>\n  objectNormal = limbNormal(position, objectNormal);')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
         { float gk = smoothstep(uFront, uFront + 0.09, limbS(position.z)); transformed = limbPoint(vec3(position.xy * gk, position.z)); }`)
       .replace('#include <project_vertex>', 'vec4 mvPosition = viewMatrix * vec4(transformed, 1.0); gl_Position = projectionMatrix * mvPosition;')
       .replace('#include <defaultnormal_vertex>', 'vec3 transformedNormal = mat3(viewMatrix) * objectNormal; vec3 vNormal0 = transformedNormal;');
   };
-  m.customProgramCacheKey = () => 'v2-limbpart-' + (m.map ? 'm' : '') + (m.normalMap ? 'n' : '');
+  m.customProgramCacheKey = () => 'v2-limbpart-' + seg + (m.map ? 'm' : '') + (m.normalMap ? 'n' : '');
   return m;
 }
+const spineU = (seg, k) => ({ uC: { value: new Float32Array((seg + 1) * 3) }, uNn: { value: new Float32Array((seg + 1) * 3) }, uBn: { value: new Float32Array((seg + 1) * 3) }, uK: { value: k }, uFront: { value: 1.2 }, uInfect: { value: 0 }, uWound: { value: 0 }, uPump: { value: 2 }, uGain: { value: 0 } });
 
 const _t = new THREE.Vector3(), _n = new THREE.Vector3(), _b = new THREE.Vector3();
 const smooth = (a, b, x) => { const k = clamp((x - a) / (b - a), 0, 1); return k * k * (3 - 2 * k); };
@@ -82,7 +83,7 @@ export class V2Limbs {
   }
 
   makeLimb(leg, i) {
-    const U = { uC: { value: new Float32Array((SEG + 1) * 3) }, uNn: { value: new Float32Array((SEG + 1) * 3) }, uBn: { value: new Float32Array((SEG + 1) * 3) }, uK: { value: 1.42 }, uFront: { value: 1.2 }, uInfect: { value: 0 }, uWound: { value: 0 } };
+    const U = spineU(SEG, 1.42);
     const skin = new THREE.Mesh(v2node('ArmSkin').geometry, skinMaterial(this.shared, U)); skin.frustumCulled = false;
     const suck = new THREE.Mesh(v2node('ArmSuckers').geometry, partMaterial(v2node('ArmSuckers').material, U, { value: -1 })); suck.frustumCulled = false;
     this.scene.add(skin, suck);
@@ -90,6 +91,8 @@ export class V2Limbs {
   }
 
   setVisible(v) { this.visible = v; this.torso.visible = v; for (const L of this.limbs) { L.skin.visible = L.suck.visible = v; for (const p of Object.values(L.parts)) for (const me of p.meshes) me.visible = v && !!L.q && L.q.m.id === p.id; } }
+
+  sync() { /* progress is read straight off each mutation in update() */ }
 
   // what the walking limbs are carrying
   set(list) {
@@ -100,7 +103,7 @@ export class V2Limbs {
       let p = L.parts[q.m.id];
       if (!p) { const front = { value: 1.2 }; p = L.parts[q.m.id] = { id: q.m.id, front, meshes: q.m.nodes.map((n) => { const s = v2node(n), me = new THREE.Mesh(s.geometry, partMaterial(s.material, L.U, front)); me.frustumCulled = false; this.scene.add(me); return me; }) }; }
       for (const me of p.meshes) me.visible = this.visible;
-      L.U.uInfect.value = q.m.infect; L.want = 1.03 - TIER_GROW[q.tier - 1] * 1.03; L.part = p;
+      L.U.uInfect.value = q.m.infect; L.part = p;
     });
   }
 
@@ -179,7 +182,7 @@ export class V2Limbs {
       }
       L.chain.step(L.ideal, dt);
       this.writeFrames(L, Rx, rootY, Rz);
-      if (L.q && L.part) { L.part.front.value = L.want; L.U.uFront.value = L.want; }
+      if (L.q && L.part) { const fr = 1.03 - (L.q.grow ?? 1) * 1.03; L.part.front.value = fr; L.U.uFront.value = fr; L.U.uWound.value = L.q.wound || 0; }
     }
   }
 
@@ -196,7 +199,47 @@ export class V2Limbs {
     for (let i = 0; i <= SEG; i++) {
       _t.subVectors(S[Math.min(SEG, i + 1)], S[Math.max(0, i - 1)]).normalize();
       _n.addScaledVector(_t, -_n.dot(_t)); if (_n.lengthSq() < 1e-5) _n.set(1, 0, 0).addScaledVector(_t, -_t.x); _n.normalize();
-      _b.crossVectors(_n, _t).normalize();
+      _b.crossVectors(_t, _n).normalize();
+      const q = i * 3;
+      C[q] = S[i].x; C[q + 1] = S[i].y; C[q + 2] = S[i].z; Nn[q] = _n.x; Nn[q + 1] = _n.y; Nn[q + 2] = _n.z; Bn[q] = _b.x; Bn[q + 1] = _b.y; Bn[q + 2] = _b.z;
+    }
+  }
+}
+
+// An arm that can take any shape the game gives it, in the world, with real depth: it can go behind and round the thing it holds. The absorb uses two of these.
+export class SpineArm {
+  constructor(scene, shared, seg = GRAB_SEG) {
+    this.scene = scene; this.seg = seg; this.U = spineU(seg, 0.92); this.parts = {}; this.part = null; this.q = null;
+    this.skin = new THREE.Mesh(v2node('ArmSkin').geometry, skinMaterial(shared, this.U, seg)); this.skin.frustumCulled = false;
+    this.suck = new THREE.Mesh(v2node('ArmSuckers').geometry, partMaterial(v2node('ArmSuckers').material, this.U, { value: -1 }, seg)); this.suck.frustumCulled = false;
+    scene.add(this.skin, this.suck);
+    const vecs = () => Array.from({ length: seg + 1 }, () => new THREE.Vector3());
+    this.S = vecs(); this.G = vecs(); this.want = vecs(); this.wantK = new Float32Array(seg + 1); this.tmp = vecs();
+    this.setVisible(false);
+  }
+  setVisible(v) { this.visible = v; this.skin.visible = this.suck.visible = v; if (this.part) for (const me of this.part.meshes) me.visible = v; }
+  carry(q) {
+    if (this.part) for (const me of this.part.meshes) me.visible = false;
+    this.q = q; this.part = null; this.U.uInfect.value = q ? q.m.infect : 0; this.U.uFront.value = 1.2; this.U.uWound.value = 0;
+    if (!q) return;
+    let p = this.parts[q.m.id];
+    if (!p) { const front = { value: 1.2 }; p = this.parts[q.m.id] = { front, meshes: q.m.nodes.map((n) => { const s = v2node(n), me = new THREE.Mesh(s.geometry, partMaterial(s.material, this.U, front, this.seg)); me.frustumCulled = false; this.scene.add(me); return me; }) }; }
+    this.part = p; for (const me of p.meshes) me.visible = this.visible;
+  }
+  tick() { if (this.q && this.part) { const f = 1.03 - (this.q.grow ?? 1) * 1.03; this.part.front.value = f; this.U.uFront.value = f; this.U.uWound.value = this.q.wound || 0; } }
+  // the joins come out soft: nothing organic has a corner
+  relax() {
+    const S = this.S, T = this.tmp, n = this.seg;
+    for (let pass = 0; pass < 2; pass++) { for (let i = 1; i < n; i++) T[i].copy(S[i - 1]).add(S[i + 1]).multiplyScalar(0.25).addScaledVector(S[i], 0.5); for (let i = 1; i < n; i++) S[i].copy(T[i]); }
+  }
+  write() {
+    const S = this.S, n = this.seg, C = this.U.uC.value, Nn = this.U.uNn.value, Bn = this.U.uBn.value;
+    _n.set(0, -1, 0);
+    for (let i = 0; i <= n; i++) {
+      _t.subVectors(S[Math.min(n, i + 1)], S[Math.max(0, i - 1)]); if (_t.lengthSq() < 1e-9) _t.set(0, 0, -1); _t.normalize();
+      if (this.wantK[i] > 0) _n.lerp(this.want[i], this.wantK[i]);
+      _n.addScaledVector(_t, -_n.dot(_t)); if (_n.lengthSq() < 1e-6) _n.set(1, 0, 0).addScaledVector(_t, -_t.x); _n.normalize();
+      _b.crossVectors(_t, _n).normalize();
       const q = i * 3;
       C[q] = S[i].x; C[q + 1] = S[i].y; C[q + 2] = S[i].z; Nn[q] = _n.x; Nn[q + 1] = _n.y; Nn[q + 2] = _n.z; Bn[q] = _b.x; Bn[q + 1] = _b.y; Bn[q + 2] = _b.z;
     }

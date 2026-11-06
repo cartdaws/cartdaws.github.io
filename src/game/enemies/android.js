@@ -101,9 +101,9 @@ export class SecurityAndroid extends Enemy {
       put(el, ball(0.055), joint, 0, 0, 0);
       put(el, cap(0.048, 0.18), body, 0, -0.14, 0);
       put(el, rbox(0.1, 0.14, 0.11, 0.03), plate, 0, -0.15, -0.01);
-      let muzzle = null;
+      let muzzle = null, gun = null;
       if (s === 1) {
-        const gun = pivot(el, 0, -0.26, 0);
+        gun = pivot(el, 0, -0.26, 0);
         const gw = v.bulky ? 1.35 : 1;
         put(gun, rbox(0.13 * gw, 0.13, 0.3, 0.04), joint, 0, 0, -0.06);
         put(gun, cyl(0.04, 0.045, 0.22, 12), body, 0, 0, -0.27, Math.PI / 2, 0, 0);
@@ -116,7 +116,7 @@ export class SecurityAndroid extends Enemy {
         put(el, rbox(0.09, 0.08, 0.1, 0.03), joint, 0, -0.29, 0);
         for (const f of [-1, 0, 1]) put(el, rbox(0.022, 0.07, 0.022, 0.008), joint, f * 0.028, -0.35, -0.02);
       }
-      return { s, sh, el, muzzle };
+      return { s, sh, el, muzzle, gun };
     });
     this.muzzle = this.arms[1].muzzle;
 
@@ -287,30 +287,32 @@ export class SecurityAndroid extends Enemy {
     for (const l of this.legs) {
       const ph = this.walk + (l.s > 0 ? Math.PI : 0);
       l.hp.rotation.x = Math.sin(ph) * 0.55 * m;
-      l.kn.rotation.x = Math.max(0, Math.sin(ph + 1.4)) * 0.8 * m;
+      l.kn.rotation.x = -Math.max(0, Math.sin(ph + 1.4)) * 0.8 * m;
       l.ft.rotation.x = -l.kn.rotation.x * 0.3;
     }
     this.hips.position.y = 0.95 - Math.abs(Math.sin(this.walk)) * 0.03 * m - 0.09 * asleep + (1 - m) * Math.sin(this.lifeT * 1.3 + seedPh) * 0.006;
-    if (asleep > 0.01) for (const l of this.legs) { l.hp.rotation.x -= 0.32 * asleep; l.kn.rotation.x += 0.6 * asleep; l.ft.rotation.x -= 0.26 * asleep; }
+    if (asleep > 0.01) for (const l of this.legs) { l.hp.rotation.x += 0.32 * asleep; l.kn.rotation.x -= 0.6 * asleep; l.ft.rotation.x += 0.26 * asleep; }
     const p = this.game.player.pos, c = this.hitSpheres[0].c;
     const pitch = Math.atan2(p.y + 1.2 - c.y, Math.hypot(p.x - c.x, p.z - c.z) || 1);
     for (const a of this.arms) {
       const swing = Math.sin(this.walk + (a.s > 0 ? 0 : Math.PI)) * 0.4 * m;
-      if (a.s > 0) { // cannon arm
-        a.sh.rotation.x = lerp(swing * 0.5 - 0.15, -Math.PI / 2 + pitch, this.aimK);
-        a.el.rotation.x = lerp(-0.35, 0, this.aimK);
-        a.sh.rotation.z = lerp(0, 0.08, this.aimK);
-      } else {
-        a.sh.rotation.x = lerp(swing, -1.1, this.aimK);
-        a.sh.rotation.z = lerp(0, -0.45, this.aimK);
-        a.el.rotation.x = lerp(-0.25, -0.8, this.aimK);
+      if (a.s > 0) { // cannon arm: the forearm comes up level with the target and the barrel swings into line with it
+        const up = 1.22 + pitch * 0.5;
+        a.sh.rotation.x = lerp(swing * 0.5 + 0.1, up, this.aimK);
+        a.el.rotation.x = lerp(0.42, Math.PI / 2 + pitch - up, this.aimK);
+        a.sh.rotation.z = lerp(0, -0.06, this.aimK);
+        a.gun.rotation.x = lerp(-0.25, -Math.PI / 2, this.aimK);
+      } else { // the free hand comes across to steady it
+        a.sh.rotation.x = lerp(swing, 0.82, this.aimK);
+        a.sh.rotation.z = lerp(0, 0.42, this.aimK);
+        a.el.rotation.x = lerp(0.3, 0.95, this.aimK);
       }
     }
-    this.torso.rotation.x = -0.35 * this.flinch + 0.04 * m + 0.42 * asleep;
-    this.head.rotation.x = -0.25 * this.flinch + 0.5 * asleep;
+    this.torso.rotation.x = 0.35 * this.flinch - 0.04 * m - 0.42 * asleep;
+    this.head.rotation.x = 0.25 * this.flinch - 0.5 * asleep;
     // awake and not firing, it keeps looking about
     this.head.rotation.y = (1 - this.aimK) * this.bootK * (Math.sin(this.lifeT * 0.83 + seedPh) * 0.55 + Math.sin(this.lifeT * 2.1 + seedPh) * 0.1);
-    if (asleep > 0.01) for (const a of this.arms) { a.sh.rotation.x += 0.2 * asleep; a.el.rotation.x -= 0.15 * asleep; }
+    if (asleep > 0.01) for (const a of this.arms) { a.sh.rotation.x -= 0.2 * asleep; a.el.rotation.x += 0.15 * asleep; }
     this.torso.rotation.y = Math.sin(this.walk * 0.5) * 0.05 * m;
   }
 
@@ -338,7 +340,7 @@ export class SecurityAndroid extends Enemy {
   }
 
   limp(k) { // arms hang loose
-    for (const a of this.arms) { a.sh.rotation.x = lerp(a.sh.rotation.x, 0.15, k); a.sh.rotation.z = lerp(a.sh.rotation.z, a.s * 0.15, k); a.el.rotation.x = lerp(a.el.rotation.x, -0.2, k); }
+    for (const a of this.arms) { a.sh.rotation.x = lerp(a.sh.rotation.x, 0.15, k); a.sh.rotation.z = lerp(a.sh.rotation.z, a.s * 0.15, k); a.el.rotation.x = lerp(a.el.rotation.x, 0.2, k); }
   }
 
   // Each android shuts down in its own way:
@@ -356,12 +358,13 @@ export class SecurityAndroid extends Enemy {
     const flick = t < 0.5 ? (Math.random() < 0.5 ? 1.6 : 0.1) : Math.max(0, 0.5 * (1 - (t - 0.5) / 0.5));
     this.visorMat.emissiveIntensity = flick;
     this.gunMat.emissiveIntensity = flick * 0.6;
+    { const gn = this.arms[1].gun; gn.rotation.x = lerp(gn.rotation.x, 0, Math.min(1, dt * 8)); }
     let D, rx = 0, rz = 0, gy = 0;
     if (this.variant === 'scout') {
       D = 1.4;
       this.yaw += dt * 7 * this.fallDir * (1 - smooth(t / 0.6));
       const fall = smooth((t - 0.25) / 0.55);
-      for (const l of this.legs) { l.hp.rotation.x = lerp(0, -0.9, fall) + Math.sin(t * 30 + l.s) * 0.3 * (1 - smooth((t - 0.6) / 0.7)); l.kn.rotation.x = 0.4 * fall; }
+      for (const l of this.legs) { l.hp.rotation.x = lerp(0, 0.9, fall) + Math.sin(t * 30 + l.s) * 0.3 * (1 - smooth((t - 0.6) / 0.7)); l.kn.rotation.x = -0.4 * fall; }
       for (const a of this.arms) { a.sh.rotation.x = lerp(0, -2.4, fall) + Math.sin(t * 26 + a.s * 2) * 0.35 * (1 - smooth((t - 0.6) / 0.7)); a.sh.rotation.z = a.s * 0.6 * fall; }
       rx = 1.42 * fall; gy = 0.18 * fall;
       this.head.rotation.x = 0.3 * fall;
@@ -373,10 +376,10 @@ export class SecurityAndroid extends Enemy {
       const drop = smooth((t - 0.35) / 0.25);
       const kneel = smooth((t - 0.8) / 0.8);
       for (const a of this.arms) {
-        a.sh.rotation.x = a.s > 0 ? lerp(-1.2, 0.2, drop) : lerp(-0.6, 0.1, kneel);
-        a.sh.rotation.z = a.s * 0.2 * kneel; a.el.rotation.x = -0.15;
+        a.sh.rotation.x = a.s > 0 ? lerp(1.2, 0.1, drop) : lerp(0.6, 0.05, kneel);
+        a.sh.rotation.z = a.s * 0.2 * kneel; a.el.rotation.x = 0.15;
       }
-      for (const l of this.legs) { l.hp.rotation.x = lerp(0, -1.45, kneel); l.kn.rotation.x = lerp(0, 1.55, kneel); l.ft.rotation.x = lerp(0, -0.2, kneel); }
+      for (const l of this.legs) { l.hp.rotation.x = lerp(0, 1.45, kneel); l.kn.rotation.x = lerp(0, -1.55, kneel); l.ft.rotation.x = lerp(0, 0.2, kneel); }
       this.hips.position.y = lerp(0.95, 0.47, kneel);
       this.torso.rotation.x = lerp(0, -0.5, smooth((t - 1.2) / 0.6));
       this.head.rotation.x = lerp(0, -0.6, smooth((t - 1.3) / 0.6));
@@ -398,7 +401,7 @@ export class SecurityAndroid extends Enemy {
       const kneel = smooth((t - 0.2) / 0.55);
       const topple = smooth((t - 0.85) / 0.6);
       this.limp(drop);
-      for (const l of this.legs) { l.hp.rotation.x = lerp(0, -1.3, kneel) * (1 - 0.6 * topple); l.kn.rotation.x = lerp(0, 1.5, kneel) * (1 - 0.5 * topple); }
+      for (const l of this.legs) { l.hp.rotation.x = lerp(0, 1.3, kneel) * (1 - 0.6 * topple); l.kn.rotation.x = lerp(0, -1.5, kneel) * (1 - 0.5 * topple); }
       this.hips.position.y = lerp(0.95, 0.5, kneel) - 0.25 * topple;
       rx = -1.35 * topple; gy = 0.05 * topple;
       this.head.rotation.x = -0.3 * kneel;

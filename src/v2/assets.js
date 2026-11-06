@@ -16,5 +16,5 @@ export async function loadV2Assets() {
   for (const n of ['Mut_ShardGlow', 'Mut_ArcGlow', 'ShellPores']) { const m = NODES[n].material; m.emissiveIntensity = 0.62; m.color.multiplyScalar(0.3); }
   NODES.ArmSuckers.material.color.multiplyScalar(0.62);
   dress('Mut_Shard', plate, plateN); dress('Mut_ShardDark', rust, rustN); dress('Mut_ArcCable', null, rustN, 0.5);
-  dress('Mut_Carapace', null, rockN, 1.0); dress('Shell', null, rockN, 0.8);
+  dress('Mut_Carapace', null, rockN, 0.55); dress('Mut_ShardRings', null, plateN, 0.6); dress('Shell', null, rockN, 0.8);
 }

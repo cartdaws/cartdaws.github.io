@@ -34,8 +34,8 @@ export class Evolution {
       arm.suck.geometry = suck; arm.suckMat = makeGrowthMaterial(v2node('ArmSuckers').material, vm.skinShared, arm.U, { value: -1 }); arm.suck.material = arm.suckMat;
       arm.growths = {}; arm.showing = null;
       for (const m of Object.values(MUTATIONS)) {
-        const front = { value: 1.2 }, meshes = m.nodes.map((n) => { const src = v2node(n), me = new THREE.Mesh(src.geometry, makeGrowthMaterial(src.material, vm.skinShared, arm.U, front)); me.frustumCulled = false; me.renderOrder = 5; me.visible = false; arm.root.add(me); return me; });
-        arm.growths[m.id] = { front, meshes, grow: 0 };
+        const front = { value: 1.2 }, meshes = m.nodes.map((n) => { const src = v2node(n), me = new THREE.Mesh(src.geometry, makeGrowthMaterial(src.material, vm.skinShared, arm.U, front, arm.own.uWound)); me.frustumCulled = false; me.renderOrder = 5; me.visible = false; arm.root.add(me); return me; });
+        arm.growths[m.id] = { front, meshes };
       }
     }
   }
@@ -57,7 +57,7 @@ export class Evolution {
   resetRun() {
     this.equipped = []; this.selected = -1; this.lastSelected = -1; this.energy = ENERGY_MAX; this.cool = 0; this.pending = null; this.beat = null; this.swap = null; this.timeScale = 1; this.wheel.cancel();
     const vm = this.g.viewmodel;
-    for (const arm of [vm.right, vm.left]) { for (const g of Object.values(arm.growths)) { g.grow = 0; g.front.value = 1.2; for (const me of g.meshes) me.visible = false; } arm.showing = null; arm.own.uFront.value = 1.2; arm.own.uInfect.value = 0; arm.own.uWound.value = 0; }
+    for (const arm of [vm.right, vm.left]) { for (const g of Object.values(arm.growths)) { g.front.value = 1.2; for (const me of g.meshes) me.visible = false; } arm.showing = null; arm.own.uFront.value = 1.2; arm.own.uInfect.value = 0; arm.own.uWound.value = 0; }
     this.applyLook(true); this.recompute();
   }
 
@@ -89,24 +89,24 @@ export class Evolution {
       // every limb is taken: for now the oldest gives way. A real choice here is the next thing to design.
       this.equipped.shift(); if (this.selected >= 0) this.selected = Math.max(0, this.selected - 1); if (this.lastSelected >= 0) this.lastSelected = Math.max(-1, this.lastSelected - 1);
     }
-    this.equipped.push({ m, tier: 1 });
+    this.equipped.push({ m, tier: 1, grow: 0.3 });
     this.recompute(); this.wheel.render();
-    this.startBeat(first ? 'A NEW THING GROWS' : 'YOUR BODY REMEMBERS', m.name, m.note);
-    this.lastSelected = this.selected; this.selected = this.equipped.length - 1;
+    this.startBeat(first ? 'A NEW THING GROWS' : 'YOUR BODY REMEMBERS', m.name, m.note + (this.selected >= 0 ? '  ·  Q TO USE IT' : ''), first);
+    // bare arms take the first thing that grows. After that it never takes your weapon out of your hand: it grows on another limb while you fight, and the wheel has it.
+    if (this.selected < 0) { this.selected = this.equipped.length - 1; }
     this.applyLook(false);
   }
   deepen(q) {
     q.tier++; this.recompute(); this.wheel.render();
-    this.startBeat(`IT SPREADS  ·  STAGE ${q.tier}`, q.m.name, q.m.note);
-    const i = this.equipped.indexOf(q); if (i !== this.selected) { this.lastSelected = this.selected; this.selected = i; }
-    this.applyLook(false);
+    this.g.ui.rewardNote(`${q.m.name}  ·  STAGE ${q.tier}`); this.g.audio.play('gel', { vol: 0.5 }); this.g.audio.play('crack', { vol: 0.35 }); this.g.addShake(0.05);
   }
 
-  // The moment it happens. The world slows, your arm comes up in front of you, and you watch it change.
-  startBeat(em, title, note) {
+  // The moment it happens. The first time you ever find a mutation the world catches its breath, briefly. After that you just feel it, and keep going.
+  startBeat(em, title, note, first) {
     const g = this.g;
-    this.beat = { t: 0 }; this.toast(em, title, note);
-    g.audio.play('gel', { vol: 0.9 }); g.audio.play('crystal', { vol: 0.5 }); g.audio.play('groan', { vol: 0.28 }); g.addShake(0.16); g.viewmodel.pulseGlow(1);
+    if (first) this.beat = { t: 0 };
+    this.toast(em, title, note, first ? 2.6 : 1.8);
+    g.audio.play('gel', { vol: 0.8 }); g.audio.play('crack', { vol: 0.5 }); g.audio.play('groan', { vol: 0.2 }); g.addShake(0.12);
   }
 
   // Change which arm is up. The arm drops out of view, and rises with the other thing on it.
@@ -128,7 +128,7 @@ export class Evolution {
   }
   setArm(arm, q) {
     const id = q ? q.m.id : null;
-    for (const [k, g] of Object.entries(arm.growths)) { const on = k === id; for (const me of g.meshes) me.visible = on; if (!on) g.grow = 0; }
+    for (const [k, g] of Object.entries(arm.growths)) { const on = k === id; for (const me of g.meshes) me.visible = on; }
     arm.showing = q;
     arm.own.uInfect.value = q ? q.m.infect : 0;
     this.g.body.setLimbs?.(this.limbList());
@@ -155,7 +155,7 @@ export class Evolution {
     // a blow lands a moment after the arm starts to move
     if (this.pending) { this.pending.t -= dt; if (this.pending.t <= 0) { this.land(this.pending.a); this.pending = null; } }
     const swapping = this.swap && !this.swap.done;
-    const a = this.active.attack, ti = this.tierI, want = enabled && live && !this.wheel.open && !swapping && !this.beat;
+    const a = this.active.attack, ti = this.tierI, want = enabled && live && !this.wheel.open && !swapping && !g.absorber.drawing;
     if (a.type === 'shard') {
       weapon.damage = a.dmg[ti]; weapon.interval = a.interval[ti];
       const can = this.energy >= a.cost[ti], before = weapon.shots;
@@ -201,40 +201,30 @@ export class Evolution {
     let swapK = 0;
     if (this.swap) {
       const s = this.swap; s.t += dt / 0.34; swapK = Math.sin(Math.min(1, s.t) * Math.PI);
-      if (s.t >= 0.5 && !s.done) { s.done = true; this.setArm(vm.right, this.wantR); this.setArm(vm.left, this.wantL); vm.setStyleObj(this.active.style); }
-      if (s.t >= 1) this.swap = null;
+      if (s.t >= 0.5 && !s.done && !g.absorber.drawing) { s.done = true; this.setArm(vm.right, this.wantR); this.setArm(vm.left, this.wantL); vm.setStyleObj(this.active.style); }
+      if (s.t >= 1 && s.done) this.swap = null;
     }
     vm.swapK = swapK;
-    // the evolving moment
-    let insp = 0, slow = this.wheel.open ? 0.22 : 1;
-    if (this.beat) {
-      const b = this.beat; b.t += dt;
-      const T = b.t; insp = Math.min(1, T / 0.35) * (1 - clamp((T - 1.5) / 0.35, 0, 1));
-      slow = Math.min(slow, 0.5);
-      vm.charge = 0;
-      if (T > 1.85) { this.beat = null; vm.charge = 0; }
-    }
+    // the first discovery: a moment's slowing, nothing more
+    let slow = this.wheel.open ? 0.22 : 1;
+    if (this.beat) { this.beat.t += dt; const T = this.beat.t; slow = Math.min(slow, 0.45 + 0.55 * clamp((T - 0.18) / 0.3, 0, 1)); if (T > 0.5) this.beat = null; }
     this.timeScale = slow;
-    vm.inspectK = insp;
-    // growth spreads up each arm toward where it has been told to reach, and stays raw while it moves
+    // growth lives on the mutation, and spreads wherever that mutation is being carried
+    for (const q of this.equipped) { const want = TIER_GROW[q.tier - 1]; q.moving = q.grow < want; if (q.moving) q.grow = Math.min(want, q.grow + dt * 0.5); q.wound = Math.max(q.moving ? 1 : 0, (q.wound || 0) - dt * 1.6); }
     for (const arm of [vm.right, vm.left]) {
-      const q = arm.showing; let moving = 0;
+      const q = arm.showing;
       if (q) {
-        const G = arm.growths[q.m.id], want = TIER_GROW[q.tier - 1], before = G.grow;
-        if (G.grow < 0.3) G.grow = 0.3;
-        G.grow = Math.min(want, G.grow + dt * 0.42);
-        moving = G.grow < want ? 1 : Math.max(0, arm.own.uWound.value - dt * 2);
-        const front = 1.03 - G.grow * 1.03; G.front.value = front; arm.own.uFront.value = front;
-        if (before < want && Math.random() < dt * 22) { arm.tip && g.audio; }
-      } else arm.own.uFront.value = 1.2;
-      arm.own.uWound.value = moving;
+        const G = arm.growths[q.m.id], front = 1.03 - q.grow * 1.03; G.front.value = front; arm.own.uFront.value = front; arm.own.uWound.value = q.wound;
+        if (q.moving && Math.random() < dt * 12) { arm.root.updateWorldMatrix(true, false); const p = arm.root.localToWorld(arm.pointLocal(clamp(front + 0.02, 0.45, 1), _a)); g.effects.glowP.emit(p.x, p.y, p.z, (Math.random() - 0.5) * 1.2, -Math.random() * 0.6, (Math.random() - 0.5) * 1.2, 0.24, 0.009, 0.2, 0.03, 0.025, 6, 0.3); }
+      } else { arm.own.uFront.value = 1.2; arm.own.uWound.value = 0; }
     }
+    g.body.v2?.sync(this.equipped);
   }
 
   // development: fill the wheel, to prove eight limbs work without having to absorb eight things
   devFill() {
     const ids = Object.values(MUTATIONS), fill = [];
-    for (let i = 0; i < SLOTS; i++) fill.push({ m: ids[i % ids.length], tier: 1 + (i % 3) });
+    for (let i = 0; i < SLOTS; i++) fill.push({ m: ids[i % ids.length], tier: 1 + (i % 3), grow: 1 });
     this.equipped = fill; this.selected = 0; this.lastSelected = 1; this.recompute(); this.applyLook(true); this.wheel.render();
   }
 }
