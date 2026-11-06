@@ -12,10 +12,10 @@ import { clamp, lerp } from '../core/util.js';
 //   5 GEL BOMB     lobbed sticky charge that slows what it catches            learned by absorbing a sentry drone
 export const FORMS = [
   { id: 'shardcaster', name: 'SHARDCASTER', key: 'Digit1', how: 'always' },
-  { id: 'arc', name: 'ARC', key: 'Digit2', how: 'absorb an android', kind: 'android' },
-  { id: 'barb', name: 'BARB', key: 'Digit3', how: 'absorb a bug', kind: 'bug' },
-  { id: 'lash', name: 'LASH', key: 'Digit4', how: 'find the specimen cache' },
-  { id: 'gel', name: 'GEL BOMB', key: 'Digit5', how: 'absorb a drone', kind: 'drone' },
+  { id: 'arc', name: 'ARC', key: 'Digit2', how: 'absorb an android', kind: 'android', trait: 'CURRENT IN YOU: DEAD DOORS AND TERMINALS WAKE' },
+  { id: 'barb', name: 'BARB', key: 'Digit3', how: 'absorb a bug', kind: 'bug', trait: 'YOU GRIP LIKE THEY DO: YOU CLIMB HIGHER' },
+  { id: 'lash', name: 'LASH', key: 'Digit4', how: 'find the specimen cache', trait: 'ITS REACH PULLS THINGS TO YOU' },
+  { id: 'gel', name: 'GEL BOMB', key: 'Digit5', how: 'absorb a drone', kind: 'drone', trait: 'YOU DRIFT: HOLD JUMP TO FALL SLOWLY' },
 ];
 const KEY = 'intruder-arsenal-v2';
 const CACHE_AT = new THREE.Vector3(-3.2, 0, -9.5);          // the specimen cache beyond the first barrier of the containment bay
@@ -73,13 +73,14 @@ export class Arsenal {
     this.render();
   }
   cycle() { for (let k = 1; k <= FORMS.length; k++) { const i = (this.index + k) % FORMS.length; if (this.unlocked.has(FORMS[i].id)) { this.select(i); return; } } }
+  resetAll() { this.unlocked = new Set(['shardcaster']); this.index = 0; this.save(); this.g.viewmodel.setStyle?.('shardcaster'); this.render(); }
   unlockAll() { for (const f of FORMS) this.unlocked.add(f.id); this.save(); this.render(); }
 
   unlock(id) {
     if (this.unlocked.has(id)) return false;
     this.unlocked.add(id); this.save();
     const f = FORMS.find((x) => x.id === id), g = this.g;
-    g.ui.rewardNote('NEW FORM: ' + f.name);
+    g.ui.rewardNote(f.trait ? `NEW FORM: ${f.name}  ·  ${f.trait}` : 'NEW FORM: ' + f.name);
     g.ui.hint(g.touchMode ? `${f.name} LEARNED  ·  TAP ARMS TO SWITCH` : `${f.name} LEARNED  ·  PRESS ${FORMS.indexOf(f) + 1} OR Q`, 4);
     g.audio.play('crystal', { vol: 0.6 }); g.viewmodel.pulseGlow(1);
     this.index = FORMS.indexOf(f); this.g.viewmodel.setStyle(f.id); this.render();
@@ -198,6 +199,8 @@ export class Arsenal {
     const g = this.g, cam = g.camera, { origin, dir } = this.aim();
     this.cool = 0.6;
     const pull = [], hit = [];
+    // it reaches things a hand cannot: whatever lies along the line comes to you
+    for (const it of g.pickups.items) { if (!it.shown || it.taken) continue; _a.set(it.x - origin.x, 0, it.z - origin.z); const dd = _a.length(); if (dd > 11 || dd < 1) continue; _b.set(dir.x, 0, dir.z).normalize(); if (_a.divideScalar(dd).dot(_b) > 0.72) it.pulled = true; }
     for (const e of this.targets()) {
       const c = e.hitSpheres[0].c; _a.subVectors(c, origin); const dist = _a.length();
       if (dist > 3.9 || dist < 0.05) continue;
@@ -287,10 +290,10 @@ export class Arsenal {
     if (got || g.state !== 'playing' || g.opening.active) { this.hold = 0; return; }
     const d = Math.hypot(g.player.pos.x - this.cache.position.x, g.player.pos.z - this.cache.position.z);
     if (d < 2.6 && !g.absorber.busy) {
-      g.storyAct = 'TAKE'; this.cacheNear = true;
-      g.ui.setPrompt(g.touchMode ? 'HOLD THE BUTTON  ·  TAKE WHAT THEY KEPT' : 'HOLD RIGHT CLICK  ·  TAKE WHAT THEY KEPT');
+      g.storyAct = 'TOUCH'; this.cacheNear = true;
+      g.ui.setPrompt(g.touchMode ? 'HOLD THE BUTTON  ·  TOUCH WHAT THEY KEPT' : 'HOLD RIGHT CLICK  ·  TOUCH WHAT THEY KEPT');
       this.hold = clamp(this.hold + (g.input.interactDown() ? dt / 0.9 : -dt * 1.5), 0, 1); g.ui.setHold(this.hold);
-      if (this.hold >= 1) { this.hold = 0; g.ui.setHold(null); g.ui.setPrompt(''); g.effects.hitSparks(this.cache.position.clone().setY(1.1), [0.4, 1, 0.9], 24); this.unlock('lash'); g.storyAct = null; this.cacheNear = false; g.ui.subtitle('One of ours, in a jar. It comes with me. They will answer for this.', '', 4.4, true); }
+      if (this.hold >= 1) { this.hold = 0; g.ui.setHold(null); g.ui.setPrompt(''); g.effects.hitSparks(this.cache.position.clone().setY(1.1), [0.4, 1, 0.9], 24); this.unlock('lash'); g.campaign.takeVoice(0); g.storyAct = null; this.cacheNear = false; g.ui.subtitle('One of ours, in a jar. It comes with me. They will answer for this.', '', 4.4, true); }
     } else {
       if (this.cacheNear) { this.cacheNear = false; g.storyAct = null; g.ui.setPrompt(''); }
       if (this.hold > 0) { this.hold = 0; g.ui.setHold(null); }

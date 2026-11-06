@@ -116,7 +116,7 @@ export class FlightCombat {
 
     // ---- player fire
     if (live && !f.docking) {
-      if (input.mouse(0) && this.cool <= 0) { this.fireCannons(); this.cool = 0.12; }
+      if (input.mouse(0) && this.cool <= 0) { this.fireCannons(); this.cool = this.g.campaign.s.worlds.skarn ? 0.085 : 0.12; }
       const barbTap = input.clicked(2) || input.absorbTap; input.absorbTap = false;
       if (this.barbs && barbTap && this.barbCool <= 0) { this.fireBarbs(); this.barbCool = 3.5; }
     }

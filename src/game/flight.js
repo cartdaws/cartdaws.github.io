@@ -1,4 +1,5 @@
 import { WORLDS } from '../world/surface.js';
+import { PARTS } from './campaign.js';
 import * as THREE from 'three';
 import { clamp, damp, lerp, smooth, seg } from '../core/util.js';
 import { FlightCombat } from './flightCombat.js';
@@ -11,6 +12,8 @@ const OFFSET = new THREE.Vector3(8000, 0, 0);       // the space group sits well
 const VESSEL = new THREE.Vector3(700, 120, -5600);  // the research vessel, relative to the start
 const BAY = new THREE.Vector3(700, 72, -5862);      // the docking bay mouth in the underside of the bow (relative to the start)
 const DOCK = new THREE.Vector3(700, 40, -5700);     // the approach point under the hull: fly through here, slowly, to be drawn in
+const CROSSING = new THREE.Vector3(-900, 1500, -8200);   // beyond the Halcyon, where the fleet's burn starts
+const _wp = new THREE.Vector3();
 const PLANET = new THREE.Vector3(-300, -1500, 900); // the homeworld, below and behind the launch point
 
 const _m4 = new THREE.Matrix4();
@@ -295,6 +298,11 @@ export class Flight {
     this.planet.position.copy(PLANET); this.group.add(this.planet);
     const atm = new THREE.Mesh(new THREE.SphereGeometry(1245, 48, 32), new THREE.MeshBasicMaterial({ color: 0x66e0ff, transparent: true, opacity: 0.16, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false }));
     atm.position.copy(PLANET); this.group.add(atm);
+    { const rg2 = new THREE.RingGeometry(1500, 2480, 128, 1), rp2 = rg2.attributes.position, ru2 = rg2.attributes.uv; for (let i = 0; i < rp2.count; i++) ru2.setXY(i, (Math.hypot(rp2.getX(i), rp2.getY(i)) - 1500) / 980, 0.5);
+      const cv = document.createElement('canvas'); cv.width = 256; cv.height = 4; const x2 = cv.getContext('2d'); for (let i = 0; i < 256; i++) { const k = i / 255, band = 0.5 + 0.5 * Math.sin(k * 44 + Math.sin(k * 9) * 3); x2.fillStyle = `rgba(214,196,226,${(0.18 + 0.4 * band) * Math.sin(k * 3.14)})`; x2.fillRect(i, 0, 1, 4); }
+      const tx2 = new THREE.CanvasTexture(cv); tx2.colorSpace = THREE.SRGBColorSpace;
+      const homeRing = new THREE.Mesh(rg2, new THREE.MeshBasicMaterial({ map: tx2, transparent: true, side: THREE.DoubleSide, depthWrite: false, opacity: 0.7 })); homeRing.position.copy(PLANET); homeRing.rotation.set(Math.PI / 2 - 0.42, 0, 0.3); this.group.add(homeRing);
+      this.ember = new THREE.Mesh(new THREE.SphereGeometry(46, 28, 20), new THREE.MeshStandardMaterial({ color: 0xd98a44, roughness: 0.95 })); this.ember.position.set(PLANET.x - 2000, PLANET.y + 1500, PLANET.z - 1200); this.group.add(this.ember); }
     // burning settlements on the night side: pinpricks of orange
     const fp = new Float32Array(60 * 3);
     for (let i = 0; i < 60; i++) { const a = Math.random() * 6.28, b = 0.2 + Math.random() * 1.0, r = 1203; fp[i * 3] = PLANET.x + Math.cos(a) * Math.sin(b) * r; fp[i * 3 + 1] = PLANET.y + Math.cos(b) * r; fp[i * 3 + 2] = PLANET.z + Math.sin(a) * Math.sin(b) * r; }
@@ -314,9 +322,10 @@ export class Flight {
       const a2 = new THREE.Mesh(new THREE.SphereGeometry(r * 1.05, 36, 24), new THREE.MeshBasicMaterial({ color: atmCol, transparent: true, opacity: 0.17, side: THREE.BackSide, depthWrite: false, blending: THREE.AdditiveBlending })); a2.position.copy(pos); this.group.add(a2);
       return m;
     };
-    const ochre = new THREE.Vector3(-1900, -350, -4700), skarn = new THREE.Vector3(2600, 450, -3500);
+    const ochre = new THREE.Vector3(2600, 450, -3500), skarn = new THREE.Vector3(-1900, -350, -4700);       // near the star, hot; out by the giant, frozen
     planet2('ochre', ochre, 300, worldTexture('#b87840', ['rgba(226,170,106,.5)', 'rgba(120,70,40,.5)', 'rgba(90,50,30,.4)']), 0xffb070);
     planet2('skarn', skarn, 240, worldTexture('#b8d4e4', ['rgba(255,255,255,.55)', 'rgba(90,140,170,.45)', 'rgba(60,100,130,.3)'], 'rgba(255,255,255,.95)'), 0x9fe8ff);
+    this.crossMark = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,210,150,1)'), color: 0xffd9a0, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false })); this.crossMark.position.copy(CROSSING); this.crossMark.visible = false; this.group.add(this.crossMark);
     this.worlds = [
       { id: 'vael', pos: moon.position.clone(), r: 110, land: 140 },
       { id: 'ochre', pos: ochre, r: 300, land: 345 },
@@ -408,7 +417,8 @@ export class Flight {
       const sl = new THREE.LineSegments(this.slGeo, this.slMat); sl.frustumCulled = false; this.slGroup.add(sl);
       for (const d of this.slData) { const a = Math.random() * 6.28, r = 8 + Math.random() * 55; d.x = Math.cos(a) * r; d.y = Math.sin(a) * r; d.z = -150 + Math.random() * 165; } }
     this.trailT = 0; this.flash = 0; this.hitMark = 0;
-    { const pip = document.createElement('div'); pip.id = 'fh-pip'; this.hud.appendChild(pip); this.pip = pip;
+    { const wp = document.createElement('div'); wp.id = 'fh-wp'; const wl = document.createElement('div'); wl.id = 'fh-wpl'; this.hud.append(wp, wl); this.wpEl = wp; this.wplEl = wl;
+      const pip = document.createElement('div'); pip.id = 'fh-pip'; this.hud.appendChild(pip); this.pip = pip;
       const fl = document.createElement('div'); fl.id = 'fh-flash'; this.hud.appendChild(fl); this.flashEl = fl;
       const st2 = document.createElement('style');
       st2.textContent = '#fh-pip{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border:1px solid rgba(168,235,226,.55);border-radius:50%;opacity:.8}#fh-pip:after{content:"";position:absolute;left:50%;top:50%;width:2px;height:2px;margin:-1px;background:rgba(168,235,226,.8)}'
@@ -447,7 +457,7 @@ export class Flight {
     this.ship.position.set(0, Math.sin(t * 0.6) * 0.25, 0); this.ship.rotation.set(Math.sin(t * 0.4) * 0.03, 0.18 + Math.sin(t * 0.13) * 0.08, Math.sin(t * 0.5) * 0.05);
     this.stars.position.copy(this.camPos); this.sky.position.copy(this.camPos); this.starMat.uniforms.uTime.value = t;
     this.starMat.uniforms.uScale.value = this.g.renderer.getPixelRatio();
-    this.vessel.userData.ring.rotation.z += dt * 0.05; this.fires.material.opacity = 0.6 + 0.3 * Math.sin(t * 3);
+    if (!this.vesselHurt) this.vessel.userData.ring.rotation.z += dt * 0.05; this.fires.material.opacity = 0.6 + 0.3 * Math.sin(t * 3);
     for (const sp of this.ship.userData.engines) sp.scale.setScalar(1.4 + Math.sin(t * 9) * 0.1);
   }
 
@@ -461,19 +471,21 @@ export class Flight {
     g.trauma = 0; g.hitFlash = 0;                        // start flight with a steady camera, whatever the cutscene left behind
     this.active = true; this.t = 0; this.phase = 'launch'; this.docking = null; this.hull = 100; this.shake = 0.4;
     this.pos.set(0, 0, 0); this.speed = 20; this.throttle = 0.45; this.roll = 0;
-    const look = _v.copy(DOCK).sub(this.pos).normalize();
+    if (this.free) { this.pos.copy(DOCK).add(_v.set(0, -70, 60)); this.speed = 90; this.phase = 'cruise'; this.warship.visible = false; this.vesselDamaged(); this.g.campaign.refresh(); }
+    const look = this.free ? _v.copy(PLANET).sub(this.pos).normalize() : _v.copy(DOCK).sub(this.pos).normalize();
     this.quat.setFromUnitVectors(new THREE.Vector3(0, 0, -1), look);
     this.camPos.copy(this.pos).addScaledVector(_f.set(0, 0, 1).applyQuaternion(this.quat), 18).add(_u.set(0, 5, 0)); this.camQuat.copy(this.quat);
-    this.warship.position.set(-500, -150, -200); this.warship.visible = true; this.warshipT = 0;
+    this.warship.position.set(-500, -150, -200); this.warship.visible = !this.free; this.warshipT = 0;
     for (const d of this.debris) d.userData.hit = false;
     g.viewmodel.root.visible = false; g.body.setVisible(false);
-    g.ui.showHud(true); g.ui.setObjective(this.free ? 'EXPLORE  ·  THE FLEET WENT TO EARTH' : 'FLY TO THE HALCYON'); g.ui.setPrompt(''); this.armor = (() => { try { return localStorage.getItem('intruder-armor') === '1' ? 0.5 : 1; } catch (e) { return 1; } })();
+    g.ui.showHud(true); g.ui.setObjective(this.free ? g.campaign.roadObjective() : 'FLY TO THE HALCYON'); g.ui.setPrompt(''); this.armor = (() => { try { return localStorage.getItem('intruder-armor') === '1' ? 0.5 : 1; } catch (e) { return 1; } })();
     document.body.classList.add('intro', 'in-flight'); // hides the on-foot crosshair, health and weapon readouts; softens the shared UI
     this.hud.classList.remove('hidden');
     g.audio.stopSiren?.(); g.audio.scene('space');
     g.ui.fade(0);
-    if (!this.free) g.ui.subtitle('That great ship. It has the elder, and how many more?', '', 3.4, true); else this.t = 16;
-    this.f = {};
+    if (!this.free) g.ui.subtitle('That great ship has the elder. Find them. Make them pay. Whatever it costs.', '', 3.8, true);
+    else { this.t = 16; g.ui.subtitle(g.campaign.beat === 'home' ? 'You will find nothing there, Specimen Nine.' : 'You are still leaving a trail, Specimen Nine.', 'HALCYON', 3.4); g.audio.play('pa', { vol: 0.5 }); }
+    this.f = this.free ? { a: 1, a2: 1, w: 1, b: 1, c: 1, homeLine: g.campaign.beat === 'home' ? 4 : 0 } : {};
     this.dying = null; this.combat.reset();
   }
 
@@ -517,6 +529,9 @@ export class Flight {
     if (this.hull <= 0) { this.dying = { t: 0 }; this.g.ui.subtitle('Hull breach. Emergency power. Rerouting.', 'LANDER', 3); this.g.audio.play('explosion', { vol: 0.8 }); }
   }
 
+  // You did this: its ring has stopped, and the bay lights are red.
+  vesselDamaged() { if (this.vesselHurt) return; this.vesselHurt = true; for (const sp of this.vessel.userData.lights || []) { if (sp.material) { sp.material = sp.material.clone(); sp.material.color.set(0xff3a22); } } }
+
   stop() {
     if (!this.active) return;
     this.entry = null; this.knock = null;
@@ -556,7 +571,7 @@ export class Flight {
     // the warship goes first, and keeps gaining
     this.warship.position.z -= Math.min(150, 40 + T * T * 8) * dt; this.warship.position.y += 3 * dt;
     if (this.warshipGlow) { this.warshipGlow.visible = true; this.warshipGlow.scale.setScalar(150 + 60 * Math.sin(T * 5)); }
-    this.vessel.userData.ring.rotation.z += dt * 0.05;
+    if (!this.vesselHurt) this.vessel.userData.ring.rotation.z += dt * 0.05;
     if (T > 0.8 && !C.a) { C.a = 1; ui.subtitle('You are too late, Specimen Nine. Nothing is left aboard for you.', 'HALCYON', 3.4); g.audio.play('pa', { vol: 0.5 }); }
     // then, out of the bay
     const launch = clamp((T - 5.2) / 7, 0, 1);
@@ -622,6 +637,8 @@ export class Flight {
       const Rg = this.ringInfo;
       if (Rg) { const dx = P.x - Rg.c.x, dy = P.y - Rg.c.y, dz = P.z - Rg.c.z, rad = Math.hypot(dx, dy), off = rad - Rg.R, d = Math.hypot(off, dz), lim = Rg.t + SHIP; if (d < lim && rad > 1) { const ox = (dx / rad) * off, oy = (dy / rad) * off; this.bump(ox, oy, dz, lim - d); } }
     }
+    // the small moon
+    if (this.ember) { const d = P.distanceTo(this.ember.position), lim = 46 + SHIP; if (d < lim) this.bump(P.x - this.ember.position.x, P.y - this.ember.position.y, P.z - this.ember.position.z, lim - d); }
     // the warship while it is still here
     if (this.warship.visible && this.phase === 'launch') {
       const W = this.warship.position;
@@ -638,15 +655,37 @@ export class Flight {
   }
 
   // ---- other worlds: names you can read from a long way off, and flying into an atmosphere lands you
+  // Where the journey wants you to point the ship. The world itself is the waypoint: it is there, you can see it, this says which one.
+  navPoint() {
+    const id = this.g.campaign.flightTarget();
+    if (id === null) return { pos: _wp.copy(DOCK), label: 'HALCYON' };
+    if (id === 'none') return null;
+    if (id === 'crossing') return { pos: _wp.copy(CROSSING), label: 'CROSSING POINT' };
+    const w = this.worlds.find((o) => o.id === id); return { pos: _wp.copy(w.pos), label: WORLDS[id].name + ' · ' + (PARTS[id] || 'THE WALL') };
+  }
+  updateWaypoint() {
+    const n = this.navPoint(), el = this.wpEl, lb = this.wplEl;
+    if (!n || this.entry) { el.style.display = lb.style.display = 'none'; return Infinity; }
+    const d = this.pos.distanceTo(n.pos); _r.copy(n.pos).add(OFFSET).project(this.g.camera);
+    let x = _r.x, y = _r.y; const behind = _r.z > 1; if (behind) { x = -x; y = -y; }
+    const off = behind || Math.abs(x) > 0.9 || Math.abs(y) > 0.86;
+    if (off) { const k = Math.max(Math.abs(x) / 0.9, Math.abs(y) / 0.86, 0.0001); x /= k; y /= k; if (behind && Math.hypot(x, y) < 0.5) { y = -0.86; } }
+    const px = (x * 0.5 + 0.5) * window.innerWidth, py = (-y * 0.5 + 0.5) * window.innerHeight;
+    el.style.display = lb.style.display = 'block'; el.style.left = lb.style.left = px + 'px'; el.style.top = lb.style.top = py + 'px';
+    el.className = off ? 'off' : ''; lb.textContent = n.label + '  ' + (d > 1000 ? (d / 1000).toFixed(1) + ' km' : Math.round(d) + ' m');
+    return d;
+  }
+
   updateWorldLabels() {
     const g = this.g, c = g.camera;
+    this.updateWaypoint();
     if (!this.worldEls) { this.worldEls = {}; for (const w of this.worlds) { const el = document.createElement('div'); el.className = 'fh-world'; this.hud.appendChild(el); this.worldEls[w.id] = el; } }
     for (const w of this.worlds) {
       const el = this.worldEls[w.id], d = this.pos.distanceTo(w.pos) - w.r;
       _v.copy(w.pos).add(OFFSET).project(c);
       const on = _v.z < 1 && Math.abs(_v.x) < 0.95 && Math.abs(_v.y) < 0.92;
       el.style.display = on ? 'block' : 'none';
-      if (on) { el.style.left = ((_v.x * 0.5 + 0.5) * 100).toFixed(1) + '%'; el.style.top = ((-_v.y * 0.5 + 0.5) * 100).toFixed(1) + '%'; const W = WORLDS[w.id], done = g.surface.done[w.id]; el.textContent = W.name + (done ? ' ✓' : '') + '  ' + (d > 1000 ? (d / 1000).toFixed(1) + ' km' : Math.max(0, Math.round(d)) + ' m'); }
+      if (on) { el.style.left = ((_v.x * 0.5 + 0.5) * 100).toFixed(1) + '%'; el.style.top = ((-_v.y * 0.5 + 0.5) * 100).toFixed(1) + '%'; const W = WORLDS[w.id], done = g.surface.done[w.id]; el.textContent = W.name + (done ? ' ✓' : '') + (PARTS[w.id] && this.free && !done ? ' · ' + PARTS[w.id] : '') + '  ' + (d > 1000 ? (d / 1000).toFixed(1) + ' km' : Math.max(0, Math.round(d)) + ' m'); }
     }
   }
   checkWorlds() {
@@ -656,11 +695,25 @@ export class Flight {
       if (d < w.land) { this.beginEntry(w); return; }
       if (d < w.land + 420) near = w;
     }
-    if (near && near !== this.nearWorld && !this.docking) { const W = WORLDS[near.id]; g.ui.hint(W.name + ' · ' + W.sub + '  ·  FLY DOWN TO LAND', 4); }
+    if (near && near !== this.nearWorld && !this.docking) { const W = WORLDS[near.id]; g.ui.hint(W.name + ' · ' + W.sub + '  ·  FLY INTO THE AIR TO LAND', 4); }
     this.nearWorld = near;
   }
+  // The way out of the system. Only there when the ship is ready.
+  updateCrossing(dt) {
+    const g = this.g, ready = g.campaign.beat === 'crossing';
+    this.crossMark.visible = ready || g.campaign.s.crossed; this.crossMark.scale.setScalar(120 + Math.sin(this.t * 1.6) * 14);
+    if (ready && !this.crossing && this.pos.distanceTo(CROSSING) < 220) { this.crossing = { t: 0 }; g.ui.subtitle('Plating holds. Coolant holds. I have the heading. Crossing now.', 'LANDER', 3.4); g.audio.play('surge', { vol: 0.9 }); g.audio.play('flyby', { vol: 0.8 }); }
+    if (this.crossing) {
+      const C = this.crossing; C.t += dt; this.speed = 200 + C.t * C.t * 120; this.shake = Math.max(this.shake, Math.min(0.9, C.t * 0.25));
+      if (C.t > 1.8) this.once2('c1', () => g.ui.subtitle('Forty-one thousand of us. I am coming.', '', 3, true));
+      g.ui.fade(Math.max(0, (C.t - 3.6) / 1.4));
+      if (C.t > 5) { this.crossing = null; this.stop(); g.finishCrossing(); }
+    }
+  }
+  once2(k, fn) { this.f[k] || (this.f[k] = 1, fn()); }
+
   beginEntry(w) {
-    if (this.dying || this.docking || this.entry) return;
+    if (this.dying || this.docking || this.entry || this.crossing) return;
     const g = this.g; this.entry = { t: 0, w }; this.knock = null;
     for (const e of this.combat.enemies) e.mesh.removeFromParent(); this.combat.enemies.length = 0;
     g.ui.subtitle('Atmosphere. Hold on.', 'LANDER', 2.2); g.audio.play('surge', { vol: 0.7 }); g.audio.play('flyby', { vol: 0.8 });
@@ -690,7 +743,7 @@ export class Flight {
     this.quat.setFromUnitVectors(_f.set(0, 0, -1), up);
     this.camPos.copy(this.pos).addScaledVector(up, -18); this.camQuat.copy(this.quat);
     this.active = true; g.state = 'flight'; g.cinePose = null; g.viewmodel.root.visible = false; g.body.setVisible(false); g.trauma = 0;
-    g.ui.showHud(true); g.ui.setObjective(this.free ? 'EXPLORE  ·  THE FLEET WENT TO EARTH' : 'FLY TO THE HALCYON'); g.ui.setPrompt('');
+    g.ui.showHud(true); g.ui.setObjective(this.free ? g.campaign.roadObjective() : 'FLY TO THE HALCYON'); g.ui.setPrompt('');
     document.body.classList.add('intro', 'in-flight'); this.hud.classList.remove('hidden');
     g.audio.scene('space'); this.resumeFade = 1;
     if (this.saveArmor === undefined) this.saveArmor = 1;
@@ -730,7 +783,7 @@ export class Flight {
     }
     const boost = live && (input.down('ShiftLeft') || input.down('ShiftRight') || this.boostT > 0);
     const brake = live && (input.down('Space') || this.brakeT > 0);
-    const target = this.docking ? 14 : (boost ? 360 : 40 + this.throttle * 120) * (brake ? 0.25 : 1);
+    const target = this.docking ? 14 : (boost ? (this.g.campaign.s.worlds.vael ? 460 : 360) : 40 + this.throttle * 120) * (brake ? 0.25 : 1);
     this.speed = damp(this.speed, target, boost ? 1.6 : 1.1, dt);
     _f.set(0, 0, -1).applyQuaternion(this.quat);
     this.pos.addScaledVector(_f, this.speed * dt);
@@ -754,6 +807,7 @@ export class Flight {
     this.updateWorldLabels(dt);
     if (this.entry) { this.updateEntry(dt); return; }
     this.checkWorlds(dt);
+    if (this.free) this.updateCrossing(dt);
 
     // ---- the launch: the warship leaves orbit with a flash of its drive
     if (this.phase === 'launch') {
@@ -772,6 +826,7 @@ export class Flight {
     if (this.t > 8.6 && !this.f.a2) { this.f.a2 = true; g.ui.subtitle('Then take me there.', '', 2.6, true); }
     this.combat.standDown = dist < 900;             // it wants you alive
     if (!this.free && dist < 3000 && !this.f.c) { this.f.c = true; g.ui.subtitle('Lander Four, your pilot has no vital signs. Who is flying that ship?', 'HALCYON', 4.2); g.audio.play('alert', { vol: 0.4 }); }
+    if (this.f.homeLine > 0) { this.f.homeLine -= dt; if (this.f.homeLine <= 0) g.ui.subtitle('Home first. If anyone got away, they would have gone to the wall.', '', 3.6, true); }
     if (this.t > 15 && !this.f.w) { this.f.w = true; g.ui.subtitle('Other worlds on scanner. Fly into any atmosphere to set down.', 'LANDER', 4); g.audio.play('pa', { vol: 0.3 }); }
     if (!this.free && dist < 900 && !this.f.d) { this.f.d = true; g.ui.setObjective('ENTER THE DOCKING BAY'); g.ui.hint('FLY TOWARD THE LIT BAY', 5); g.ui.subtitle('All fighters stand down. Something is alive in that cockpit. Let it dock.', 'HALCYON', 4.6); g.audio.play('pa', { vol: 0.5 }); }
 
@@ -810,7 +865,7 @@ export class Flight {
       this.camPos.lerpVectors(cp, this.camPos, k); this.camQuat.copy(this.cine.quaternion).slerp(this.camQuat, k);
     }
     this.shake = Math.max(0, this.shake - dt * 1.4);
-    this.vessel.userData.ring.rotation.z += dt * 0.05;
+    if (!this.vesselHurt) this.vessel.userData.ring.rotation.z += dt * 0.05;
     for (let i = 0; i < this.vessel.userData.lights.length; i++) this.vessel.userData.lights[i].material.opacity = 0.35 + 0.65 * Math.max(0, Math.sin(this.t * 4 - i * 0.7));
     this.fires.material.opacity = 0.6 + 0.3 * Math.sin(this.t * 3);
 

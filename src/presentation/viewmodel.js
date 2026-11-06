@@ -185,6 +185,9 @@ const STYLES = {
   gel:         { rim: 0x6dff9a, suck: 0x1a8a40, suckI: 1.5, grip: 0.3, spread: 0, swell: 0.8, weapon: 0.35 },        // bulging and toxic green
 };
 export class ViewModel {
+  // your arms are lit by the place you are standing in
+  setEnv(hex) { const c = new THREE.Color(hex); this.skinShared.uEnv.value.copy(c); this.key.color.copy(c); }
+  setMachine(k) { this.skinShared.uMachine.value = k; }
   constructor(asset) {
     this.asset = asset;
     this.scene = new THREE.Scene();
@@ -193,7 +196,7 @@ export class ViewModel {
     this.root.add(new THREE.AmbientLight(0x8fb4c4, 1.5));
     const key = new THREE.DirectionalLight(0xe4f8ff, 2.4);
     key.position.set(0.6, 0.9, 0.5);
-    this.root.add(key);
+    this.root.add(key); this.key = key;
 
     this.tentGeo = buildTentacleGeometry(); this.skinShared = makeSharedSkin();
     // each weapon form gives the arm its own look: skin glow, sucker glow and a resting pose (blended smoothly when the form changes)

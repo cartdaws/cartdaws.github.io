@@ -69,11 +69,12 @@ export class HomeWorld {
     const node = (n) => asset.getObjectByName(n);
 
     // ---- light and air
-    this.hemi = new THREE.HemisphereLight(S.hex(0x9fe6dc), S.hex(0x1a2a3a), 1.15);
-    this.sun = new THREE.DirectionalLight(S.hex(0xd6e4ff), 0.9);
+    this.hemi = new THREE.HemisphereLight(S.hex(0x9fe6dc), S.hex(0x1a2a3a), 0.8);
+    this.sun = new THREE.DirectionalLight(S.hex(0xd6e4ff), 1.7);      // the big moon, where you can see it
+    this.moonDir = new THREE.Vector3(-170, 160, -330).normalize();
     this.sun.position.set(HOME.x - 60, 90, HOME.z - 40);
     this.hemi.visible = this.sun.visible = false;
-    scene.add(this.hemi, this.sun);
+    scene.add(this.hemi, this.sun, this.sun.target);
     this.fog = new THREE.FogExp2(S.hex(0x1d3a56), 0.011);
     this.bg = new THREE.Color(S.hex(0x120c36));
 
@@ -282,6 +283,7 @@ export class HomeWorld {
     this.shown = v;
     if (this.elderKit) this.elderKit.ab.setVisible(v);
     this.group.visible = this.hemi.visible = this.sun.visible = this.sky.visible = v;
+    if (v && !this.shadowsSet) { this.shadowsSet = true; this.group.traverse((o) => { if (!o.isMesh || !o.material) return; const m = o.material; if (m.isMeshBasicMaterial || m.transparent || m.blending === THREE.AdditiveBlending) return; if (o.isInstancedMesh) return; o.receiveShadow = true; if (o.geometry && !(o.geometry.type || '').includes('Circle')) o.castShadow = true; }); }
     if (!v) { this.spot.visible = false; this.cone.visible = false; this.collar.visible = false; this.shadow.visible = false; }
   }
 

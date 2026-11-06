@@ -55,7 +55,7 @@ export class HomeLife {
         spots.push({ x, z, s, yaw: R() * 6.283, tx: (R() - 0.5) * tilt, tz: (R() - 0.5) * tilt });
       }
       for (const [name, material] of parts) {
-        const mesh = new THREE.InstancedMesh(nodes[name].geometry, material, spots.length); mesh.frustumCulled = false;
+        const mesh = new THREE.InstancedMesh(nodes[name].geometry, material, spots.length); mesh.frustumCulled = false; mesh.castShadow = /Trunk|Head/.test(name);          // the big shapes only: enough to ground them, and cheap
         spots.forEach((o, i) => { q.setFromEuler(new THREE.Euler(o.tx, o.yaw, o.tz)); v.set(o.x, 0, o.z); sc.set(o.s, o.s, o.s); if (this.ground) v.y = this.ground(o.x, o.z) - 0.04; mesh.setMatrixAt(i, m4.compose(v, q, sc)); });
         group.add(mesh);
         if (material.isMeshBasicMaterial) this.glows.push(mesh);

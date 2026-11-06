@@ -83,11 +83,12 @@ export class Pickups {
       b.rotation.y += dt * (it.type === 'key' ? 1.8 : 1.2);
       b.position.y = (it.type === 'key' ? 1.0 : 0.5) + Math.sin(this.t * 2.2 + it.phase) * 0.06;
       if (p.dead || g.state !== 'playing') continue;
+      if (it.pulled) { const dx = p.pos.x - it.x, dz = p.pos.z - it.z, d = Math.hypot(dx, dz) || 1, st = Math.min(d, 14 * dt); it.x += (dx / d) * st; it.z += (dz / d) * st; it.mesh.position.set(it.x, 0, it.z); if (d < 1) it.pulled = false; }
       if (Math.hypot(p.pos.x - it.x, p.pos.z - it.z) > REACH || p.pos.y > 1.6) continue;
       if (it.type === 'health') {
         if (p.health >= p.maxHealth) continue;
         p.health = Math.min(p.maxHealth, p.health + HEAL);
-        g.ui.rewardNote(`+${HEAL} VITALITY`);
+        g.ui.rewardNote(`TRIAL FEED  ·  +${HEAL} VITALITY`);
         g.audio.play('crystal', { vol: 0.55 });
       } else {
         g.encounter.gotKey();

@@ -421,8 +421,9 @@ export function generateRun(game) {
   let keyIdx = kinds.map((k, i) => (k === 'combat' && i >= 1 && i <= N - 4 ? i : -1)).filter((i) => i >= 0);
   if (!keyIdx.length) { kinds[2] = 'combat'; keyIdx = [2]; }
   keyIdx = pick(keyIdx);
-  const lockCands = kinds.map((k, i) => (k === 'quiet' && i >= keyIdx + 2 ? i : -1)).filter((i) => i >= 0);
-  const lockIdx = lockCands.length ? pick(lockCands) : N - 2;
+  // the room before the last fight is always the chart room, so the door there has its own reason; the pass-locked door is another room, when there is one
+  const lockCands = kinds.map((k, i) => (k === 'quiet' && i >= keyIdx + 2 && i < N - 2 ? i : -1)).filter((i) => i >= 0);
+  const lockIdx = lockCands.length ? pick(lockCands) : -1;
 
   const rooms = [];
   let depth = 0;
@@ -431,7 +432,7 @@ export function generateRun(game) {
     const w = kind === 'quiet' ? 2 * irand(6, 9) : kind === 'finale' ? 2 * irand(12, 13) : 2 * irand(8, 12);
     const d = kind === 'quiet' ? 2 * irand(6, 9) : kind === 'finale' ? 2 * irand(12, 13) : 2 * irand(8, 12);
     const theme = kind === 'finale' ? COMBAT_THEMES[0] : pick(kind === 'quiet' ? QUIET_THEMES : COMBAT_THEMES);
-    rooms.push({ id: i + 1, kind, w, d, h: kind === 'quiet' ? 4.5 : 6.5, theme, cell: cells[i], waves: [], barrels: [], pickups: [], depth: kind === 'quiet' ? 0 : depth++ });
+    rooms.push({ id: i + 1, kind, w, d, h: kind === 'quiet' ? 4.5 : 6.5, theme: i === N - 2 ? { ...QUIET_THEMES[3], name: ['NAVIGATION', 'CHART ROOM'], accent: '#35c06a' } : theme, cell: cells[i], waves: [], barrels: [], pickups: [], depth: kind === 'quiet' ? 0 : depth++ });
   }
   // positions
   const first = rooms[0];
@@ -506,6 +507,7 @@ export function generateRun(game) {
 
   // ---- room signs, spawns, rewards
   let comb = 0;
+  let quietN = 0;
   for (const r of rooms) {
     if (r.kind === 'lift') continue;
     const sideForSign = shuffled(['zmin', 'zmax', 'xmin', 'xmax']).find((s) => s !== r.inSide && s !== r.outSide) || 'zmin';
@@ -521,6 +523,14 @@ export function generateRun(game) {
     const taken = [];
     if (r.kind === 'quiet') {
       const n = r.theme.id === 'storage' || r.theme.id === 'lab' ? 2 : 1;
+      if (r === rooms[N - 2]) { const s = freeSpot(r, pl, { pad: 2.2, avoid: taken }); taken.push(s); r.navSpot = s; pl.add(s.x - 1.4, s.x + 1.4, s.z - 1, s.z + 1); }
+      else {
+        const s = freeSpot(r, pl, { pad: 1.5, avoid: taken }); taken.push(s); pl.add(s.x - 1, s.x + 1, s.z - 1, s.z + 1);
+        // every second jar sits up on a stack of cases: too high for a jump, not for arms that grip
+        quietN++;
+        if (quietN % 2 === 0 && r.h > 4.4) { const H = 2.65; B.blk(s.x - 0.8, s.x + 0.8, 0, H, s.z - 0.8, s.z + 0.8, mats.dark); r.voiceSpot = { x: s.x, y: H, z: s.z }; }
+        else r.voiceSpot = { x: s.x, y: 0, z: s.z };
+      }
       for (let i = 0; i < n; i++) { const s = freeSpot(r, pl, { pad: 1.0, avoid: taken }); taken.push(s); r.pickups.push({ type: 'health', ...s, reveal: 'start' }); }
     } else {
       const finale = r.kind === 'finale';
@@ -540,13 +550,14 @@ export function generateRun(game) {
     }
   }
   // key card + locked door
+  run.navRoom = rooms[N - 2]; run.navRoom.doors.out.lock();
+  if (lockIdx >= 0) {
   const keyRoom = rooms[keyIdx], lockRoom = rooms[lockIdx];
   const ks = freeSpot(keyRoom, keyRoom.placer, { pad: 1.2, avoid: keyRoom.pickups });
   keyRoom.pickups.push({ type: 'key', ...ks, reveal: 'clear' });
   run.keyRoom = keyRoom; run.lockRoom = lockRoom;
   lockRoom.doors.out.lock();
-  {
-    const r = lockRoom, o = { accent: '#c9402a', w: 768, h: 192 }, L2 = ['KEYCARD REQUIRED'];
+    const r = lockRoom, o = { accent: '#c9402a', w: 768, h: 192 }, L2 = ['NO POWER', 'HANDLER PASS OR CURRENT'];
     if (r.outSide === 'zmin') addSign(group, L2, 1.6, r.cx + 2.5, 1.9, r.z0 + 0.03, 0, o);
     else if (r.outSide === 'zmax') addSign(group, L2, 1.6, r.cx + 2.5, 1.9, r.z1 - 0.03, PI, o);
     else if (r.outSide === 'xmin') addSign(group, L2, 1.6, r.x0 + 0.03, 1.9, r.cz + 2.5, PI / 2, o);

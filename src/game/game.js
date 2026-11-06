@@ -1,6 +1,7 @@
 import { resetMemories } from './memories.js';
 import { ShipLife } from '../world/shipLife.js';
 import { Surface } from '../world/surface.js';
+import { Campaign } from './campaign.js';
 import * as THREE from 'three';
 import { Input } from '../core/input.js';
 import { Audio } from '../core/audio.js';
@@ -48,11 +49,15 @@ export class Game {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.95;
+    // real shadows from the one light that matters, wherever there is a sky. Desktop only: phones keep their frame rate.
+    this.canShadow = !document.body.classList.contains('touch') && !/Android|iPhone|iPad/i.test(navigator.userAgent);
+    if (this.canShadow) { this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFShadowMap; }
+    this.campaign = new Campaign(this);
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x04070a);
     this.scene.fog = new THREE.FogExp2(0x050709, 0.016);
-    this.scene.add(new THREE.HemisphereLight(0x7f95a4, 0x14181b, 0.42));
+    this.baseHemi = new THREE.HemisphereLight(0x7f95a4, 0x14181b, 0.42); this.scene.add(this.baseHemi);       // the ship's own interior fill; anywhere with a sky has its own light
 
     this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.05, 500);
     this.camera.rotation.order = 'YXZ';
@@ -144,6 +149,7 @@ export class Game {
     this.viewmodel.restrain = 1;
 
     this.surface = new Surface(this);
+    this.campaign.refresh();
     if (debug) { window.__g = this; window.__THREE = THREE; }
     this.last = performance.now();
     this.loop = this.loop.bind(this);
@@ -182,6 +188,7 @@ export class Game {
     const rooms = [workshopRoom(this.level), ...this.run.rooms];
     this.run.all = rooms;
     (this.shipLife || (this.shipLife = new ShipLife(this))).build(rooms);
+    this.campaign.dressRun(this.run, rooms);
     this.level.extraDoors = this.run.doors;
     this.level.alarmLights = this.level.baseAlarm.concat(this.run.alarmLights);
     this.level.flicker = this.level.baseFlicker.concat(this.run.flicker);
@@ -234,7 +241,7 @@ export class Game {
     if (progress.introDone) { bnew.classList.remove('hidden'); $('btn-play').querySelector('span').textContent = 'CONTINUE'; }
     $('st-hp').textContent = `VITALITY ${this.player.maxHealth}` + (progress.maxHpBonus ? `  (+${progress.maxHpBonus} ABSORBED)` : '');
     $('st-cp').textContent = progress.introDone ? 'CHECKPOINT: ABOARD THE HALCYON' : 'THE VALLEY';
-    bnew.onclick = () => { progress.setIntroDone(false); resetMemories(); this.play(); };
+    bnew.onclick = () => { progress.setIntroDone(false); resetMemories(); this.campaign.reset(); this.arsenal.resetAll?.(); progress.resetBonus(); this.player.maxHealth = 100; this.player.health = 100; this.play(); };
     const panels = { 'btn-opts': $('panel-opts'), 'btn-help': $('panel-help') };
     for (const [btn, panel] of Object.entries(panels)) {
       $(btn).onclick = () => {
@@ -323,6 +330,7 @@ export class Game {
   // Seen the introduction already: straight into the facility with the weapon.
   continueGame() {
     this.audio.init();
+    if (['valley', 'chase', 'trial'].includes(this.campaign.beat)) this.campaign.setBeat('deck');
     if (this.touchMode) enterImmersive();
     this.ui.hideMenus();
     this.state = 'playing';
@@ -336,7 +344,7 @@ export class Game {
     this.level.emergencyOn = false;
     this.ui.showHud(true);
     this.ui.clearTransient();
-    this.ui.setObjective('REACH THE HANGAR');
+    this.ui.setObjective(this.encounter.baseObjective());
     if (this.touchMode) {
       this.ui.hintOnce('controls', 'LEFT THUMB MOVE · RIGHT THUMB LOOK', 3.5);
     } else {
@@ -347,6 +355,7 @@ export class Game {
   pause() {
     if (this.paused) return;
     this.paused = true;
+    { const j = document.getElementById('journal'); if (j) { j.innerHTML = ''; for (const [k, v] of this.campaign.journal()) { const d = document.createElement('div'), b = document.createElement('b'), s = document.createElement('span'); b.textContent = k; s.textContent = v; d.append(b, s); j.appendChild(d); } } }
     this.input.clear();
     this.audio.suspend();
     this.ui.showMenu('pause');
@@ -393,7 +402,7 @@ export class Game {
 
   // Full replay: encounter, doors and props back to the beginning, then the opening plays again.
   replayFromStart() {
-    this.surface.leave(false); this.flight.free = false; this.flight.stop();
+    this.surface.leave(false); this.flight.free = false; this.flight.stop(); this.campaign.reset(); resetMemories(); this.arsenal.resetAll?.(); progress.resetBonus(); this.player.maxHealth = 100; this.player.health = 100;
     this.audio.init();
     this.newRun();
     this.resetEncounter();
@@ -507,11 +516,26 @@ export class Game {
   takeTheShip() {
     this.audio.init(); if (this.touchMode) enterImmersive();
     this.ui.hideMenus(); this.opening.endRoute(); this.opening.active = false; this.weaponAcquired = true; this.encounter.won = false; this.ending = null; this.cinePose = null; this.paused = false;
+    if (['valley', 'chase', 'trial', 'deck', 'chart'].includes(this.campaign.beat)) { const w = this.campaign.s.worlds; this.campaign.setBeat(!w.ash ? 'home' : this.campaign.missing().length ? 'road' : 'crossing'); }
     this.flight.free = true; this.state = 'flight'; this.flight.start(); this.lockRetries = 0; this.input.lock();
+  }
+
+  // The cards at the ends of things say what you did as well as what comes next.
+  showCard(title, text, tag) {
+    const c = this.campaign.s, set = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+    set('card-title', title); set('card-text', text); set('card-tag', tag);
+    set('card-stats', `${c.total} machine${c.total === 1 ? "" : "s"} kept  ·  ${this.arsenal.unlocked.size} of 5 forms  ·  ${c.voices.length} of 7 voices  ·  ${Object.keys(c.worlds).length} of 5 worlds answered`);
+  }
+
+  finishCrossing() {
+    this.campaign.s.crossed = true; this.campaign.setBeat('crossed');
+    this.showCard('THE CROSSING', 'Fuel from their own mine. Plating from the people they tax. Coolant from the ice they dig. The heading from those who heard us singing. Everyone on this road gave you something, and Earth has no idea you are coming.', 'CHAPTER ONE COMPLETE  ·  CHAPTER TWO IS NOT BUILT YET');
+    this.state = 'complete'; this.input.clear(); this.ui.clearTransient(); this.ui.showMenu('complete'); this.input.unlock();
   }
 
   finishChapter() {
     progress.setChapterDone();
+    this.showCard('A HANGAR FULL OF SHIPS', 'The Meridian is gone with the elder. The chart showed you the way home, a few hours out. If anyone got away, they would have gone to the wall of hands. Go and see.', 'THE HALCYON IS BEHIND YOU  ·  THE ROAD IS OPEN');
     this.state = 'complete';
     this.input.clear();
     this.ui.clearTransient();
@@ -522,6 +546,23 @@ export class Game {
   canFire() {
     return this.state === 'playing' && !this.paused && this.input.locked && !this.player.dead && this.weaponAcquired;
   }
+
+  // the one light with a shadow: it follows the player, snapped to its own texels so edges never crawl
+  setupSun(l, size = 58, res = 2048) {
+    if (!this.canShadow) return;
+    l.shadow.mapSize.set(res, res); const c = l.shadow.camera; c.left = c.bottom = -size; c.right = c.top = size; c.near = 1; c.far = 560; c.updateProjectionMatrix();
+    l.shadow.bias = -0.0005; l.shadow.normalBias = 0.05; l.userData.shadowSize = size; l.userData.shadowRes = res; l.userData.keepOn = true;
+  }
+  aimSun(l, at, dir) {
+    if (!this.canShadow) return;
+    l.castShadow = this.gfx === 'realistic';
+    const step = (l.userData.shadowSize * 2) / l.userData.shadowRes * 4, x = Math.round(at.x / step) * step, y = Math.round(at.y / step) * step, z = Math.round(at.z / step) * step;
+    l.target.position.set(x, y, z); l.position.set(x + dir.x * 260, y + dir.y * 260, z + dir.z * 260);
+    if (l.parent && l.parent !== this.scene) { l.parent.worldToLocal(l.position); l.parent.worldToLocal(l.target.position); }
+    l.target.updateMatrixWorld(); l.updateMatrixWorld();
+  }
+
+  progressAdd(n) { for (let i = 0; i < n; i++) progress.addMaxHp(); this.player.maxHealth += n; }
 
   // ---------- gameplay hooks ----------
   addShake(a) { this.trauma = Math.min(1, this.trauma + a); }
@@ -676,6 +717,8 @@ export class Game {
 
     this.level.update(this.time);
     if (this.surface.active) this.surface.update(dt);
+    this.campaign.update(dt); this.campaign.updateChartLines(dt);
+    this.baseHemi.visible = !(this.surface.active || this.flight.active || (this.opening.home && this.opening.home.shown));
     if (this.state === 'playing' && !this.surface.active && !(this.opening.active && this.opening.phase !== 'gas')) { this.shipLife.group.visible = true; this.shipLife.update(dt); } else if (this.shipLife) this.shipLife.group.visible = false;
     this.effects.update(dt);
     this.body.setVisible(!this.cinePose && !this.opening.hideBody && this.state !== 'dead');     // the camera ends up on the floor: your own body would fill the view

@@ -5,6 +5,7 @@ import { NavGrid } from './nav.js';
 import { makeLander } from '../game/flight.js';
 import { addCockpit, SEAT_EYE, YOKE_GRIP } from '../game/cockpit.js';
 import { progress } from '../game/progress.js';
+import { WORLD_VOICE } from '../game/campaign.js';
 
 // THE OTHER WORLDS. Everything you see from orbit can be landed on. Each world is a walkable surface around one settlement: terrain you stand on, its own sky and
 // weather, plants and animals, and the people who live there. The humans have been here too. Models: art/build_worlds.py, art/build_valley_life.py. Textures: Poly Haven, CC0.
@@ -17,54 +18,54 @@ const R = (a, b) => a + Math.random() * (b - a);
 // --------------------------------------------------------------------- the worlds
 export const WORLDS = {
   vael: {
-    name: 'VAEL', sub: 'HUMAN MINING MOON', tex: 'rocky_terrain_02', rock: 'rusty_metal_02', tint: 0x8d8c92, rockTint: 0x55504e, repeat: 28, amp: 7, rim: 34,
-    sky: { top: 0x010207, hor: 0x20222c, sun: 0xfff2e0, sunI: 3.1, hemi: 0.42, dir: [0.5, 0.42, -0.5], fog: 0.0014, stars: 1 }, body: { color: '#d8a878', size: 240, at: [-0.5, 0.42, -0.72], bands: 1 }, gravity: 0.46, scene: 'space', wx: { type: 'dust', color: 0x8d8d90, n: 90, v: [0.2, 0.05, 0.1], size: 0.05 },
-    obj: 'TAKE THE MINING POST', flora: null, animals: null,
+    name: 'VAEL', sub: 'HUMAN MINING MOON', tex: 'rocky_terrain_02', rock: 'rusty_metal_02', tint: 0xd0cfd8, rockTint: 0x8a8480, repeat: 28, amp: 7, rim: 34,
+    env: 0xf4f2ff, sky: { top: 0x010207, hor: 0x161a24, sun: 0xfff6ea, sunI: 5.0, hemi: 0.5, fill: 0x5fb8b0, dir: [0.62, 0.36, -0.5], fog: 0.0009, stars: 1, disc: 1500, halo: 0.12 }, body: { kind: 'home', size: 340, at: [-0.5, 0.42, -0.72] }, gravity: 0.46, scene: 'space', wx: { type: 'dust', color: 0x8d8d90, n: 90, v: [0.2, 0.05, 0.1], size: 0.05 },
+    obj: 'THE POST HAS FUEL. WAKE ITS TERMINAL', early: 'A post with machines on it. They keep moving their cargo through here.', flora: null, animals: null,
     intro: 'Their machines dig here. They have left a post running.',
   },
   ochre: {
     name: 'OCHRE', sub: 'KESSITH TRADERS', tex: 'coast_sand_01', rock: 'aerial_rocks_02', tint: 0xffcf98, rockTint: 0xb87850, repeat: 22, amp: 15, rim: 46,
-    sky: { top: 0x4a3060, hor: 0xeaa060, sun: 0xffe0b8, sunI: 3.4, hemi: 0.95, dir: [-0.5, 0.5, 0.5], fog: 0.0026 }, body: { color: '#e8d0c0', size: 90, at: [0.5, 0.45, -0.7] }, gravity: 1, scene: 'desert', wx: { type: 'sand', color: 0xe0b080, n: 260, v: [3.6, 0.05, 1.2], size: 0.07 },
-    obj: 'FIND THE KESSITH SPEAKER', flora: { frond: 0xc09a60, leaf: 0xd8a848, cap: 0xb06a3a, curl: 0xc89a50, glow: 0xffc070 }, animals: { striders: 2, skin: 0x5a3f2a },
+    env: 0xffd8a8, sky: { top: 0x4a3060, hor: 0xeaa060, sun: 0xffdcae, sunI: 3.6, hemi: 0.78, dir: [-0.42, 0.56, 0.5], fog: 0.0026, disc: 520, halo: 0.5 }, body: { color: '#e8d0c0', size: 70, at: [0.5, 0.45, -0.7] }, gravity: 1, scene: 'desert', wx: { type: 'sand', color: 0xe0b080, n: 260, v: [3.6, 0.05, 1.2], size: 0.07 },
+    obj: 'THE SPEAKER SELLS PLATING', early: 'Not the elder. Not yet.', flora: { frond: 0xc09a60, leaf: 0xd8a848, cap: 0xb06a3a, curl: 0xc89a50, glow: 0xffc070 }, animals: { striders: 2, skin: 0x5a3f2a },
     intro: 'A settlement. Not theirs. Lamps, cloth, and something tall in robes.',
   },
   skarn: {
-    name: 'SKARN', sub: 'GROLM ICE DIGS', tex: 'snow_02', rock: 'aerial_rocks_02', tint: 0xdcecf6, rockTint: 0x5a7488, repeat: 18, amp: 13, rim: 42,
-    sky: { top: 0x0e3048, hor: 0xbfe2ea, sun: 0xeaf4ff, sunI: 2.1, hemi: 1.0, dir: [0.4, 0.55, 0.5], fog: 0.0036 }, body: { color: '#ffffff', size: 60, at: [-0.6, 0.6, -0.5] }, gravity: 1, scene: 'ice', wx: { type: 'snow', color: 0xffffff, n: 420, v: [1.3, -2.1, 0.5], size: 0.07 },
-    obj: 'CLEAR THE DIG', flora: { frond: 0x6a8aa6, leaf: 0x86c0d8, cap: 0x5a8ab8, curl: 0x70a8c0, glow: 0x7fe8ff }, animals: { striders: 0, skin: 0x2a3a4a },
+    name: 'SKARN', sub: 'GROLM ICE DIGS', tex: 'snow_02', rock: 'aerial_rocks_02', tint: 0xffffff, tintK: 1.45, rockTint: 0x6a8498, repeat: 18, amp: 13, rim: 42,
+    env: 0xd6ecff, sky: { top: 0x0e3048, hor: 0xbfe2ea, sun: 0xeaf4ff, sunI: 2.5, hemi: 1.05, dir: [0.34, 0.3, 0.62], fog: 0.0036, disc: 2800, halo: 0.34 }, body: { kind: 'giant', size: 300, at: [-0.62, 0.34, -0.5] }, gravity: 1, scene: 'ice', wx: { type: 'snow', color: 0xffffff, n: 420, v: [1.3, -2.1, 0.5], size: 0.07 },
+    obj: 'THE DIG HAS COOLANT. CLEAR ITS SHAFTS', early: 'Not the elder. Not yet.', flora: { frond: 0x6a8aa6, leaf: 0x86c0d8, cap: 0x5a8ab8, curl: 0x70a8c0, glow: 0x7fe8ff }, animals: { striders: 0, skin: 0x2a3a4a },
     intro: 'Cold. Something is breaking the ice with its hands, and something is hunting it.',
   },
   thule: {
-    name: 'THULE', sub: 'UMMARI CLOUD REEF', tex: 'aerial_rocks_02', rock: 'rocky_terrain_02', tint: 0x8f6a94, rockTint: 0x4a3a5a, repeat: 16, amp: 5, rim: 0, islands: true,
-    sky: { top: 0x1a2868, hor: 0xf0a6a0, sun: 0xfff0c8, sunI: 2.5, hemi: 0.85, dir: [0.2, 0.3, -0.9], fog: 0.0024 }, body: { color: '#ffe0b0', size: 40, at: [0.2, 0.3, -0.9] }, gravity: 0.72, scene: 'reef', wx: { type: 'spore', color: 0xffd8ff, n: 200, v: [0.6, 0.35, 0.3], size: 0.075 },
-    obj: 'SPEAK WITH THE UMMARI', flora: { frond: 0x7a56a0, leaf: 0xc884d8, cap: 0x9050b8, curl: 0xb878d8, glow: 0xffb0f0 }, animals: { striders: 0, skin: 0x3a2a4a },
+    name: 'THULE', sub: 'UMMARI CLOUD REEF', tex: 'aerial_rocks_02', rock: 'rocky_terrain_02', tint: 0xd8b0d4, rockTint: 0x8a6a98, repeat: 16, amp: 5, rim: 0, islands: true,
+    env: 0xffd2e4, sky: { top: 0x1a2868, hor: 0xf0a6a0, sun: 0xffe6c0, sunI: 2.5, hemi: 0.9, dir: [0.2, 0.24, -0.9], fog: 0.0024, disc: 2400, halo: 0.42, ring: [0xe8d0e8, 0.3, 0.92, 0.2] }, body: { color: '#eef4f8', size: 28, at: [-0.5, 0.5, 0.4] }, gravity: 0.72, scene: 'reef', wx: { type: 'spore', color: 0xffd8ff, n: 200, v: [0.6, 0.35, 0.3], size: 0.075 },
+    obj: 'THE UMMARI HEARD THE FLEET PASS', early: 'Not the elder. Not yet.', flora: { frond: 0x7a56a0, leaf: 0xc884d8, cap: 0x9050b8, curl: 0xb878d8, glow: 0xffb0f0 }, animals: { striders: 0, skin: 0x3a2a4a },
     intro: 'A reef in the sky. There is nothing under it but cloud.',
   },
   ash: {
-    name: 'HOME', sub: 'WHAT IS LEFT', tex: 'rocky_terrain_02', rock: 'rocky_terrain_02', tint: 0x3a3230, rockTint: 0x1c1816, repeat: 24, amp: 9, rim: 36,
-    sky: { top: 0x12090c, hor: 0x8a3a26, sun: 0xff9a60, sunI: 1.15, hemi: 0.5, dir: [0.2, 0.2, -0.8], fog: 0.0072 }, gravity: 1, scene: 'ruin', wx: { type: 'ash', color: 0x9a9a9a, n: 300, v: [1.3, -0.55, 0.5], size: 0.06 },
-    obj: 'FIND THE WALL OF HANDS', burnt: true, flora: { frond: 0x0c0a0a, leaf: 0x000000, cap: 0x000000, curl: 0x000000, glow: 0x000000 }, animals: null,
+    name: 'HOME', sub: 'WHAT IS LEFT', tex: 'rocky_terrain_02', rock: 'rocky_terrain_02', tint: 0xa8948a, rockTint: 0x5a4a44, repeat: 24, amp: 9, rim: 36,
+    env: 0xffa684, sky: { top: 0x12090c, hor: 0x8a3a26, sun: 0xff9c68, sunI: 2.2, hemi: 0.7, dir: [0.2, 0.17, -0.8], fog: 0.0062, disc: 760, halo: 0.6, ring: [0x70483e, 0.42, 0.86, -0.3] }, body: { color: '#b89a90', size: 150, at: [-0.5, 0.5, -0.65] }, gravity: 1, scene: 'ruin', wx: { type: 'ash', color: 0x9a9a9a, n: 300, v: [1.3, -0.55, 0.5], size: 0.06 },
+    obj: 'FIND THE WALL OF HANDS', early: 'Another valley. The same fires.', burnt: true, flora: { frond: 0x0c0a0a, leaf: 0x000000, cap: 0x000000, curl: 0x000000, glow: 0x000000 }, animals: null,
     intro: 'Another valley. They did this one first.',
   },
 };
 
 // What they say. You understand them because you have touched enough machines that speak every human language, and they all learned those the hard way.
 const TALK = {
-  ochre: { who: 'KESSITH SPEAKER', gift: 'hull', note: 'HULL PLATING: DAMAGE TO SHIP HALVED', lines: [
+  ochre: { who: 'KESSITH SPEAKER', gift: 'hull', note: 'HULL PLATING FITTED  ·  SHIP DAMAGE HALVED', early: 'You smell of burning, and you are chasing a ship you cannot catch. Come back when you know what you are buying.', after: 'Tell them who sold it to you.', lines: [
     'You smell of their metal. And of something older. Sit, burned one. Nobody here will sell you to them.',
     'They came for our water eleven years ago. They left us this market, and a tax.',
-    'Forty thousand of your kind in the fleet\'s holds. Every world on this road knows the number. Nobody will say it to them.',
-    'Earth is where it ends. Take this plating. If you burn their world, tell them who sold it to you.',
+    'Forty-one thousand of your kind in their holds. Every world on this road knows the number. Nobody will say it to them.',
+    'You will burn up crossing to Earth in that hull. Take this plating. If you burn their world, tell them who sold it to you.',
   ] },
-  skarn: { who: 'GROLM FOREMAN', gift: 'hp', note: 'MAX VITALITY +10', needsClear: true, waiting: 'They dig us out for the ice. Their machines nest in the shafts. Kill them, small one, and then we talk.', lines: [
+  skarn: { who: 'GROLM FOREMAN', gift: 'hp', note: 'ICE MARROW  ·  VITALITY +10  ·  COOLANT: SHIP GUNS FIRE FASTER', needsClear: true, early: 'A small burned thing, in a hurry. Go on. They will still be here when you are finished being angry.', after: 'We will dig under their Earth. Tell them nothing.', waiting: 'Their machines nest in our shafts. Kill them, small one, and then we talk.', lines: [
     'You did not run. Nothing that small ever has the sense to. Good.',
-    'We keep what we dig. They have taken nine of our digs. They will come for this one when the fleet comes back through.',
-    'Eat. It is ice marrow. It will make you harder to kill. When you go to their Earth, the Grolm will come and dig under it.',
+    'We keep what we dig. They have taken nine of our digs for the fuel ice. They will come for this one when the fleet comes back through.',
+    'Eat. It is ice marrow. It makes you harder to kill. The rest is coolant: your drive will want it for the crossing. When you get to their Earth, the Grolm will come and dig under it.',
   ] },
-  thule: { who: 'UMMARI', gift: 'gel', note: 'NEW FORM: GEL BOMB', lines: [
+  thule: { who: 'UMMARI', gift: 'gel', note: 'THE FLEET\'S HEADING', early: 'We feel you burning. You are not ready to hear what we heard.', after: 'We still hear them. Go.', lines: [
     'We felt your ships pass under the reef. All of you, singing in the dark. They do not know you are singing.',
-    'We do not fight. We drift. Everything that falls through our clouds, we keep.',
-    'This fell from one of theirs. It clings. It burns. Touch it, and keep it. Then go and be terrible.',
+    'Follow the song and you have their heading. It goes where they said it goes. It goes to Earth.',
+    'We do not fight. We drift. Everything that falls through our clouds, we keep. This fell from one of theirs. It clings. It burns. Touch it, and keep it. Then go and be terrible.',
   ] },
 };
 
@@ -184,7 +185,7 @@ class Place {
       const x = -SIZE / 2 + (i / SEG) * SIZE, z = -SIZE / 2 + (j / SEG) * SIZE, d = Math.hypot(x, z);
       const flat = ease(d, FLAT - 10, FLAT + 42), n = fbm(x * 0.012 + seed, z * 0.012 - seed), fine = fbm(x * 0.09 - seed, z * 0.09 + seed, 3) - 0.45;
       let h = flat * ((n - 0.45) * W.amp * 2.1 + fine * 1.2);
-      if (W.islands) { const edge = ease(d + (n - 0.5) * 34, 92, 125); h = h * 0.5 - edge * edge * 90 + (1 - ease(d, 0, 92)) * 0; }
+      if (W.islands) { const edge = ease(d + (n - 0.5) * 34, 92, 125); h = h * 0.5 - edge * edge * 90; const di = Math.hypot(x - 118, z + 62); h = Math.max(h, 2.2 - Math.pow(ease(di, 15, 27), 2) * 92); }
       else h += ease(d, WALL - 45, WALL + 26) * W.rim * (0.65 + 0.7 * n) + ease(d, 210, 280) * W.rim * 0.8;
       if (id === 'vael') { for (const [cx, cz, cr] of [[-92, -60, 24], [96, 40, 30], [30, 118, 22], [-60, 108, 18]]) { const q = Math.hypot(x - cx, z - cz) / cr; if (q < 1.3) h += q < 1 ? (q * q - 1) * 5.4 + 1 : 1 * (1 - (q - 1) / 0.3); } }
       H[j * N + i] = h; P.setY(j * N + i, h);
@@ -197,6 +198,7 @@ class Place {
     }
     geo.setAttribute('aSlope', new THREE.BufferAttribute(slope, 1)); geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     const mat = new THREE.MeshStandardMaterial({ map: tex(W.tex, false, W.repeat), normalMap: tex(W.tex, true, W.repeat), color: W.tint, roughness: 0.95, metalness: 0, vertexColors: true, normalScale: new THREE.Vector2(1.2, 1.2) });
+    if (W.tintK) mat.color.multiplyScalar(W.tintK);
     const rockMap = tex(W.rock, false, W.repeat * 0.7), rockTint = new THREE.Color(W.rockTint), baseTint = new THREE.Color(W.tint);
     mat.onBeforeCompile = function (shader) {
       THREE.Material.prototype.onBeforeCompile.call(this, shader);
@@ -206,31 +208,35 @@ class Place {
         .replace('#include <map_fragment>', '#include <map_fragment>\n  { vec4 rk = texture2D(tRock, vRockUv); float sl = smoothstep(0.2, 0.75, vSlope + (rk.r - 0.5) * 0.5); diffuseColor.rgb = mix(diffuseColor.rgb, rk.rgb * uRockT, sl); }');
     };
     mat.customProgramCacheKey = () => 'terrain-' + id;
-    this.terrain = new THREE.Mesh(geo, mat); G.add(this.terrain);
+    this.terrain = new THREE.Mesh(geo, mat); this.terrain.receiveShadow = true; G.add(this.terrain);
 
     // ---- sky: gradient, sun, what hangs in it
     this.skyG = new THREE.Group(); G.add(this.skyG);
     const sunDir = new THREE.Vector3(...W.sky.dir).normalize();
-    const skyMat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { uTop: { value: new THREE.Color(W.sky.top) }, uHor: { value: new THREE.Color(W.sky.hor) }, uSun: { value: new THREE.Color(W.sky.sun) }, uDir: { value: sunDir }, uStars: { value: W.sky.stars || 0 } },
+    const skyMat = new THREE.ShaderMaterial({ side: THREE.BackSide, depthWrite: false, fog: false, uniforms: { uTop: { value: new THREE.Color(W.sky.top) }, uHor: { value: new THREE.Color(W.sky.hor) }, uSun: { value: new THREE.Color(W.sky.sun) }, uDir: { value: sunDir }, uStars: { value: W.sky.stars || 0 }, uDisc: { value: W.sky.disc || 1000 }, uHalo: { value: W.sky.halo ?? 0.3 }, uRingC: { value: new THREE.Color((W.sky.ring || [0])[0]) }, uRingN: { value: new THREE.Vector3(W.sky.ring ? W.sky.ring[1] : 0, W.sky.ring ? W.sky.ring[2] : 1, W.sky.ring ? W.sky.ring[3] : 0).normalize() }, uRing: { value: W.sky.ring ? 1 : 0 } },
       vertexShader: 'varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: `uniform vec3 uTop, uHor, uSun, uDir; uniform float uStars; varying vec3 vD;
+      fragmentShader: `uniform vec3 uTop, uHor, uSun, uDir, uRingC, uRingN; uniform float uStars, uDisc, uHalo, uRing; varying vec3 vD;
         float h(vec3 p){ return fract(sin(dot(p, vec3(12.9, 78.2, 37.7))) * 43758.5); }
         void main(){ vec3 d = normalize(vD); float y = max(d.y, 0.0); vec3 c = mix(uHor, uTop, pow(y, 0.55)); float s = max(dot(d, uDir), 0.0);
-          c += uSun * (pow(s, 900.0) * 3.0 + pow(s, 26.0) * 0.26 + pow(s, 4.0) * 0.1);
+          if (uRing > 0.0) { float q = abs(dot(d, uRingN)); float band = smoothstep(0.075, 0.03, q) * (0.55 + 0.45 * sin(q * 340.0)) * (1.0 - smoothstep(0.02, 0.0, q) * 0.7); c = mix(c, uRingC, band * 0.72 * smoothstep(-0.02, 0.1, d.y)); }
+          c += uSun * (smoothstep(1.0 - 1.6 / uDisc, 1.0 - 0.9 / uDisc, s) * 4.0 + pow(s, uDisc * 0.06) * uHalo + pow(s, 4.0) * uHalo * 0.36);
           if (uStars > 0.0) { vec3 q = floor(d * 240.0); float st = step(0.9965, h(q)); c += vec3(st * h(q + 1.0) * 0.9) * smoothstep(0.0, 0.25, d.y); }
           gl_FragColor = vec4(c, 1.0); }` });
     this.sky = new THREE.Mesh(new THREE.SphereGeometry(1000, 32, 18), skyMat); this.sky.renderOrder = -10; this.sky.frustumCulled = false; this.skyG.add(this.sky);
     if (W.body) {
       const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), cx = 128, rad = 118;
-      x.beginPath(); x.arc(cx, cx, rad, 0, 7); x.clip(); x.fillStyle = W.body.color; x.fillRect(0, 0, 256, 256);
-      if (W.body.bands) for (let i = 0; i < 26; i++) { x.fillStyle = `rgba(${90 + i * 5},${60 + i * 3},${40 + i * 2},${0.12 + Math.random() * 0.3})`; x.fillRect(0, i * 10 + Math.random() * 4, 256, 4 + Math.random() * 8); }
+      x.beginPath(); x.arc(cx, cx, rad, 0, 7); x.clip(); x.fillStyle = W.body.kind === 'home' ? '#1d6a66' : W.body.kind === 'giant' ? '#5a8898' : W.body.color; x.fillRect(0, 0, 256, 256);
+      if (W.body.kind === 'giant') for (let i = 0; i < 26; i++) { x.fillStyle = `rgba(${40 + i * 5},${70 + i * 4},${90 + i * 3},${0.12 + Math.random() * 0.3})`; x.fillRect(0, i * 10 + Math.random() * 4, 256, 4 + Math.random() * 8); }
+      else if (W.body.kind === 'home') { for (let i = 0; i < 26; i++) { x.fillStyle = `rgba(${60 + Math.random() * 60},${40 + Math.random() * 40},${120 + Math.random() * 60},0.3)`; x.beginPath(); x.arc(Math.random() * 256, Math.random() * 256, 10 + Math.random() * 30, 0, 7); x.fill(); } for (let i = 0; i < 26; i++) { x.fillStyle = 'rgba(255,130,50,0.95)'; x.fillRect(30 + Math.random() * 180, 70 + Math.random() * 150, 2.4, 2.4); } }
       else for (let i = 0; i < 14; i++) { x.fillStyle = `rgba(30,20,20,${0.05 + Math.random() * 0.12})`; x.beginPath(); x.arc(Math.random() * 256, Math.random() * 256, 8 + Math.random() * 26, 0, 7); x.fill(); }
       const sh = x.createRadialGradient(cx - 50, cx - 45, 28, cx - 20, cx - 20, 210); sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,0.95)'); x.fillStyle = sh; x.fillRect(0, 0, 256, 256);
       const m = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, fog: false }); m.map.colorSpace = THREE.SRGBColorSpace;
       const sp = new THREE.Sprite(m); sp.scale.setScalar(W.body.size); sp.position.set(...W.body.at).normalize().multiplyScalar(900); sp.renderOrder = -9; this.skyG.add(sp);
     }
     this.sun = new THREE.DirectionalLight(W.sky.sun, W.sky.sunI); this.sun.position.copy(sunDir).multiplyScalar(300); this.sun.userData.keepOn = true; G.add(this.sun, this.sun.target);
-    this.hemi = new THREE.HemisphereLight(W.sky.hor, new THREE.Color(W.tint).multiplyScalar(0.55), W.sky.hemi * 1.5);       // the ground throws light back up this.hemi.userData.keepOn = true; G.add(this.hemi);
+    // what fills the shadows: the sky, plus light thrown back up from the ground. On airless Vael there is no sky: only the homeworld's glow.
+    this.hemi = new THREE.HemisphereLight(W.sky.fill || W.sky.hor, new THREE.Color(W.tint).multiplyScalar(W.sky.fill ? 0.2 : 0.55), W.sky.hemi * 1.5);
+    this.sunDir = sunDir; game.setupSun(this.sun); this.hemi.userData.keepOn = true; G.add(this.hemi);
     this.fog = new THREE.FogExp2(W.sky.hor, W.sky.fog); this.bg = new THREE.Color(W.sky.hor);
 
     if (W.islands) {  // the cloud deck, far below, and other reefs hanging in the air
@@ -252,15 +258,18 @@ class Place {
 
     // ---- ground things and life
     this.pad = this.part(['Pad', 'PadLamp'], 0, 0, 0, 1);
-    { const m = this.pad.children[0]; m.material = m.material.clone(); m.material.color.setRGB(0.32, 0.34, 0.36); m.material.metalness = 0.2; }
+    { const m = this.pad.children[0]; m.material = m.material.clone(); m.material.color.setRGB(0.85, 0.87, 0.9); m.material.metalness = 0.25; }
+    // where you need to go stands out from a long way off: a pale column over it, gone once it has served
+    this.beacon = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.7, 90, 10, 1, true), new THREE.MeshBasicMaterial({ color: W.env, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false, map: (() => { const c = document.createElement('canvas'); c.width = 2; c.height = 64; const x = c.getContext('2d'), gr = x.createLinearGradient(0, 0, 0, 64); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(255,255,255,1)'); x.fillStyle = gr; x.fillRect(0, 0, 2, 64); return new THREE.CanvasTexture(c); })() })); this.beacon.material.userData.noSnap = true; this.beacon.visible = false; G.add(this.beacon);
     const taken = (x, z, r) => Math.hypot(x, z) < 11 + r || this.circles.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + r) || this.boxes.some((b) => x > b.minX - ORIGIN.x - r && x < b.maxX - ORIGIN.x + r && z > b.minZ - ORIGIN.z - r && z < b.maxZ - ORIGIN.z + r);
     this.buildSettlement();
     this.scatterRocks(small ? 26 : 46, taken);
     const life = game.homeAsset && game.homeAsset.userData.life;
-    if (life) this.life = new HomeLife(G, life, (x, z, r) => taken(x, z, r) || this.h(x, z) < -1.5 || this.h(x, z) > 18, this.circles, [], { flora: W.flora, burnt: W.burnt, drifters: W.scene === 'reef' || W.scene === 'desert', crawlers: !!W.animals, striders: W.animals ? W.animals.striders : 0, skin: W.animals && W.animals.skin, ground: (x, z) => this.h(x, z), small, radius: W.islands ? 76 : 150, burnable: false });
+    if (life) this.life = new HomeLife(G, life, (x, z, r) => taken(x, z, r) || this.h(x, z) < -1.5 || this.h(x, z) > 18, this.circles, [], { flora: W.flora, burnt: W.burnt, drifters: W.scene === 'reef', crawlers: !!W.animals, striders: W.animals ? W.animals.striders : 0, skin: W.animals && W.animals.skin, ground: (x, z) => this.h(x, z), small, radius: W.islands ? 76 : 150, burnable: false });
     if (id === 'ash') this.buildWall();
     this.lander = makeLander(); this.lander.scale.setScalar(1.1); addCockpit(this.lander); this.lander.userData.cockpit.visible = true;
     this.lander.traverse((m) => { if (m.isMesh && m.material && m.material.emissive && !m.material.isMeshBasicMaterial) { m.material = m.material.clone(); m.material.emissive.lerp(new THREE.Color(0x3a5560), 0.4); } });
+    this.lander.traverse((m) => { if (m.isMesh && m.material.blending !== THREE.AdditiveBlending) m.castShadow = true; });
     G.add(this.lander);
     // enemies walk this grid
     const bx = new THREE.Vector3(ORIGIN.x, 0, ORIGIN.z);
@@ -278,7 +287,7 @@ class Place {
   }
 
   part(names, x, z, yaw, s = 1, y0 = null) {
-    const g = new THREE.Group(); for (const n of names) if (NODES[n]) { const m = NODES[n].clone(); m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.scale.set(1, 1, 1); g.add(m); }
+    const g = new THREE.Group(); for (const n of names) if (NODES[n]) { const m = NODES[n].clone(); m.position.set(0, 0, 0); m.rotation.set(0, 0, 0); m.scale.set(1, 1, 1); m.castShadow = m.receiveShadow = !/Lamp|Screen|Glow|Eyes/.test(n); g.add(m); }
     g.position.set(x, y0 === null ? this.h(x, z) : y0, z); g.rotation.y = yaw; g.scale.setScalar(s); this.group.add(g); return g;
   }
   circle(x, z, r) { this.circles.push({ x, z, r }); }
@@ -317,7 +326,7 @@ class Place {
       this.npcs.push(new Npc('umma', 0, -15, { talker: true, wander: 0, scale: 1.45 }));
       for (const [x, z] of [[-12, -10], [12, -12], [-20, 6], [20, 8], [-6, 20], [10, 24], [28, -6], [-28, -8]]) this.npcs.push(new Npc('umma', x, z, { wander: 9 }));
     }
-    for (const n of this.npcs) this.group.add(n.group);
+    for (const n of this.npcs) { this.group.add(n.group); n.group.traverse((o) => { if (o.isMesh) o.castShadow = true; }); }
   }
   hitsAny(x, z, r) { return Math.hypot(x, z) < 12 || this.circles.some((c) => Math.hypot(c.x - x, c.z - z) < c.r + r) || this.boxes.some((b) => x > b.minX - ORIGIN.x - r && x < b.maxX - ORIGIN.x + r && z > b.minZ - ORIGIN.z - r && z < b.maxZ - ORIGIN.z + r); }
 
@@ -343,7 +352,7 @@ class Place {
       m4.compose(v.set(x, y + s * 0.1, z), q.setFromEuler(new THREE.Euler(R(-0.3, 0.3), R(0, 6), R(-0.3, 0.3))), sc.set(s, s * R(0.6, 1), s)); mesh.setMatrixAt(k++, m4);
       if (s > 0.55) this.circle(x, z, s * 0.82);
     }
-    mesh.count = k; mesh.frustumCulled = false; this.group.add(mesh);
+    mesh.count = k; mesh.frustumCulled = false; mesh.castShadow = mesh.receiveShadow = true; this.group.add(mesh);
   }
 
   show(v) { this.group.visible = v; for (const b of this.boxes) b.enabled = v; }
@@ -359,15 +368,15 @@ class Place {
 // --------------------------------------------------------------------- the visit
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _x = new THREE.Vector3(1, 0, 0), _e = new THREE.Euler();
 export class Surface {
-  constructor(game) { this.g = game; this.places = {}; this.active = false; this.done = this.loadDone(); }
-  loadDone() { try { return JSON.parse(localStorage.getItem('intruder-worlds') || '{}'); } catch (e) { return {}; } }
-  saveDone() { try { localStorage.setItem('intruder-worlds', JSON.stringify(this.done)); } catch (e) { /* storage is optional */ } }
+  constructor(game) { this.g = game; this.places = {}; this.active = false; this.sunTarget = new THREE.Vector3(); }
+  get done() { return this.g.campaign.s.worlds; }
 
   start(id) {
     const g = this.g, s = g.scene, c = g.camera;
     if (!NODES) return false;
     const P = this.place = this.places[id] || (this.places[id] = new Place(g, id)); this.id = id; g.lightList = null;
     const W = P.w;
+    g.viewmodel.setEnv(W.env); this.early = !g.flight.free && !g.campaign.s.chart;
     this.saved = { bg: s.background, fog: s.fog, far: c.far, enemies: g.enemies, nav: g.nav, arena: g.arena, barrels: g.barrels, obj: document.getElementById('objective')?.textContent };
     s.background = P.bg; s.fog = P.fog; c.far = 1600; c.updateProjectionMatrix(); g.post.applyFog(s);
     P.show(true); P.measureLander();
@@ -379,12 +388,22 @@ export class Surface {
     g.player.reset(ORIGIN.x + 4, ORIGIN.z + 4, 0); g.player.pos.y = 0; g.player.extraSolid = (q) => this.solid(q);
     g.ui.showHud(true); g.ui.setObjective(''); g.ui.clearTransient(); g.audio.scene(W.scene); g.audio.combatMusic(false);
     // this world's machines
+    this.placeVoice(P);
     if (!this.done[id] && P.spawns) for (const [type, variant, x, z] of P.spawns) { const e = g.makeEnemy({ type, variant: variant === 'std' ? undefined : variant, x: ORIGIN.x + x, z: ORIGIN.z + z }); g.enemies.push(e); }
     const L = P.lander; L.visible = true; L.userData.engines.forEach((e) => { e.visible = true; }); for (const m of L.userData.screens || []) m.material.opacity = 0.9;
     if (L.userData.canopyPivot) L.userData.canopyPivot.rotation.x = 0;
     this.fromX = R(-1, 1) * 80; this.fromZ = 240;
     g.ui.fade(1);
     return true;
+  }
+
+  // the voice this world holds, if it holds one
+  placeVoice(P) {
+    const g = this.g, n = WORLD_VOICE[this.id]; g.campaign.removeTouch('world');
+    if (n === undefined || g.campaign.s.voices.includes(n) || P.jarDone) return;
+    const at = { vael: [-34, 21], skarn: [-8, -28], thule: [118, -62] }[this.id], base = P.h(at[0], at[1]) + (this.id === 'skarn' ? 3.85 : 0);
+    if (!P.jar) P.jar = g.campaign.addVoiceAt(P.group, n, at[0], base, at[1], 'world'); else g.campaign.addTouch({ tag: 'world', x: ORIGIN.x + at[0], y: base + 0.8, z: ORIGIN.z + at[1], label: 'TOUCH', prompt: 'TOUCH WHAT THEY KEPT', fn: () => { g.campaign.takeVoice(n); P.jarDone = true; P.jar.userData.flesh.visible = false; P.jar.userData.light.intensity = 0.6; } });
+    const t = g.campaign.touchables[g.campaign.touchables.length - 1]; if (t) { t.x = ORIGIN.x + at[0]; t.z = ORIGIN.z + at[1]; t.y = base + 0.8; }
   }
 
   solid(q) {
@@ -415,11 +434,21 @@ export class Surface {
     const px = p.pos.x - ORIGIN.x, pz = p.pos.z - ORIGIN.z;
     for (const n of P.npcs) n.update(dt, px, pz, (x, z) => P.h(x, z));
     if (P.life) P.life.update(dt, px, pz, P.circles);
+    g.aimSun(P.sun, this.sunTarget.set(p.pos.x, p.pos.y, p.pos.z), P.sunDir);
+    this.updateBeacon(P);
     if (this.step === 'land') this.landing(dt, T, P, L, W);
     else if (this.step === 'hop') this.hop(dt, T, P, L, W);
     else if (this.step === 'free') this.free(dt, T, P, L, W);
     else if (this.step === 'climb') this.climb(dt, T, P, L, W);
     else if (this.step === 'seated') this.liftoff(dt, T, P, L, W);
+  }
+
+  updateBeacon(P) {
+    const b = P.beacon, W = P.w, t = this.step === 'free' && !this.done[this.id] && !this.early;
+    if (!t) { b.visible = false; return; }
+    const talker = P.npcs.find((q) => q.talker), blocked = TALK[this.id]?.needsClear && this.g.enemies.some((e) => e.alive);
+    const at = blocked ? null : talker ? [talker.x, talker.z] : P.terminalAt;
+    b.visible = !!at; if (at) { b.position.set(at[0], P.h(at[0], at[1]) + 45, at[1]); const d = Math.hypot(this.g.player.pos.x - ORIGIN.x - at[0], this.g.player.pos.z - ORIGIN.z - at[1]); b.material.opacity = (0.2 + 0.05 * Math.sin(this.T * 2)) * ease(d, 6, 26); }
   }
 
   landing(dt, T, P, L, W) {
@@ -437,7 +466,7 @@ export class Surface {
     if (y < 34) { const n = y < 10 ? 5 : 2; const c = g.effects.smokeP; if (c) for (let i = 0; i < n; i++) { const an = R(0, 6.283), sp = R(4, 12); c.emit(ORIGIN.x + L.position.x + Math.cos(an) * R(1, 5), P.h(L.position.x, L.position.z) + 0.4, ORIGIN.z + L.position.z + Math.sin(an) * R(1, 5), Math.cos(an) * sp, 0.6, Math.sin(an) * sp, 1.6, R(1, 2.2), 0.28, 0.25, 0.24, 0, 0.5, 2); } }
     if (T >= DUR && !this.f.b) { this.f.b = 1; g.audio.play('land', { vol: 1 }); g.audio.play('door', { vol: 0.7 }); g.addShake(0.5); L.userData.engines.forEach((sp) => { sp.visible = false; }); }
     if (L.userData.canopyPivot) L.userData.canopyPivot.rotation.x = 1.15 * ease(T, DUR + 0.5, DUR + 1.6);
-    if (T > DUR + 0.7 && !this.f.c) { this.f.c = 1; g.audio.play('hiss', { vol: 0.5 }); ui.subtitle(W.intro, '', 3.6, true); }
+    if (T > DUR + 0.7 && !this.f.c) { this.f.c = 1; g.audio.play('hiss', { vol: 0.5 }); if (!this.early) ui.subtitle(W.intro, '', 3.6, true); }
     if (T > DUR + 1.4) { this.step = 'hop'; this.T = 0; vm.limp = 0; g.shakeAmp = 0; vm.reachW = 0; L.updateMatrixWorld(true); const pose = this.pose; this.hopA = new THREE.Vector3(pose.x, pose.y, pose.z); this.hopQ = pose.q.clone(); }
   }
 
@@ -453,7 +482,8 @@ export class Surface {
       this.step = 'free'; this.T = 0;
       g.cinePose = null; g.opening.moveLocked = false; g.opening.hideBody = false;
       p.pos.set(to.x, P.h(6.4, 4.6), to.z); p.vx = p.vz = p.vy = 0; p.yaw = -0.75; p.pitch = -0.05; p.grounded = true; g.body.reset();
-      g.ui.setObjective(this.done[this.id] ? W.name + ': EXPLORE' : W.obj);
+      g.ui.setObjective(this.early ? 'THE HALCYON IS GETTING AWAY' : this.done[this.id] ? g.campaign.roadObjective() : W.obj);
+      if (this.early && W.early) g.ui.subtitle(W.early, '', 3, true);
     }
   }
 
@@ -468,13 +498,14 @@ export class Surface {
     }
     if (this.wakeAt && T > this.wakeAt) { this.wakeAt = 0; for (const e of g.enemies) if (e.alive) e.activate(); }
     const left = g.enemies.filter((e) => e.alive).length;
-    if (this.woken && left === 0 && !this.f.cleared) { this.f.cleared = 1; g.audio.combatMusic(false); g.audio.play('unlock', { vol: 0.7 }); ui.banner('CLEAR', 'green', 1.3); this.afterClear(); }
+    if (this.woken && left === 0 && !this.f.cleared && this.f.resetObj !== 1) { this.f.cleared = 1; g.audio.combatMusic(false); g.audio.play('unlock', { vol: 0.7 }); ui.banner('CLEAR', 'green', 1.3); this.afterClear(); }
     else if (this.woken && left > 0) ui.setObjective('HOSTILES ' + left);
     // people
     const talk = TALK[this.id];
     if (talk) {
       const n = P.npcs.find((q) => q.talker), d = Math.hypot(n.x - px, n.z - pz);
-      if (d < 4.6 && !this.done[this.id]) {
+      if (d < 4.6 && (this.early || this.done[this.id])) { this.talkT -= dt; if (this.talkT <= 0) { ui.subtitle(this.early ? talk.early : talk.after, talk.who, 4.2); this.talkT = 11; g.audio.play('groan', { vol: 0.2 }); } }
+      else if (d < 4.6) {
         const blocked = talk.needsClear && g.enemies.some((e) => e.alive);
         this.talkT -= dt;
         if (blocked) { if (this.talkT <= 0) { ui.subtitle(talk.waiting, talk.who, 4.2); this.talkT = 9; g.audio.play('groan', { vol: 0.25 }); } }
@@ -485,7 +516,7 @@ export class Surface {
       }
     } else if (P.terminalAt && !this.done[this.id]) {
       const d = Math.hypot(P.terminalAt[0] - px, P.terminalAt[1] - pz);
-      if (this.id === 'vael' && !g.enemies.some((e) => e.alive) && d < 4) this.vaelTerminal();
+      if (this.id === 'vael' && d < 4 && !this.early) this.vaelTerminal(dt);
       if (this.id === 'ash' && d < 7) this.ashWall(T);
     }
     // back to the ship
@@ -500,27 +531,38 @@ export class Surface {
 
   afterClear() {
     const g = this.g, ui = g.ui;
-    if (this.id === 'vael') ui.setObjective('READ THE TERMINAL');
-    if (this.id === 'skarn') { ui.setObjective('SPEAK TO THE FOREMAN'); ui.subtitle('You. Small one. Come here.', 'GROLM FOREMAN', 3); }
+    if (this.id === 'vael' && !this.early) ui.setObjective('WAKE THE TERMINAL');
+    if (this.id === 'skarn' && !this.early) { ui.setObjective('THE FOREMAN IS WAITING'); ui.subtitle('You. Small one. Come here.', 'GROLM FOREMAN', 3); }
+    if (this.early) ui.setObjective('THE HALCYON IS GETTING AWAY');
   }
-  vaelTerminal() {
-    const g = this.g, ui = g.ui; this.done.vael = 1; this.saveDone();
-    ui.subtitle('Route confirmed: fleet transports stop here to refuel, then on to Earth. Forty-one thousand units, live.', 'MEMORY', 5);
-    g.arsenal.unlock('barb'); g.viewmodel.pulseGlow(1); ui.setObjective('VAEL: EXPLORE'); g.audio.play('crystal', { vol: 0.5 });
+  // Dead until something with current in it touches it. That is what you learned from their machines.
+  vaelTerminal(dt) {
+    const g = this.g, ui = g.ui, f = this.f;
+    if (g.enemies.some((e) => e.alive)) { if (!f.vb) { f.vb = 1; ui.subtitle('Not while they are still moving.', '', 2.4, true); } return; }
+    if (g.arsenal.unlocked.has('arc')) f.vt = 1;
+    else { f.vh = (f.vh || 0) + dt; if (!f.vl) { f.vl = 1; ui.subtitle('Dead. It wants current, and I never kept one of their walkers. I can force it. Slowly.', '', 3.6, true); } if (f.vh > 6) f.vt = 1; }
+    if (!f.vt) return;
+    g.effects.hitSparks(new THREE.Vector3(ORIGIN.x + this.place.terminalAt[0], 1.4, ORIGIN.z + this.place.terminalAt[1]), [0.5, 0.9, 1], 22);
+    ui.subtitle('Fleet refuel stop. Next: the crossing to Earth. Forty-one thousand units, live. Fuel cells at this post.', 'MEMORY', 5);
+    g.viewmodel.pulseGlow(1); g.audio.play('crystal', { vol: 0.5 }); ui.rewardNote('FUEL CELLS LOADED  ·  SHIP BOOSTS HARDER');
+    ui.setObjective(g.campaign.worldDone('vael'));
   }
   ashWall(T) {
-    const g = this.g, ui = g.ui, f = this.f; f.wT = (f.wT || 0) + 1 / 60;
-    if (!f.w1) { f.w1 = 1; f.wAt = T; ui.subtitle('Hands. Every one of us who ever stood here. They kept the place where we keep.', '', 4.4, true); g.audio.play('heartbeat', { vol: 0.5 }); }
-    if (T > f.wAt + 4.6 && !f.w2) { f.w2 = 1; ui.subtitle('They burned it, and it is still warm.', '', 3.2, true); g.viewmodel.pulseGlow(1); g.audio.play('crystal', { vol: 0.4 }); }
-    if (T > f.wAt + 8 && !f.w3) { f.w3 = 1; this.done.ash = 1; this.saveDone(); ui.subtitle('When this is over, I will come back and put their hands on this wall.', '', 4, true); g.progressGift?.(); this.gainHp(5); ui.setObjective('HOME: EXPLORE'); }
+    const g = this.g, ui = g.ui, f = this.f;
+    if (this.early) { if (!f.w1) { f.w1 = 1; ui.subtitle('Hands. Every one of us. Not now. The elder first.', '', 3.2, true); } return; }
+    if (this.done.ash) { if (!f.w1) { f.w1 = 1; ui.subtitle('When this is over, I will come back and put their hands on this wall.', '', 3.6, true); } return; }
+    if (!f.w1) { f.w1 = 1; f.wAt = T; ui.subtitle('Home. There is nothing left of it. But the wall stands. Every one of us who ever stood here.', '', 4.4, true); g.audio.play('heartbeat', { vol: 0.5 }); }
+    if (T > f.wAt + 4.6 && !f.w2) { f.w2 = 1; ui.subtitle('Still warm. A hand stays warm while the one who made it lives. All of them. Forty-one thousand of them.', '', 4.4, true); g.viewmodel.pulseGlow(1); g.audio.play('crystal', { vol: 0.4 }); }
+    if (T > f.wAt + 9.2 && !f.w3) { f.w3 = 1; this.gainHp(5); ui.subtitle('Home is not here any more. It is wherever they are. So that is where I am going.', '', 3.8, true); }
+    if (T > f.wAt + 13.2 && !f.w4) { f.w4 = 1; ui.subtitle('Crossing to Earth needs fuel, heat plating, coolant and a heading. Vael. Ochre. Skarn. Thule.', 'LANDER', 5); g.audio.play('pa', { vol: 0.4 }); ui.setObjective(g.campaign.worldDone('ash')); ui.rewardNote('THE ROAD TO EARTH'); }
   }
   gainHp(n) { const g = this.g, p = g.player; for (let i = 0; i < n; i++) progress.addMaxHp(); p.maxHealth += n; p.health = Math.min(p.maxHealth, p.health + n); g.ui.setHealth(p.health, p.maxHealth); }
   reward(talk) {
-    const g = this.g, ui = g.ui; this.done[this.id] = 1; this.saveDone();
+    const g = this.g, ui = g.ui;
     if (talk.gift === 'hp' || talk.gift === 'hull') ui.rewardNote(talk.note);      // a new form announces itself when it unlocks
     g.audio.play('crystal', { vol: 0.6 }); g.viewmodel.pulseGlow(1); g.addShake(0.08);
-    if (talk.gift === 'hp') this.gainHp(10); else if (talk.gift === 'hull') { try { localStorage.setItem('intruder-armor', '1'); } catch (e) { /* optional */ } g.flight.armor = 0.5; } else g.arsenal.unlock(talk.gift);
-    ui.setObjective(this.place.w.name + ': EXPLORE');
+    if (talk.gift === 'hp') this.gainHp(10); else if (talk.gift === 'hull') { try { localStorage.setItem('intruder-armor', '1'); } catch (e) { /* optional */ } g.flight.armor = 0.5; } else { g.arsenal.unlock(talk.gift); ui.rewardNote(talk.note); }
+    ui.setObjective(g.campaign.worldDone(this.id));
   }
 
   placeAtShip() { const g = this.g, P = this.place, p = g.player; p.pos.set(ORIGIN.x + 5, P.h(5, 3) + 0.5, ORIGIN.z + 3); p.vx = p.vy = p.vz = 0; g.body.reset(); }
@@ -562,7 +604,7 @@ export class Surface {
     for (const e of g.enemies) e.dispose?.();
     g.enemies = S.enemies; g.barrels = S.barrels; g.nav = S.nav; g.arena = S.arena;
     s.background = S.bg; s.fog = S.fog; c.far = S.far; c.updateProjectionMatrix(); g.post.applyFog(s);
-    P.show(false); g.world.terrain = null; g.lightList = null; this.active = false; this.step = 'off';
+    P.show(false); g.world.terrain = null; g.lightList = null; this.active = false; this.step = 'off'; g.campaign.removeTouch('world'); g.viewmodel.setEnv(0xffffff);
     g.player.extraSolid = null; g.player.gravMul = 1; g.cinePose = null; g.shakeAmp = 0; g.storyAct = null; g.viewmodel.limp = 0; g.viewmodel.reachW = 0; g.opening.moveLocked = false; g.opening.hideBody = false; g.ui.setPrompt(''); g.ui.setHold(null);
     if (back) g.flight.resumeFrom(this.id);
   }

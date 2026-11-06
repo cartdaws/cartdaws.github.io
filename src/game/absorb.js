@@ -250,7 +250,8 @@ export class Absorber {
     p.maxHealth += 1;
     p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14) + 1);
     g.ui.setHealth(p.health, p.maxHealth);
-    g.ui.rewardNote('MAX HP +1');
+    g.campaign.onAbsorb(e);
+    if (!g.ui.noteFresh?.()) g.ui.rewardNote('YOUR HIDE THICKENS  ·  +1');
     const memory = nextMemory();                      // what we touch, we keep: the machine gives up what it remembers
     if (memory) { g.ui.subtitle(memory, 'MEMORY', 4.6); g.audio.play('crystal', { vol: 0.25 }); }
     g.ui.hitMarker(true);

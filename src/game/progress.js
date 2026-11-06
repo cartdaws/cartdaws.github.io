@@ -22,6 +22,7 @@ export const progress = {
   get introDone() { return intro; },
   setIntroDone(v) { intro = !!v; try { localStorage.setItem(INTRO_KEY, v ? '1' : '0'); } catch (e) { /* storage is optional */ } },
   get maxHpBonus() { return bonus; },
+  resetBonus() { bonus = 0; try { localStorage.setItem(BONUS_KEY, JSON.stringify({ maxHpBonus: 0 })); } catch (e) { /* storage is optional */ } },
   addMaxHp() {
     bonus += 1;
     try { localStorage.setItem(BONUS_KEY, JSON.stringify({ maxHpBonus: bonus })); } catch (e) { /* storage is optional */ }

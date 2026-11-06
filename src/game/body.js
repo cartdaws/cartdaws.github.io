@@ -113,7 +113,8 @@ export class AlienBody {
       for (const leg of this.legs) { leg.mesh.radius = legRadiusFP; }
       const hg = makeTentacleGel({ color: 0x162230, rim: 0x2a7a70, alpha: 1, length: 2.4, r0: 0.19, r1: 0.05, suckers: 0, veins: 0 }); hg.transparent = false; hg.depthWrite = true; hg.uniforms.uSpec.value = 0.1; hg.uniforms.uSpots.value = 0; hg.uniforms.uRim.value.setRGB(0.08, 0.3, 0.3); hg.uniforms.uColor.value.setRGB(0.03, 0.045, 0.06);
       this.hub = new THREE.Mesh(new THREE.SphereGeometry(0.31, 24, 14), hg);
-      this.hub.scale.set(1, 0.5, 1.12); this.hub.position.y = -0.26; this.group.add(this.hub);
+      this.hub.scale.set(1, 0.5, 1.12); this.hub.position.y = -0.26; this.hub.castShadow = true;
+      for (const leg of this.legs) leg.mesh.mesh.castShadow = true; this.group.add(this.hub);
     }
     this.firstPerson = !!opts.firstPerson;           // the player's own body is never drawn from inside it (only legs are seen when looking down)
     this.alien.root.scale.setScalar(0.6); this.alien.root.position.y = -0.5;

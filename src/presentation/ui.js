@@ -58,9 +58,13 @@ export class UI {
 
   setPrompt(t) { const el = $('prompt'); if (el.textContent !== t) el.textContent = t; el.style.opacity = t ? 1 : 0; }
   setObjective(t) { $('objective').textContent = t; }
+  objectiveText() { return $('objective').textContent; }
+  setGoal(t) { const el = $('goal'); if (el && el.textContent !== t) el.textContent = t; }
 
   // Small note under the health bar, e.g. a permanent upgrade.
+  noteFresh() { return performance.now() - (this.noteAt || -1e9) < 800; }
   rewardNote(t) {
+    this.noteAt = performance.now();
     const el = $('rewardNote');
     el.textContent = t;
     el.classList.remove('show');

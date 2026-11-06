@@ -122,7 +122,7 @@ export function makeArmUniforms(phase) {
 
 // Skin shared across arms: colours and time. Each arm has its own pose numbers.
 export function makeSharedSkin() {
-  return { tTime: { value: 0 }, uColor: { value: new THREE.Color(0x0d1a29) }, uRim: { value: new THREE.Color(0x48dccb) }, uAlpha: { value: 0.97 }, uGlow: { value: 0 }, uHeat: { value: 0 } };
+  return { tTime: { value: 0 }, uColor: { value: new THREE.Color(0x0d1a29) }, uRim: { value: new THREE.Color(0x48dccb) }, uAlpha: { value: 0.97 }, uGlow: { value: 0 }, uMachine: { value: 0 }, uEnv: { value: new THREE.Color(1, 1, 1) }, uHeat: { value: 0 } };
 }
 
 export function makeSkinMaterial(shared, U) {
@@ -132,8 +132,9 @@ export function makeSkinMaterial(shared, U) {
     uniforms: { ...shared, ...U },
     vertexShader: `
       ${POSE_GLSL}
-      varying vec3 vN, vV; varying float vBand, vVent, vS;
+      varying vec3 vN, vV; varying float vBand, vVent, vS, vAng;
       void main() {
+        vAng = atan(position.y, position.x);
         float band; vec3 q = tentaclePoint(position, normal, band);
         vec4 mv = modelViewMatrix * vec4(q, 1.0);
         vN = normalize(normalMatrix * tentacleNormal(position, normal));
@@ -143,8 +144,8 @@ export function makeSkinMaterial(shared, U) {
         gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: `
-      uniform vec3 uColor, uRim; uniform float uAlpha, uGlow, uHeat, tTime;
-      varying vec3 vN, vV; varying float vBand, vVent, vS;
+      uniform vec3 uColor, uRim, uEnv; uniform float uAlpha, uGlow, uHeat, tTime, uMachine;
+      varying vec3 vN, vV; varying float vBand, vVent, vS, vAng;
       void main() {
         vec3 n = normalize(vN), v = normalize(vV);
         float ndv = abs(dot(n, v)), f = pow(1.0 - ndv, 1.7);
@@ -155,6 +156,17 @@ export function makeSkinMaterial(shared, U) {
         float vent = smoothstep(0.1, 0.95, vVent), rings = 0.5 + 0.5 * sin(vS * 150.0);
         vec3 body = mix(uColor, uColor * 2.1 + vec3(0.03, 0.05, 0.06), vent) * (0.94 + 0.06 * rings);
         vec3 c = body * (0.55 + 0.95 * lam) + uRim * f * 0.3 + vec3(spec * 0.22);
+        c *= uEnv;
+        // what you have absorbed shows: dull plates and thin live seams creep up the arm from the tip, the more machines you have kept
+        if (uMachine > 0.001) {
+          float reach = smoothstep(1.02 - uMachine * 0.8, 1.0 - uMachine * 0.8 + 0.1, vS);
+          float back = 1.0 - smoothstep(0.1, 0.5, vVent);
+          float cells = abs(sin(vS * 46.0 + floor(vAng * 2.6) * 1.7)) * abs(sin(vAng * 5.0));
+          float plate = smoothstep(0.12, 0.3, cells) * reach * back;
+          float seam = (1.0 - smoothstep(0.02, 0.12, cells)) * reach * back;
+          c = mix(c, vec3(0.2, 0.235, 0.27) * (0.4 + 1.0 * lam) * uEnv + vec3(spec * 0.5), plate * 0.72);
+          c += uRim * seam * (0.75 + 0.25 * sin(tTime * 2.0 - vS * 9.0));
+        }
         c += uRim * (uGlow * 0.08 + uHeat * 0.1 + vBand * 0.5);
         gl_FragColor = vec4(pow(c, vec3(2.2)), uAlpha);
       }`,

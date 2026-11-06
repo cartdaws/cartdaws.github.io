@@ -59,6 +59,7 @@
       <span id="weaponName">SHARDCASTER</span>
       <div class="dash"><span class="label">DASH</span><div class="bar"><div id="dashFill"></div></div></div>
     </div>
+    <div id="goal"></div>
     <div id="objective"></div>
     <div id="hint"></div>
     <div id="prompt"></div>
@@ -110,6 +111,7 @@
 
   <div id="menu-pause" class="menu hidden">
     <h2>PAUSED</h2>
+    <div id="journal"></div>
     <button id="btn-resume" class="primary">RESUME</button>
     <button id="btn-restart">RESTART FROM CHECKPOINT</button>
     <button id="btn-gfx2">GRAPHICS: REALISTIC</button>
@@ -125,9 +127,10 @@
   </div>
 
   <div id="menu-complete" class="menu hidden">
-    <h2>A HANGAR FULL OF SHIPS</h2>
-    <p class="chapter">The fleet has left for Earth with forty-one thousand of your kind, the elder among them.<br>Find them. Free them. Then take Earth, and make them pay for every valley.</p>
-    <small class="chapter-tag">CHAPTER ONE COMPLETE &nbsp;·&nbsp; THE HALCYON</small>
+    <h2 id="card-title">A HANGAR FULL OF SHIPS</h2>
+    <p class="chapter" id="card-text">The fleet has left for Earth with forty-one thousand of your kind, the elder among them.<br>Find them. Free them. Then take Earth, and make them pay for every valley.</p>
+    <p class="chapter" id="card-stats"></p>
+    <small class="chapter-tag" id="card-tag">CHAPTER ONE COMPLETE &nbsp;·&nbsp; THE HALCYON</small>
     <button id="btn-flyon" class="primary">TAKE THE SHIP</button>
     <button id="btn-replay">NEW RUN</button>
     <button id="btn-intro">REPLAY FROM THE START</button>

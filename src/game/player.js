@@ -124,6 +124,8 @@ export class Player {
       this.game.audio.play('jump', { vol: 0.8 });
     }
     if (!this.grounded || this.vy > 0) this.vy -= GRAVITY * (A ? A.grav : 1) * (this.gravMul ?? 1) * dt;
+    // what the drones taught you: hold jump and your body spreads and drifts
+    if (!this.grounded && this.vy < -2.4 && input.down('Space') && this.game.arsenal && this.game.arsenal.unlocked.has('gel')) { this.vy = Math.max(this.vy, -2.4); this.gliding = true; } else this.gliding = false;
 
     // Horizontal motion in small increments so thin walls and doors cannot be tunnelled.
     const dx = this.vx * dt, dz = this.vz * dt;
@@ -137,7 +139,7 @@ export class Player {
 
     // Pressing into a ledge in the air: haul yourself up onto it.
     if (!this.grounded && controllable && l > 0.01 && !this.dashing && this.vy < 4.5) {
-      const rise = this.game.world.ledgeRise(this.pos.x, this.pos.z, this.pos.y, RADIUS + 0.12, wx, wz, MANTLE, HEIGHT);
+      const rise = this.game.world.ledgeRise(this.pos.x, this.pos.z, this.pos.y, RADIUS + 0.12, wx, wz, MANTLE + (this.game.arsenal && this.game.arsenal.unlocked.has('barb') ? 0.85 : 0), HEIGHT);
       if (rise > 0) this.vy = Math.max(this.vy, Math.sqrt(2 * GRAVITY * (rise + 0.08)));
     }
 

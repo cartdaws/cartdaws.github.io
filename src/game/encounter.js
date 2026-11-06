@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { HALCYON_LINES, YOUR_LINES } from './taunts.js';
 export const EncounterState = Object.freeze({ WAITING: 'waiting', SEALING: 'sealing', COMBAT: 'combat', CLEARED: 'cleared' });
 
@@ -36,8 +37,11 @@ export class Encounter {
     this.timer = 0;
     this.pending = null;
     this.prepare(rooms[0]);
-    g.ui.setObjective('REACH THE HANGAR');
+    g.ui.setObjective(this.baseObjective());
   }
+
+  // what is next on the deck, whichever room you are in
+  baseObjective() { const g = this.game; return g.run && this.room === g.run.navRoom && !g.campaign.s.chart ? 'TOUCH THE CHART' : 'REACH THE HANGAR'; }
 
   cleanup() {
     const g = this.game;
@@ -62,7 +66,7 @@ export class Encounter {
       r.doors.in.open(true);
       r.doors.out.close(true);
     }
-    g.ui.setObjective('REACH THE HANGAR');
+    g.ui.setObjective(this.baseObjective());
   }
 
   prepare(r) {
@@ -123,7 +127,8 @@ export class Encounter {
       g.ui.setObjective('HANGAR LIFT');
       return;
     }
-    g.ui.setObjective(`REACH THE HANGAR  ·  ${this.label(r)}`);
+    g.ui.setObjective(r === g.run?.navRoom && !g.campaign.s.chart ? 'TOUCH THE CHART' : `REACH THE HANGAR  ·  ${this.label(r)}`);
+    if (r === g.run?.navRoom && !g.campaign.s.chart && g.ui.subT <= 0.3) g.ui.subtitle('Their charts. Every world they have ever burned, and the way back to mine.', '', 3.6, true);
     if (r.id > 0 && r.kind === 'combat') g.ui.hintOnce('highground', g.touchMode ? 'TAP JUMP INTO CRATES AND DESKS TO CLIMB: HIGH GROUND' : 'JUMP INTO CRATES AND DESKS TO CLIMB: HIGH GROUND', 4);
     if (r.kind === 'quiet') {
       g.pickups.reveal(r, 'start');
@@ -149,7 +154,7 @@ export class Encounter {
     g.ui.banner(r.kind === 'finale' ? 'FINAL LOCKDOWN' : 'LOCKDOWN', 'red', 1.5);
     g.audio.play('announce', { vol: 0.8 });
     // the ship AI speaks at the first lockdown only; after that the alarm says enough
-    if (r.id === 0 || r.kind === 'finale') g.ui.subtitle(r.id === 0 ? 'Intruder in the Robotics Deck. Sealing the workshop.' : 'Final lockdown. All units to the hangar lift.', 'HALCYON', 2.6);
+    if (r.id === 0 || r.kind === 'finale') g.ui.subtitle(r.id === 0 ? 'Intruder in the Robotics Deck. Sealing the workshop.' : 'You will not reach the Meridian. All units to the hangar lift.', 'HALCYON', 2.6);
     if (r.id === 0 && !this.told.intruder) { this.told.intruder = true; this.lineT = 2.9; }
     else if (this.taunt < HALCYON_LINES.length) g.ui.subtitle(HALCYON_LINES[this.taunt++], 'HALCYON', 3.4);
     if (!this.told.drums && r.barrels.length) { this.told.drums = true; g.ui.hintOnce('drums', 'RED DRUMS EXPLODE', 2.5); }
@@ -210,7 +215,7 @@ export class Encounter {
     g.audio.play('unlock', { vol: 1 });
     g.audio.play('door', { vol: 0.8 });
     g.ui.banner(r.kind === 'finale' ? 'LIFT UNLOCKED' : locked ? 'SECTOR CLEAR' : 'EXIT UNLOCKED', 'green', 1.4);
-    g.ui.setObjective(locked ? 'FIND THE KEYCARD' : 'REACH THE HANGAR');
+    g.ui.setObjective(locked ? 'FIND A WAY THROUGH THE DEAD DOOR' : 'REACH THE HANGAR');
     g.pickups.reveal(r, 'clear');
     g.clearEnemies();
     this.advance();
@@ -223,8 +228,8 @@ export class Encounter {
     if (this.hasKey) return;
     this.hasKey = true;
     g.audio.play('unlock', { vol: 0.9 });
-    g.ui.rewardNote('KEYCARD ACQUIRED');
-    g.ui.setObjective('USE THE KEYCARD ON THE SEALED DOOR');
+    g.ui.rewardNote('HANDLER PASS  ·  A DEAD MAN\'S ACCESS');
+    g.ui.setObjective('THE DEAD DOOR AHEAD WILL TAKE THIS');
   }
 
   // Keycard doors: the door answers when the player stands at it.
@@ -236,16 +241,17 @@ export class Encounter {
     const r = run.lockRoom, d = r.doors.out;
     if (!d.locked) return;
     if (Math.hypot(p.x - d.x, p.z - d.z) > 3.6) return;
-    if (this.hasKey) {
+    const arc = g.arsenal.unlocked.has('arc');
+    if (this.hasKey || arc) {
+      if (arc && !this.hasKey) { g.effects.hitSparks(new THREE.Vector3(d.x, 1.3, d.z), [0.5, 0.9, 1], 22); g.viewmodel.pulseGlow(1); g.ui.subtitle('No power. It has mine now.', '', 2.4, true); }
       d.unlock();
       if (r.kind === 'quiet' || r.cleared) d.open();
       g.audio.play('unlock', { vol: 0.9 });
       g.audio.play('door', { vol: 0.8 });
-      g.ui.rewardNote('ACCESS GRANTED');
       g.ui.setObjective('REACH THE HANGAR');
     } else if (this.lockHintT <= 0) {
       this.lockHintT = 15;
-      g.ui.hint('KEYCARD REQUIRED', 2);
+      g.ui.subtitle('A dead door. It wants a pass, or a current. The machines carry both.', '', 3.2, true);
     }
   }
 }
