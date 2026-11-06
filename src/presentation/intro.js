@@ -58,6 +58,7 @@ function makeElderMark() {
 }
 const ease = (t, a, b) => smooth(seg(t, a, b));
 const stage = (t, a, b, c, d) => ease(t, a, b) * (1 - ease(t, c, d));
+const _routeQ = new THREE.Vector3();
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _l = new THREE.Vector3(), _q = new THREE.Quaternion(), _wq = new THREE.Quaternion();
 
 export class Intro {
@@ -576,6 +577,54 @@ export class Intro {
     }
   }
 
+  // The body walks itself in the film, so it has to find its own way: a grid over the real collision, the shortest way round, and a straight line wherever one is clear.
+  routeBlocked(x, z) {
+    const q = _routeQ.set(x, 0, z); this.home.pushOut(q, 0.52, this.wreckCircles);
+    return Math.abs(q.x - x) + Math.abs(q.z - z) > 1e-3 || Math.hypot(x - HOME.x, z - (HOME.z - 8)) > 29;
+  }
+  routeClear(ax, az, bx, bz) {
+    const d = Math.hypot(bx - ax, bz - az), n = Math.ceil(d / 0.25);
+    for (let i = 1; i <= n; i++) { const k = i / n; if (this.routeBlocked(ax + (bx - ax) * k, az + (bz - az) * k)) return false; }
+    return true;
+  }
+  planRoute(tx, tz) {
+    const p = this.g.player.pos, C = 0.5;
+    const x0 = Math.min(p.x, tx) - 16, z0 = Math.min(p.z, tz) - 16, W = Math.ceil((Math.max(p.x, tx) + 16 - x0) / C), D = Math.ceil((Math.max(p.z, tz) + 16 - z0) / C);
+    const free = new Uint8Array(W * D); for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) free[j * W + i] = this.routeBlocked(x0 + i * C, z0 + j * C) ? 0 : 1;
+    const nearest = (x, z) => { let best = -1, bd = 1e9; for (let j = 0; j < D; j++) for (let i = 0; i < W; i++) { if (!free[j * W + i]) continue; const d = Math.hypot(x0 + i * C - x, z0 + j * C - z); if (d < bd) { bd = d; best = j * W + i; } } return best; };
+    const from = nearest(p.x, p.z), goal = nearest(tx, tz); if (from < 0 || goal < 0) return null;
+    const back = new Int32Array(W * D).fill(-1), q = [goal]; back[goal] = goal;
+    for (let h = 0; h < q.length && back[from] < 0; h++) {
+      const c = q[h], i = c % W, j = (c - i) / W;
+      for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        const ni = i + a, nj = j + b; if (ni < 0 || nj < 0 || ni >= W || nj >= D) continue;
+        const n = nj * W + ni; if (!free[n] || back[n] >= 0) continue;
+        if (a && b && (!free[j * W + ni] || !free[nj * W + i])) continue;       // never squeeze across a corner
+        back[n] = c; q.push(n);
+      }
+    }
+    if (back[from] < 0) return null;
+    const pts = []; for (let c = from; ; c = back[c]) { const i = c % W, j = (c - i) / W; pts.push([x0 + i * C, z0 + j * C]); if (c === goal) break; }
+    return pts;
+  }
+  // Walks there. True on arrival. The player's mouse can pull at the view but cannot steer it into anything.
+  walkRoute(key, tx, tz, arrive, dt) {
+    const g = this.g, p = g.player, f = this.f;
+    let r = f.route;
+    if (!r || r.key !== key) { r = f.route = { key, pts: this.planRoute(tx, tz), i: 0, stuck: 0, lx: p.pos.x, lz: p.pos.z }; }
+    g.input.keys.clear();
+    if (!r.pts) return true;
+    const end = r.pts[r.pts.length - 1];
+    if (Math.hypot(p.pos.x - end[0], p.pos.z - end[1]) < arrive) return true;
+    while (r.i < r.pts.length - 1 && this.routeClear(p.pos.x, p.pos.z, r.pts[r.i + 1][0], r.pts[r.i + 1][1])) r.i++;
+    const aim = r.pts[r.i], want = Math.atan2(-(aim[0] - p.pos.x), -(aim[1] - p.pos.z)), off = Math.atan2(Math.sin(want - p.yaw), Math.cos(want - p.yaw));
+    p.yaw += off * Math.min(1, dt * 3.4);
+    if (Math.abs(off) < 0.8) g.input.keys.add('KeyW');          // turn first: never slide sideways along a hull
+    r.stuck = Math.hypot(p.pos.x - r.lx, p.pos.z - r.lz) < 0.012 && Math.abs(off) < 0.8 ? r.stuck + dt : 0; r.lx = p.pos.x; r.lz = p.pos.z;
+    if (r.stuck > 0.5) f.route = null;                           // something moved or was missed: look again
+    return false;
+  }
+
   // What a model occupies at the height of a walking body, as overlapping circles, measured from its mesh in world space.
   solidFootprint(root, y0, y1, cell = 0.62) {
     root.updateMatrixWorld(true);
@@ -638,12 +687,10 @@ export class Intro {
         break;
       case 1: {                    // it walks to the dead pilot and takes the sidearm
         this.moveLocked = false; p.speedMul = 0.36;
-        const wy = Math.atan2(-(px - p.pos.x), -(pz - p.pos.z));
-        p.yaw += Math.atan2(Math.sin(wy - p.yaw), Math.cos(wy - p.yaw)) * Math.min(1, dt * 1.7);
         p.pitch += (-0.42 * ease(this.stepT, 0.5, 3) - p.pitch) * Math.min(1, dt * 1.4);
-        g.input.keys.clear(); g.input.keys.add('KeyW');
+        const atPistol = this.walkRoute('pistol', px, pz, 0.6, dt);
         if (this.stepT > 0.5 && !f.w2) { f.w2 = true; this.say('Still burning. The pilot was thrown clear.', '', 3.0, true); }
-        if (dpst < 2.0 || this.stepT > 7) {
+        if (dpst < 2.0 || atPistol) {
           g.input.keys.clear(); p.speedMul = 1;
           this.step = 5; this.stepT = 0; this.h = 0; this.moveLocked = true; this.pistolMarker.visible = false;
           this.f.parts = this.pistolItem.userData.parts.map((m) => { const p0 = m.getWorldPosition(new THREE.Vector3()); g.scene.attach(m); return { m, p0, s0: m.scale.clone() }; });
@@ -679,10 +726,11 @@ export class Intro {
         if (this.stepT > 3.2) this.once('w3', () => this.say('It remembers the hand that held it. Human. That is their word. Now I know who.', '', 3.6, true));
         if (this.stepT > 7.0) this.once('w4', () => this.say('Scorched, split open, but the drive core is still warm. Their machines are built to survive.', '', 3.6, true));
         this.moveLocked = false; p.speedMul = 0.36; p.extraSolid = (q) => H.pushOut(q, 0.4, this.wreckCircles);
-        const hx = wx + 4.2, hz = wz + 2.3, dh = Math.hypot(p.pos.x - hx, p.pos.z - hz);
-        const wy = Math.atan2(-(hx - p.pos.x), -(hz - p.pos.z)), near = dh < 1.1 || this.stepT > 11.6;
+        const foot = this.wreck.localToWorld(_l.set(3.9, 0, 1.75));
+        let near = false;
         if (this.stepT > 6.6) {
-          if (!near) { p.yaw += Math.atan2(Math.sin(wy - p.yaw), Math.cos(wy - p.yaw)) * Math.min(1, dt * 1.7); p.pitch += (0.02 - p.pitch) * Math.min(1, dt); g.input.keys.clear(); g.input.keys.add('KeyW'); }
+          p.pitch += (0.02 - p.pitch) * Math.min(1, dt);
+          near = this.walkRoute('board', foot.x, foot.z, 0.45, dt);
         } else { g.input.keys.clear(); p.pitch += (0.02 - p.pitch) * Math.min(1, dt * 1.2); const hy = Math.atan2(-(wx - p.pos.x), -(wz - p.pos.z)); p.yaw += Math.atan2(Math.sin(hy - p.yaw), Math.cos(hy - p.yaw)) * Math.min(1, dt * 1.3); }
         if (near && this.stepT > 10.6) {
           g.input.keys.clear(); p.speedMul = 1;
