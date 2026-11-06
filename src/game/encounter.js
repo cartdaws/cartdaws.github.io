@@ -3,8 +3,8 @@ import { LAB } from '../v2/flags.js';
 import { HALCYON_LINES, YOUR_LINES } from './taunts.js';
 export const EncounterState = Object.freeze({ WAITING: 'waiting', SEALING: 'sealing', COMBAT: 'combat', CLEARED: 'cleared' });
 
-const SEAL_WARNING = 2.2;   // door slam + readable alarm before enemies wake
-const WAVE_WARNING = 1.7;   // reinforcements power up before they attack
+const SEAL_WARNING = LAB ? 1.0 : 2.2;   // door slam + readable alarm before enemies wake
+const WAVE_WARNING = LAB ? 0.9 : 1.7;   // reinforcements power up before they attack
 
 // Walks the player through the run, one room at a time. Combat rooms seal behind the player and open when cleared;
 // quiet rooms are free to explore. The state is that of the room the player is about to enter or is fighting in.

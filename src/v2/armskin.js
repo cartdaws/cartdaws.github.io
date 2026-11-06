@@ -30,8 +30,11 @@ export const SKIN_FRAG = `
         vec3 c = body * (0.5 + 1.0 * lam) * uEnv + vec3(0.42, 0.32, 0.36) * f * 0.26 * uEnv + vec3(spec * 0.34);
         c += uRim * vein * 0.42;
         // the edge of the growth, while it is growing: raw
-        float d = (vS - uFront) / 0.035; c = mix(c, vec3(0.3, 0.05, 0.05), 0.75 * exp(-d * d) * uWound) + vec3(0.1, 0.02, 0.015) * exp(-d * d) * uWound;
+        float d = (vS - uFront) / 0.035; c = mix(c, vec3(0.17, 0.035, 0.04), 0.8 * exp(-d * d) * uWound) + vec3(0.025, 0.005, 0.005) * exp(-d * d) * uWound;
         c += uRim * (uGlow * 0.05 + uHeat * 0.1 + vBand * 0.32);
+        #ifdef SUCKER
+          c *= 0.58;     // the suckers sit darker than the skin they grow from, as they do on the raised arms
+        #endif
         gl_FragColor = vec4(pow(max(c, vec3(0.0)), vec3(2.2)), uAlpha);
       }`;
 

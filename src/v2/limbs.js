@@ -211,7 +211,8 @@ export class SpineArm {
   constructor(scene, shared, seg = GRAB_SEG) {
     this.scene = scene; this.seg = seg; this.U = spineU(seg, 0.92); this.parts = {}; this.part = null; this.q = null;
     this.skin = new THREE.Mesh(v2node('ArmSkin').geometry, skinMaterial(shared, this.U, seg)); this.skin.frustumCulled = false;
-    this.suck = new THREE.Mesh(v2node('ArmSuckers').geometry, partMaterial(v2node('ArmSuckers').material, this.U, { value: -1 }, seg)); this.suck.frustumCulled = false;
+    // the suckers are drawn as skin: lit like the rest of the arm, not by whatever lamp happens to be overhead
+    this.suck = new THREE.Mesh(v2node('ArmSuckers').geometry, skinMaterial(shared, this.U, seg)); this.suck.material.defines = { SUCKER: 1 }; this.suck.frustumCulled = false;
     scene.add(this.skin, this.suck);
     const vecs = () => Array.from({ length: seg + 1 }, () => new THREE.Vector3());
     this.S = vecs(); this.G = vecs(); this.want = vecs(); this.wantK = new Float32Array(seg + 1); this.tmp = vecs();

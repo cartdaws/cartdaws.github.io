@@ -86,6 +86,7 @@ export class Absorber {
     const tap = input.clicked(2) || input.was('KeyE') || input.absorbTap;
     input.absorbTap = false;
     if (this.drawing) { if (LAB) runV2(this, dt); else this.run(dt); return; }
+    if (LAB && g.evolution.wheel.open) { ui.setPrompt(''); return; }
     g.absorbFov = lerp(g.absorbFov || 0, 0, Math.min(1, dt * 8));
 
     const target = this.pick();

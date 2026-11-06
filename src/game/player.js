@@ -100,8 +100,8 @@ export class Player {
     }
 
     if (this.dashing) {
-      this.vx = this.dashDir.x * DASH_SPEED;
-      this.vz = this.dashDir.y * DASH_SPEED;
+      this.vx = this.dashDir.x * DASH_SPEED * (this.evoSpeed ?? 1);
+      this.vz = this.dashDir.y * DASH_SPEED * (this.evoSpeed ?? 1);
       this.dashT -= dt;
       if (this.dashT <= 0) {
         this.dashing = false;

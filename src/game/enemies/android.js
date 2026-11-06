@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { Enemy } from './enemy.js';
 import { clamp, damp, yawTo, angleDiff, lerp, smooth, rand } from '../../core/util.js';
+import { LAB } from '../../v2/flags.js';
 
 const SHOT_SPEED = 16;
 const _dir = { x: 0, z: 0 };
@@ -24,6 +25,13 @@ export const ANDROID_VARIANTS = {
   scout: { hp: 30, scale: 0.92, speed: 5.0, burst: 4, dmg: 5, heal: 10, shot: 'needle', shotSpeed: 27, flank: true, body: 0x30373b, armor: 0xd2dad8, trim: 0x2aa8b0, keep: [5, 10], aimT: 0.5, gap: 0.09, slim: true },
   heavy: { hp: 110, scale: 1.18, speed: 2.2, burst: 3, dmg: 14, heal: 32, shot: 'plasma', shotSpeed: 10, body: 0x24292d, armor: 0x5d666d, trim: 0xa8281c, keep: [7, 14], aimT: 0.85, gap: 0.38, bulky: true },
 };
+
+if (LAB) {
+  Object.assign(ANDROID_VARIANTS.trooper, { hp: 40, speed: 4.2, dmg: 9, shotSpeed: 26, aimT: 0.5, gap: 0.16, keep: [5, 10] });
+  Object.assign(ANDROID_VARIANTS.scout, { hp: 22, speed: 6.4, dmg: 5, shotSpeed: 34, aimT: 0.36, gap: 0.08, keep: [4, 9] });
+  Object.assign(ANDROID_VARIANTS.heavy, { hp: 85, speed: 2.8, burst: 3, dmg: 16, shotSpeed: 15, aimT: 0.7, gap: 0.3, keep: [6, 12] });
+}
+const REBOOT_AFTER = 6.5, RISE = 0.7;     // seconds you have to deal with a machine that is down; how long it takes to stand
 
 export class SecurityAndroid extends Enemy {
   constructor(game, x, z, variant = 'trooper') {
@@ -207,7 +215,18 @@ export class SecurityAndroid extends Enemy {
   update(dt) {
     this.updateFlash(dt);
     const g = this.game;
-    if (this.disabled) { this.powerDown(dt); this.syncSpheres(); return; }
+    if (this.disabled) {
+      this.powerDown(dt);
+      if (LAB && this.downDone && !this.absorbing) {
+        this.downIdle = (this.downIdle || 0) + dt;
+        const left = REBOOT_AFTER - this.downIdle;
+        // it warns you: the visor comes back, stuttering, and it starts to spark
+        if (left < 2) { const on = Math.sin(this.downIdle * (10 + (2 - left) * 9)) > 0; this.visorMat.emissive.setRGB(1, 0.16, 0.06); this.visorMat.emissiveIntensity = on ? 1.6 : 0.1; if (Math.random() < dt * 5) this.sparks(this.hitSpheres[0].c, 3, [1, 0.6, 0.3], 2.5, 0.06); if (!this.warned) { this.warned = true; g.sfxAt('bootup', this.pos, 0.9); } }
+        if (left <= 0) this.reboot();
+      }
+      this.syncSpheres();
+      return;
+    }
     let move = 0, aiming = 0;
     this.flinch = Math.max(0, this.flinch - dt * 3);
     if (this.active && this.alive) {
@@ -241,7 +260,7 @@ export class SecurityAndroid extends Enemy {
       } else if (this.state === 'aim') {
         face(10);
         aiming = 1;
-        this.vx = damp(this.vx, 0, 10, dt); this.vz = damp(this.vz, 0, 10, dt);
+        { const sk = LAB ? this.v.speed * 0.42 * this.strafe : 0; this.vx = damp(this.vx, (-dz / dist) * sk, 10, dt); this.vz = damp(this.vz, (dx / dist) * sk, 10, dt); }
         this.charge = clamp(1 - this.timer / this.v.aimT, 0, 1);
         if (this.timer <= 0) {
           if (this.canSee()) { this.state = 'burst'; this.shots = 0; this.timer = 0; }
@@ -253,7 +272,7 @@ export class SecurityAndroid extends Enemy {
         this.vx = damp(this.vx, 0, 10, dt); this.vz = damp(this.vz, 0, 10, dt);
         if (this.timer <= 0) {
           if (this.shots < this.v.burst) { this.fire(); this.shots++; this.timer = this.v.gap; }
-          else { this.state = 'move'; this.timer = rand(1.4, 2.6); this.strafe = Math.random() < 0.5 ? -1 : 1; }
+          else { this.state = 'move'; this.timer = LAB ? rand(0.9, 1.7) : rand(1.4, 2.6); this.strafe = Math.random() < 0.5 ? -1 : 1; }
         }
       }
       move = Math.hypot(this.vx, this.vz);
@@ -268,6 +287,12 @@ export class SecurityAndroid extends Enemy {
     this.aimK = damp(this.aimK, aiming, 12, dt);
     this.pose(dt, move);
     this.group.rotation.y = this.yaw;
+    if (this.riseT > 0) {      // climbing back up: from how it lay to how it stands
+      this.riseT = Math.max(0, this.riseT - dt); const k = smooth(this.riseT / RISE), S = this.riseFrom;
+      this.group.rotation.x = S.rx * k; this.group.rotation.z = S.rz * k; this.group.position.y = S.gy * k; this.hips.position.y = lerp(this.hips.position.y, S.hy, k); this.torso.rotation.x = lerp(this.torso.rotation.x, S.tx, k); this.head.rotation.x = lerp(this.head.rotation.x, S.hx, k);
+      this.legs.forEach((l, i) => { l.hp.rotation.x = lerp(l.hp.rotation.x, S.l[i][0], k); l.kn.rotation.x = lerp(l.kn.rotation.x, S.l[i][1], k); });
+      this.arms.forEach((a, i) => { a.sh.rotation.x = lerp(a.sh.rotation.x, S.a[i][0], k); a.el.rotation.x = lerp(a.el.rotation.x, S.a[i][1], k); });
+    }
     const vis = this.active ? 1.6 + this.charge * 3 : this.warning ? 1.2 : 0.3;
     this.visorMat.emissiveIntensity = vis;
     this.gunMat.emissiveIntensity = 0.2 + this.charge * 4 + (this.state === 'burst' ? 1.5 : 0);
@@ -337,6 +362,16 @@ export class SecurityAndroid extends Enemy {
     this.lightMat.emissive.setRGB(0.1, 0.55, 1);
     this.fallDir = Math.random() < 0.5 ? -1 : 1;
     this.game.sfxAt(this.variant === 'heavy' ? 'groan' : 'powerdown', this.pos, 1.3);
+  }
+
+  // Left alone, it gets up: damaged, but it gets up. Absorb it or finish it while you can.
+  reboot() {
+    const g = this.game;
+    this.riseFrom = { rx: this.group.rotation.x, rz: this.group.rotation.z, gy: this.group.position.y, hy: this.hips.position.y, tx: this.torso.rotation.x, hx: this.head.rotation.x, l: this.legs.map((l) => [l.hp.rotation.x, l.kn.rotation.x]), a: this.arms.map((a) => [a.sh.rotation.x, a.el.rotation.x]) };
+    this.riseT = RISE; this.disabled = false; this.downDone = false; this.downIdle = 0; this.warned = false; this.hp = this.maxHp * 0.45;
+    this.state = 'move'; this.timer = RISE + 0.3; this.goal = null; this.group.rotation.order = 'XYZ'; this.aimK = 0; this.flinch = 0;
+    this.visorMat.emissive.setHex(0xff2a10); this.gunMat.emissive.setHex(0xff5a20); this.lightMat.emissive.setHex(this.v.trim);
+    this.sparks(this.hitSpheres[0].c, 16, [1, 0.6, 0.3], 4, 0.08); g.sfxAt('clatter', this.pos, 1); g.effects.flashLight(this.hitSpheres[0].c, 0xff5030, 10, 0.2);
   }
 
   limp(k) { // arms hang loose

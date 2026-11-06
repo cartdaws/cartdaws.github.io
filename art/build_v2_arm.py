@@ -15,8 +15,8 @@ PI = math.pi; BACK = -PI / 2; UNDER = PI / 2
 M = {
   'skin': mat('ArmSkin', '#6b4a57', 0.45),
   'sucker': mat('ArmSucker', '#b58f8c', 0.34),
-  'chitin': mat('Chitin', '#6b6157', 0.42, 0.0),
-  'flesh': mat('MutFlesh', '#4a1e22', 0.32, 0.0),
+  'chitin': mat('Chitin', '#5b4737', 0.42, 0.0),
+  'flesh': mat('MutFlesh', '#3a181b', 0.34, 0.0),
   'black': mat('BlackMetal', '#0e1012', 0.36, 0.9),
   'mantle': mat('Mantle', '#1e1518', 0.36),
   'bone': mat('ChitinPale', '#b8a58a', 0.5, 0.0),
@@ -245,6 +245,9 @@ def torso(u, v):
 tb = B(); tb.grid(torso, 96, 60, closed_u=True)
 base = len(tb.v) - 96; cc = tb.add(Vector((0, BOT + 0.08, 0.2)))
 for i in range(96): tb.f.append((base + (i + 1) % 96, base + i, cc))
+# the top closes in a soft dome: looking straight down, you never see into yourself
+ct = tb.add(Vector((0, TOP + 0.05, 0.2)))
+for i in range(96): tb.f.append((i, (i + 1) % 96, ct))
 tb.make('V2Torso', M['skin'], uv=3.0)
 
 save_v2(r"art\v2_arm.blend")

@@ -88,8 +88,8 @@ function composeWave(depth, finale, wave) {
   const out = [];
   const add = (type, variant, n = 1) => { for (let i = 0; i < n; i++) out.push({ type, variant }); };
   if (LAB) {                     // V2: security androids, each kind teaching something different
-    if (finale) { if (wave === 0) { add('android', 'trooper', 2); add('android', 'heavy', 1); } else { add('android', 'scout', 2); add('android', 'heavy', 1); } return out; }
-    add('android', 'trooper', 1 + (depth > 0 ? 1 : 0)); add('android', 'scout', 1); if (depth >= 1) add('android', 'heavy', 1);
+    if (finale) { if (wave === 0) { add('android', 'trooper', 3); add('android', 'heavy', 1); } else { add('android', 'scout', 3); add('android', 'trooper', 1); add('android', 'heavy', 1); } return out; }
+    add('android', 'trooper', 2); add('android', 'scout', 1); if (depth >= 1) add('android', 'heavy', 1);
     return out;
   }
   if (finale) {

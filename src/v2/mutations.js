@@ -12,16 +12,16 @@ export const ENERGY_REGEN = 15;    // per second
 export const BARE = {
   id: 'bare', name: 'BARE ARMS', kind: 'none', nodes: [],
   style: { rim: 0x8a6a70, suck: 0x000000, suckI: 0, grip: 0, spread: 0, swell: 0, weapon: 0, roll: 0 },
-  attack: { type: 'melee', dmg: [17], range: 3.5, cone: 0.55, rate: [0.5], cost: [0], hitAt: 0.11, dur: 0.42, heavy: false },
+  attack: { type: 'melee', dmg: [17], range: 3.5, cone: 0.55, rate: [0.4], cost: [0], hitAt: 0.11, dur: 0.42, heavy: false },
 };
 
 export const MUTATIONS = {
   husk: {
     id: 'husk', name: 'CHITIN HUSK', kind: 'organic', sources: ['shellback'], nodes: ['Mut_Carapace', 'Mut_CarapaceFlesh'], infect: 0.5,
-    note: 'HEAVY BLOWS. TAKES LESS DAMAGE. SLOWS YOU.',
+    note: 'HEAVY BLOWS. ALWAYS ARMOURS YOU. SLOWS YOU WHILE IT IS RAISED.',
     style: { rim: 0xc09a70, suck: 0x000000, suckI: 0, grip: 0, spread: 0, swell: 0.55, weapon: 0.8, noMouth: true, roll: 2.2 },
     attack: { type: 'melee', dmg: [36, 46, 58], range: 4.0, cone: 0.42, rate: [0.8, 0.75, 0.7], cost: [10, 10, 10], hitAt: 0.17, dur: 0.62, heavy: true },
-    mods: (t) => ({ dmgTaken: 1 - (0.2 + t * 0.07), speed: 1 - (0.07 + t * 0.03) }),
+    mods: (t) => ({ dmgTaken: 1 - (0.2 + t * 0.07), speed: 1 - (0.07 + t * 0.03) }), slowNote: (t) => `${Math.round((0.07 + t * 0.03) * 100)}% SLOWER RAISED`,
   },
   shard: {
     id: 'shard', name: 'SHARD SIPHON', kind: 'tech', sources: ['trooper', 'scout'], nodes: ['Mut_Shard', 'Mut_ShardDark', 'Mut_ShardGlow', 'Mut_ShardFlesh', 'Mut_ShardRings'], infect: 0.85,

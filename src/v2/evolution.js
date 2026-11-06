@@ -16,7 +16,7 @@ export class Evolution {
   constructor(game) {
     this.g = game;
     try { this.codex = new Set(JSON.parse(localStorage.getItem(CODEX) || '[]')); } catch (e) { this.codex = new Set(); }
-    this.equipped = []; this.selected = -1; this.lastSelected = -1;
+    this.equipped = []; this.selected = -1; this.lastSelected = -1; this.offers = []; this.qBlock = false;
     this.energy = ENERGY_MAX; this.cool = 0; this.pending = null; this.dryT = 0; this.qT = -1; this.timeScale = 1; this.beat = null; this.swap = null; this.mods = { dmgTaken: 1, speed: 1, regen: 1 };
     this.wheel = new MutationWheel(this);
     this.installArms();
@@ -55,7 +55,7 @@ export class Evolution {
 
   // A new body. What you know, you still know.
   resetRun() {
-    this.equipped = []; this.selected = -1; this.lastSelected = -1; this.energy = ENERGY_MAX; this.cool = 0; this.pending = null; this.beat = null; this.swap = null; this.timeScale = 1; this.wheel.cancel();
+    this.equipped = []; this.selected = -1; this.lastSelected = -1; this.offers = []; this.energy = ENERGY_MAX; this.cool = 0; this.pending = null; this.beat = null; this.swap = null; this.timeScale = 1; this.wheel.cancel();
     const vm = this.g.viewmodel;
     for (const arm of [vm.right, vm.left]) { for (const g of Object.values(arm.growths)) { g.front.value = 1.2; for (const me of g.meshes) me.visible = false; } arm.showing = null; arm.own.uFront.value = 1.2; arm.own.uInfect.value = 0; arm.own.uWound.value = 0; }
     this.applyLook(true); this.recompute();
@@ -63,7 +63,8 @@ export class Evolution {
 
   recompute() {
     const M = { dmgTaken: 1, speed: 1, regen: 1 };
-    for (const q of this.equipped) { const d = q.m.mods ? q.m.mods(q.tier) : {}; for (const k in d) M[k] *= d[k]; }
+    // what a mutation does for your body it does wherever you carry it; but its weight slows you only while it is the arm you have raised
+    for (const q of this.equipped) { const d = q.m.mods ? q.m.mods(q.tier) : {}; for (const k in d) if (k !== 'speed' || q === this.current) M[k] *= d[k]; }
     this.mods = M; this.g.player.evoSpeed = M.speed;
   }
 
@@ -85,19 +86,35 @@ export class Evolution {
   grow(m) {
     const first = !this.codex.has(m.id);
     if (first) { this.codex.add(m.id); try { localStorage.setItem(CODEX, JSON.stringify([...this.codex])); } catch (e) { /* optional */ } }
-    if (this.equipped.length >= SLOTS) {
-      // every limb is taken: for now the oldest gives way. A real choice here is the next thing to design.
-      this.equipped.shift(); if (this.selected >= 0) this.selected = Math.max(0, this.selected - 1); if (this.lastSelected >= 0) this.lastSelected = Math.max(-1, this.lastSelected - 1);
-    }
+    // Every limb is taken: nothing is ever overwritten. You are asked, and what you absorbed has already healed and fed you, whichever you choose.
+    if (this.equipped.length >= SLOTS) { this.askNinth(m, first); return; }
     this.equipped.push({ m, tier: 1, grow: 0.3 });
     this.recompute(); this.wheel.render();
     this.startBeat(first ? 'A NEW THING GROWS' : 'YOUR BODY REMEMBERS', m.name, m.note + (this.selected >= 0 ? '  ·  Q TO USE IT' : ''), first);
     // bare arms take the first thing that grows. After that it never takes your weapon out of your hand: it grows on another limb while you fight, and the wheel has it.
-    if (this.selected < 0) { this.selected = this.equipped.length - 1; }
+    if (this.selected < 0) { this.selected = this.equipped.length - 1; this.recompute(); }
     this.applyLook(false);
+  }
+  askNinth(m, first) {
+    if (this.wheel.offering) { this.offers.push([m, first]); return; }
+    this.answerT = 0.25;            // a moment to read it: the press that was already going down must not answer a question you have not seen
+    this.g.audio.play('gel', { vol: 0.6 }); this.g.audio.play('crack', { vol: 0.35 });
+    this.wheel.offer(m, (k) => {
+      if (k < 0) this.toast('YOU KEEP YOUR BODY', m.name, 'It fed you anyway. It can grow later, if a limb comes free.', 1.8);
+      else {
+        const old = this.equipped[k], up = k === this.selected;
+        this.equipped[k] = { m, tier: 1, grow: 0.3 };
+        this.startBeat(first ? 'A NEW THING GROWS' : 'YOUR BODY REMEMBERS', m.name, old.m.name + ' is gone. ' + m.note, false);
+        if (up) { document.getElementById('weaponName').textContent = m.name; }
+        this.recompute(); this.wheel.render(); this.applyLook(false);
+      }
+      this.qBlock = true;
+      const next = this.offers.shift(); if (next) this.askNinth(next[0], next[1]);
+    });
   }
   deepen(q) {
     q.tier++; this.recompute(); this.wheel.render();
+    if (q === this.current) { const el = document.getElementById('weaponName'); if (el) el.textContent = q.m.name + (q.m.slowNote ? '  ·  ' + q.m.slowNote(q.tier) : ''); }
     this.g.ui.rewardNote(`${q.m.name}  ·  STAGE ${q.tier}`); this.g.audio.play('gel', { vol: 0.5 }); this.g.audio.play('crack', { vol: 0.35 }); this.g.addShake(0.05);
   }
 
@@ -112,15 +129,14 @@ export class Evolution {
   // Change which arm is up. The arm drops out of view, and rises with the other thing on it.
   select(i) {
     if (i === this.selected || (i >= 0 && !this.equipped[i])) return;
-    this.lastSelected = this.selected; this.selected = i; this.g.audio.play('gel', { vol: 0.35 }); this.applyLook(false);
-    this.g.ui && (document.getElementById('weaponName').textContent = this.active.name);
+    this.lastSelected = this.selected; this.selected = i; this.g.audio.play('gel', { vol: 0.35 }); this.recompute(); this.applyLook(false);
   }
   cycle() { const n = this.equipped.length; if (!n) return; this.select(((this.selected + 1) % n)); }
 
   // What each limb should be carrying now.
   applyLook(instant) {
     const vm = this.g.viewmodel;
-    document.getElementById('weaponName') && (document.getElementById('weaponName').textContent = this.active.name);
+    { const el = document.getElementById('weaponName'), c = this.current; if (el) el.textContent = this.active.name + (c && c.m.slowNote ? '  ·  ' + c.m.slowNote(c.tier) : ''); }
     this.wantR = this.current ? this.current : null;
     this.wantL = this.lastSelected >= 0 && this.lastSelected !== this.selected ? this.equipped[this.lastSelected] : null;
     if (instant) { this.setArm(vm.right, this.wantR); this.setArm(vm.left, this.wantL); vm.setStyleObj(this.active.style); return; }
@@ -140,10 +156,21 @@ export class Evolution {
     const g = this.g, input = g.input, vm = g.viewmodel, weapon = g.weapon;
     const live = g.state === 'playing' && !g.player.dead;
     if (live) {
-      for (let i = 0; i < SLOTS; i++) if (input.was('Digit' + (i + 1))) this.select(i);
-      if (input.was('Digit0')) this.select(-1);
-      if (input.down('KeyQ')) { if (this.qT < 0) this.qT = 0; else { this.qT += dt; if (this.qT > 0.18 && !this.wheel.open) this.wheel.show(); } }
-      else if (this.qT >= 0) { if (this.wheel.open) this.wheel.close(); else this.cycle(); this.qT = -1; }
+      if (this.wheel.offering) {
+        // the question: the mouse steers, a click answers. Q, E or the other button keep what you have
+        this.answerT -= dt;
+        if (this.answerT <= 0) {
+          for (let i = 0; i < SLOTS; i++) if (input.was('Digit' + (i + 1))) { this.wheel.resolve(i); break; }
+          if (this.answerT <= 0 && this.wheel.offering) { if (input.clicked(0)) this.wheel.resolve(this.wheel.hi); else if (input.was('KeyQ') || input.was('KeyE') || input.clicked(2)) this.wheel.resolve(-1); }
+        }
+        this.qT = -1;
+      } else if (this.qBlock) { if (!input.down('KeyQ')) this.qBlock = false; }        // the Q that answered must not also change your arm when it lifts
+      else {
+        for (let i = 0; i < SLOTS; i++) if (input.was('Digit' + (i + 1))) this.select(i);
+        if (input.was('Digit0')) this.select(-1);
+        if (input.down('KeyQ')) { if (this.qT < 0) this.qT = 0; else { this.qT += dt; if (this.qT > 0.18 && !this.wheel.open) this.wheel.show(); } }
+        else if (this.qT >= 0) { if (this.wheel.open) this.wheel.close(); else this.cycle(); this.qT = -1; }
+      }
     } else { if (this.wheel.open) this.wheel.cancel(); this.qT = -1; }
 
     this.energy = Math.min(ENERGY_MAX, this.energy + ENERGY_REGEN * this.mods.regen * dt);

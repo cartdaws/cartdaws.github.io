@@ -10,7 +10,7 @@ const FEED0 = 0.3, FEED1 = 0.92;
 const RELEASE = 0.88;        // the arms let go
 const TOTAL = 1.08;
 const JOIN = 0.56;           // how far along the arm the coil begins
-const BLUE = [0.04, 0.38, 1], EMBER = [0.13, 0.024, 0.006];
+const BLUE = [0.04, 0.38, 1], EMBER = [0.07, 0.014, 0.004];
 const _p = new THREE.Vector3(), _n = new THREE.Vector3(), _q = new THREE.Vector3(), _T = new THREE.Vector3(), _e1 = new THREE.Vector3(), _e2 = new THREE.Vector3(), _a = new THREE.Vector3(), _c = new THREE.Vector3(), _r = new THREE.Vector3(), _u = new THREE.Vector3();
 
 // the real arms step aside while their copies, which can take any shape, do the holding
@@ -57,7 +57,7 @@ export function runV2(A, dt) {
   _T.set(e.pos.x + ox, e.pos.y + oy, e.pos.z + oz); D.cur.copy(_T);
   // the power that was left in it drains away while it is held, and the metal heats as it is crushed
   const drain = smooth((t - 0.12) / 0.45), fl = 0.86 + 0.14 * Math.sin(t * 38);
-  for (const { mat } of e.flashMats) { mat.emissive.setRGB(lerp(BLUE[0], EMBER[0], drain) * fl, lerp(BLUE[1], EMBER[1], drain) * fl, lerp(BLUE[2], EMBER[2], drain) * fl); mat.emissiveIntensity = lerp(0.6, 0.55, drain); }
+  for (const { mat } of e.flashMats) { if (D.organic) { mat.emissive.setRGB(0.05 * drain, 0.004 * drain, 0.004 * drain); mat.emissiveIntensity = 1; mat.color && !mat.userData.bruised && (mat.userData.bruised = true); } else { mat.emissive.setRGB(lerp(BLUE[0], EMBER[0], drain) * fl, lerp(BLUE[1], EMBER[1], drain) * fl, lerp(BLUE[2], EMBER[2], drain) * fl); mat.emissiveIntensity = lerp(0.6, 0.55, drain); } }
 
   // ---- the arms
   const turn = lerp(0.25, 1.25, smooth((t - LATCH * 0.55) / 0.2)), width = D.width * sc + 0.09;
