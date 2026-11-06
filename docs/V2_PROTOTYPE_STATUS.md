@@ -31,7 +31,8 @@ Knowledge across lives: once discovered, a mutation can also come from other sou
 
 ## Verified, realistic mode
 
-- **The loop, with real damage:** a bot cleared the chapter in 62 seconds, lowest health 43, ending at Husk 3, Shard 3, Arc 2. It aims perfectly and skips walking between rooms, so this does not measure difficulty for a person.
+- **The loop, with real damage:** a bot played 12 fresh layouts: 9 clears in 54 to 82 seconds, 2 real deaths, 1 stall where the bot could not walk round a prop. Lowest health ranged from 3 to 82. The bot aims perfectly and teleports between rooms, so this shows the loop holds together and that fights can kill you. It does not measure difficulty for a person.
+- **No soft-lock from a downed machine:** all three android types, once powered down, can be absorbed and can be finished off. A downed one needs a clear line to absorb it, so one lying behind a prop means walking round it.
 - **Death:** the chapter restarts with a new layout, nothing equipped, 100 health, discoveries kept.
 - **Trade-offs:** Husk measurably cut speed to 0.90 and damage to 73 percent.
 - **Wheel, through its input path:** tap, hold, steer, release, empty sector, number keys, eight filled.
