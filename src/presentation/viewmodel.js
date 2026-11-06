@@ -4,7 +4,7 @@ import { makeHandGel } from './hand.js';
 import { buildTentacleGeometry, makeArmUniforms, makeSharedSkin, makeSkinMaterial, makeSuckerMaterial, tentaclePointJS } from './arm.js';
 
 const _v = new THREE.Vector3(), _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _d = new THREE.Vector3(), _w = new THREE.Vector3();
-const UP = new THREE.Vector3(0, 1, 0);
+const UP = new THREE.Vector3(0, 1, 0), _zAxis = new THREE.Vector3(0, 0, 1);
 const smoother = (k) => k * k * k * (k * (k * 6 - 15) + 10);      // starts and ends at rest: nothing in the arm's movement begins or stops abruptly
 const ELBOW = new THREE.Vector3(0.5, -0.78, 0.2); // where the reaching arm emerges from (camera space)
 
@@ -74,7 +74,7 @@ class HandArm {
 
   update(dt, ctx) {
     const vm = this.vm, t = vm.time, side = this.side;
-    const f = this.weapon ? vm.armK : 0, rec = this.weapon ? vm.recoil : 0;    // armK: how far this arm has become a weapon, on one eased timeline
+    const armF = this.weapon ? vm.armK : (this.showing ? 0.62 : 0), f = armF, rec = this.weapon ? vm.recoil : 0;    // armK: how far this arm has become a weapon, on one eased timeline
     const mk = vm.moveK, st = vm.stride, ph = side > 0 ? 0 : Math.PI;
     const idle = 1 - Math.min(1, mk * 1.5);
 
@@ -91,8 +91,8 @@ class HandArm {
     pos.y += (0.004 - (0.5 - 0.5 * Math.cos(st * 2)) * 0.012) * mk + vm.airK * 0.035 - vm.landK * 0.06;
     pos.x += side * Math.sin(st + ph) * 0.006 * mk;
     pos.z += Math.sin(st + ph) * 0.018 * mk - vm.airK * 0.02;
-    const pumpPitch = Math.sin(st + ph) * 0.035 * mk - vm.airK * 0.14 + vm.landK * 0.12 - 0.16 * (1 - (this.weapon ? vm.armK : 0));
-    { const bare = 1 - (this.weapon ? vm.armK : 0); pos.x += side * 0.13 * bare; pos.y -= 0.07 * bare; pos.z -= 0.16 * bare; }      // a bare arm rests further out, clear of your aim
+    const pumpPitch = Math.sin(st + ph) * 0.035 * mk - vm.airK * 0.14 + vm.landK * 0.12 - 0.16 * (1 - armF);
+    { const bare = 1 - armF; pos.x += side * 0.13 * bare; pos.y -= 0.07 * bare; pos.z -= 0.16 * bare; }      // a bare arm rests further out, clear of your aim
     _e.set(0.44 + rec * 0.1 + vm.swayY * 0.4 + vm.dashK * 0.1 + pumpPitch, side * -0.1 + vm.swayX * 0.5 - side * vm.dashK * 0.1 + side * 0.05 * mk, side * -0.08 + side * Math.sin(st) * 0.05 * mk + side * Math.sin(t * 0.8 + this.phase) * 0.02 * idle, 'YXZ');
     // the body is failing or thrown: the arms are not held up by anything
     const limp = vm.limp || 0, fling = vm.fling || 0;
@@ -101,6 +101,18 @@ class HandArm {
     if (bump > 0) { pos.y -= 0.05 * bump; pos.z += 0.03 * bump; _e.x -= 0.1 * bump; _e.z += side * 0.07 * bump; }
     if (fling > 0) { pos.y += 0.26 * fling; pos.x += side * 0.14 * fling; _e.x += 0.55 * fling; _e.z -= side * 0.3 * fling; }
     this.root.quaternion.setFromEuler(_e);
+    // V2: the arm rolls to show its back when something has grown there; it drops out of view to change, and comes up in front of you when it is changing
+    { const T = this.weapon ? (vm.styleTarget.roll || 0) : ((this.showing && this.showing.m.style.roll) || 0);
+      this.rollK = damp(this.rollK || 0, T, 7, dt);
+      if (this.rollK > 0.001) this.root.quaternion.multiply(_q.setFromAxisAngle(_zAxis, -side * this.rollK));
+      pos.y -= 0.5 * (vm.swapK || 0);
+      { const up = Math.min(1, this.rollK); pos.y += 0.075 * up; pos.z -= 0.05 * up; this.root.rotateX(0.11 * up); }
+      const insp = (vm.inspectK || 0) * (this.weapon ? 1 : 0);
+      if (insp > 0) { pos.x -= 0.1 * insp; pos.y += 0.05 * insp; pos.z -= 0.16 * insp; this.root.rotateZ(Math.sin(t * 2.2) * 0.12 * insp); }
+    }
+    // V2: a blow. Coiled back, then the whole arm thrown forward and across
+    let hit = 0, wind = 0;
+    if (this.weapon && vm.strikeT < 1) { const k = vm.strikeT, h = vm.strikeHeavy ? 0.2 : 0.14; wind = k < h ? Math.sin((k / h) * Math.PI * 0.5) : 0; hit = k < h ? 0 : smoother(Math.min(1, (k - h) / 0.2)) * (1 - smoother(Math.max(0, (k - 0.46) / 0.54))); const ext = vm.strikeHeavy ? 1.2 : 1; pos.z -= 0.3 * hit * ext - 0.13 * wind; pos.y += 0.09 * hit * ext - 0.05 * wind; pos.x -= 0.15 * hit + 0.1 * side * wind * -1; }
     if (vm.restrain > 0) {
       // the clamps are fixed in the world, so the held wrists follow them as the head turns and tilts
       const w = vm.restrain, strain = (1 - vm.restrainSlack) * Math.sin(t * 17 + this.phase) * 0.006;
@@ -144,9 +156,11 @@ class HandArm {
     U.uSide.value = lerp(lerp(-0.2 + (this.weapon ? vm.sSpread * 1.6 : 0) + 0.1 * drift * idle, 0, f), 0, rk) + this.lagSide * side * (1 - 0.8 * f) + (vm.threatX || 0) * side * 0.85 * tk * (1 - f);       // a free tip leans toward whatever is nearest
     U.uBend.value = (this.lagPitch - limp * 0.7 + (vm.threatY || 0) * 0.5 * tk) * (1 - 0.8 * f);
     U.uWave.value = lerp(0.62 + 0.2 * mk + 0.5 * tk + 0.7 * hurt, 0.08 + 0.2 * hurt, Math.max(f, rk * 0.9)) * (1 - 0.5 * limp);
-    U.uLen.value = lerp(lerp(0.84, 0.77, f), 1.22, rk) * (1 + 0.1 * bump) * (1 - 0.04 * rec);
+    U.uLen.value = lerp(lerp(0.84, this.rollK > 0.5 ? 0.9 : 0.77, f), 1.22, rk) * (1 + 0.1 * bump) * (1 - 0.04 * rec);
     U.uThick.value = 0.84 + 0.36 * f + 0.012 * Math.sin(t * 1.25 + p0) + vm.pulse * 0.05 + vm.charge * 0.2 + (this.weapon ? vm.bulge * 0.4 + vm.sSwell * 0.42 : 0);
-    U.uMouth.value = f * f * f * (1 - rk) * (1 - 0.7 * limp);
+    if (this.rollK > 0) U.uThick.value *= 1 - 0.2 * Math.min(1, this.rollK);
+    U.uMouth.value = (this.weapon && !vm.styleTarget.noMouth ? f * f * f : 0) * (1 - rk) * (1 - 0.7 * limp);
+    if (hit > 0 || wind > 0) { U.uCurl.value = lerp(lerp(U.uCurl.value, 4.4, wind), 0.18, hit); U.uLen.value *= 1 + 0.42 * hit * (vm.strikeHeavy ? 1.2 : 1); U.uSide.value += 0.5 * hit - 0.25 * wind; U.uThick.value *= 1 + 0.18 * hit; U.uWave.value *= 1 - 0.8 * hit; }
     if (this.weapon) { U.uPump.value = vm.pump ?? 2; U.uGain.value = vm.pumpGain ?? 1; }
 
     if (!this.weapon) return;
@@ -188,6 +202,8 @@ export class ViewModel {
   // your arms are lit by the place you are standing in
   setEnv(hex) { const c = new THREE.Color(hex); this.skinShared.uEnv.value.copy(c); this.key.color.copy(c); }
   setMachine(k) { this.skinShared.uMachine.value = k; }
+  setStyleObj(o) { if (o === this.styleTarget) return; this.styleTarget = o; this.styleT = 0; this.styleFrom = { grip: this.sGrip, spread: this.sSpread, swell: this.sSwell }; }
+  strike(dur, heavy) { this.strikeDur = dur; this.strikeT = 0; this.strikeHeavy = heavy; }
   constructor(asset) {
     this.asset = asset;
     this.scene = new THREE.Scene();
@@ -227,7 +243,7 @@ export class ViewModel {
     this.camYaw = 0; this.camPitch = 0; // camera orientation, used to keep the clamped wrists fixed in the world
     this.pistol = null;
 
-    this.recoil = 0; this.recoilVel = 0; this.pulse = 0;
+    this.recoil = 0; this.recoilVel = 0; this.pulse = 0; this.strikeT = 1;
     this.moveK = 0; this.stride = 0; this.airK = 0; this.landK = 0; this.wasAir = false;
     this.swayX = 0; this.swayY = 0; this.lagX = 0; this.lagZ = 0; this.dashK = 0;
     this.time = 0;
@@ -265,6 +281,7 @@ export class ViewModel {
     this.recoilVel += (-190 * this.recoil - 17 * this.recoilVel) * dt;
     this.recoil += this.recoilVel * dt;
     this.pulse = Math.max(0, this.pulse - dt * 9);
+    if (this.strikeT < 1) this.strikeT = Math.min(1, this.strikeT + dt / (this.strikeDur || 0.4));
     // locomotion for the arm animation
     const speed = Math.hypot(ctx.velX || 0, ctx.velZ || 0), air = !!ctx.air;
     this.moveK = damp(this.moveK || 0, clamp(speed / 7.2, 0, 1.3) * (air ? 0.25 : 1), 8, dt);

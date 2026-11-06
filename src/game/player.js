@@ -77,7 +77,7 @@ export class Player {
     const sin = Math.sin(this.yaw), cos = Math.cos(this.yaw);
     // forward = (-sin, -cos), right = (cos, -sin)
     const wx = -sin * mz + cos * mx, wz = -cos * mz - sin * mx;
-    const SP = SPEED * (A ? A.speed : 1) * (this.speedMul ?? 1);
+    const SP = SPEED * (A ? A.speed : 1) * (this.speedMul ?? 1) * (this.evoSpeed ?? 1);
 
     // admin noclip: free flight straight through everything
     if (A && A.noclip && controllable) {

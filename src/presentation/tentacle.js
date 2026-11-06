@@ -128,6 +128,7 @@ export class TentacleMesh {
         _n.addScaledVector(_t, -_n.dot(_t)).normalize();
       }
       _bn.crossVectors(_t, _n);
+      if (this.frames) { const q = i * 12, F = this.frames; F[q] = p.x; F[q + 1] = p.y; F[q + 2] = p.z; F[q + 3] = _n.x; F[q + 4] = _n.y; F[q + 5] = _n.z; F[q + 6] = _bn.x; F[q + 7] = _bn.y; F[q + 8] = _bn.z; F[q + 9] = _t.x; F[q + 10] = _t.y; F[q + 11] = _t.z; }
       const r = this.radius(i / R) * scale;
       const tw = this.twist * (i / R);
       for (let j = 0; j <= this.radial; j++) {

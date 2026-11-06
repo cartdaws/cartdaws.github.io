@@ -139,7 +139,7 @@ export class Arsenal {
       // nothing in the cone: the arc discharges into the air or the wall in front
       const hit = g.pickAim(origin, dir, 9); pts.push(hit.clone());
     } else {
-      const chain = [first]; let cur = first; const dmg = [16, 11, 8, 6];
+      const chain = [first]; let cur = first; const dmg = [16, 11, 8, 6].map((d) => d * (this.dmgK || 1));
       for (let k = 1; k < 4; k++) {
         let next = null, nd = 7;
         for (const e of this.targets()) { if (chain.includes(e)) continue; const d = e.hitSpheres[0].c.distanceTo(cur.hitSpheres[0].c); if (d < nd) { nd = d; next = e; } }

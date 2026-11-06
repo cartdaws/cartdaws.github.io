@@ -2,14 +2,19 @@ import * as THREE from 'three';
 import { lerp, damp, clamp, angleDiff } from '../core/util.js';
 import { makeGel } from '../world/materials.js';
 import { buildAlien, alienReady } from './alien.js';
+import { LAB } from '../v2/flags.js';
+import { LimbGrowth } from '../v2/limbgrowth.js';
+import { v2node } from '../v2/assets.js';
 import { TentacleMesh, makeTentacleGel, updateTentacleGels, bezier, SpringChain } from '../presentation/tentacle.js';
 
-const LEGS = [ // an octopus: eight arms evenly round the body. Angle from forward (rad), reach (m), which of the two groups it moves with.
+const LEGS8 = [ // an octopus: eight arms evenly round the body. Angle from forward (rad), reach (m), which of the two groups it moves with.
   { a: -0.39, reach: 2.05, g: 0, c: -1 }, { a: 0.39, reach: 2.05, g: 1, c: 1 },
   { a: -1.18, reach: 1.9, g: 1, c: -1 }, { a: 1.18, reach: 1.9, g: 0, c: 1 },
   { a: -1.96, reach: 1.8, g: 0, c: 1 }, { a: 1.96, reach: 1.8, g: 1, c: -1 },
   { a: -2.75, reach: 1.7, g: 1, c: 1 }, { a: 2.75, reach: 1.7, g: 0, c: -1 },
 ];
+// V2: the two raised arms ARE two of the eight, so six walk
+const LEGS = LAB ? LEGS8.slice(2) : LEGS8;
 const N = 14;
 
 // Leg thickness along its length (0 = hip, 1 = foot): stays thick all the way down, swells into a padded foot, ends rounded.
@@ -116,11 +121,23 @@ export class AlienBody {
       this.hub.scale.set(1, 0.5, 1.12); this.hub.position.y = -0.26; this.hub.castShadow = true;
       for (const leg of this.legs) leg.mesh.mesh.castShadow = true; this.group.add(this.hub);
     }
+    if (LAB && opts.firstPerson) this.setupV2Limbs();
     this.firstPerson = !!opts.firstPerson;           // the player's own body is never drawn from inside it (only legs are seen when looking down)
     this.alien.root.scale.setScalar(0.6); this.alien.root.position.y = -0.5;
     this.group.add(this.alien.root);
     this.torso.visible = false; for (const r of this.ribs) r.visible = false; this.core.visible = false; for (const s of this.sats) s.m.visible = false;
   }
+
+  // V2: an ordinary animal's skin, and room for whatever grows on each walking limb
+  setupV2Limbs() {
+    const skin = (m) => { m.transparent = false; m.depthWrite = true; m.uniforms.uSpec.value = 0.2; m.uniforms.uColor.value.setRGB(0.11, 0.075, 0.09); m.uniforms.uRim.value.setRGB(0.3, 0.22, 0.26); m.uniforms.uSpots.value = 0; };
+    { const G = this.hub, add = (n) => { const s = v2node(n), me = new THREE.Mesh(s.geometry, s.material); me.frustumCulled = false; me.castShadow = true; me.receiveShadow = true; G.add(me); return me; };
+      G.geometry = new THREE.BufferGeometry(); G.visible = true; G.scale.set(1, 1, 1); G.position.y = -0.2; add('V2Mantle'); add('V2MantleLid'); add('V2MantleEye'); }
+    for (const leg of this.legs) { const m = this.legGel.clone(); skin(m); m.uniforms.uSucker.value = 1; leg.mesh.mesh.material = m; leg.baseMat = m; leg.growth = new LimbGrowth(this.world.scene || this.group.parent, leg); }
+    this.limbQ = [];
+  }
+  // what the walking limbs carry, in order
+  setLimbs(list) { if (!this.limbQ) return; this.limbQ = list; this.legs.forEach((leg, i) => leg.growth?.set(list[i] || null)); }
 
   dispose(scene) { scene.remove(this.group); for (const l of this.legs) scene.remove(l.mesh.mesh); }
 
@@ -244,6 +261,7 @@ export class AlienBody {
       leg.chain.step(leg.ideal, dt);
       leg.chain.p[N - 1].copy(leg.ideal[N - 1]);
       leg.mesh.update(leg.chain.p);
+      leg.growth?.update(p.pitch < -0.3);
     }
     updateTentacleGels(t, 0);
   }

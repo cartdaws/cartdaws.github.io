@@ -8,12 +8,14 @@ import { loadHome } from './world/home.js';
 import { loadLander, loadVessel, loadWarship } from './game/flight.js';
 import { loadInterceptor } from './game/flightCombat.js';
 import { loadAlien } from './game/alien.js';
+import { loadV2Assets } from './v2/assets.js';
+import { LAB } from './v2/flags.js';
 import { loadWorlds } from './world/surface.js';
 
 // loading progress: everything goes through the default loading manager, so the bar simply follows it
 THREE.DefaultLoadingManager.onProgress = (url, done, total) => window.__intruderLoad?.(0.92 * done / total, 'LOADING  ' + Math.round(100 * done / total) + '%');
 
-const [geos, kit, hand, home] = await Promise.all([loadArmModels(), loadKit(), loadHand(), loadHome(), loadLander().catch((e) => console.warn('lander model unavailable, using the stand-in', e)), loadVessel().catch((e) => console.warn('vessel model unavailable, using the stand-in', e)), loadWarship().catch((e) => console.warn('warship model unavailable', e)), loadInterceptor().catch((e) => console.warn('interceptor model unavailable', e)), loadAlien().catch((e) => console.warn('creature model unavailable, using the old body', e)), loadWorlds().catch((e) => console.warn('worlds unavailable', e))]);
+const [geos, kit, hand, home] = await Promise.all([loadArmModels(), loadKit(), loadHand(), loadHome(), LAB ? loadV2Assets() : null, loadLander().catch((e) => console.warn('lander model unavailable, using the stand-in', e)), loadVessel().catch((e) => console.warn('vessel model unavailable, using the stand-in', e)), loadWarship().catch((e) => console.warn('warship model unavailable', e)), loadInterceptor().catch((e) => console.warn('interceptor model unavailable', e)), loadAlien().catch((e) => console.warn('creature model unavailable, using the old body', e)), loadWorlds().catch((e) => console.warn('worlds unavailable', e))]);
 window.__intruderLoad?.(0.95, 'BUILDING THE SHIP');
 await new Promise((r) => setTimeout(r, 40));            // let the message paint: the next step takes a moment on a phone
 new Game(document.getElementById('game'), geos, kit, hand, home);

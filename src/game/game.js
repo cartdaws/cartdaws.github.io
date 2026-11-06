@@ -2,6 +2,9 @@ import { resetMemories } from './memories.js';
 import { ShipLife } from '../world/shipLife.js';
 import { Surface } from '../world/surface.js';
 import { Campaign } from './campaign.js';
+import { LAB } from '../v2/flags.js';
+import { Evolution } from '../v2/evolution.js';
+import { Lab } from '../v2/lab.js';
 import * as THREE from 'three';
 import { Input } from '../core/input.js';
 import { Audio } from '../core/audio.js';
@@ -80,7 +83,7 @@ export class Game {
       this.touchUI = new TouchControls(this.input, {
         onPause: () => { if (this.state === 'playing' || this.state === 'opening' || this.state === 'flight') this.input.unlock(); },
         onSkip: () => { if (this.opening.active && !this.paused) this.opening.skip(); },
-        onArms: () => { if (this.state === 'playing' && !this.opening.active && !this.paused) this.arsenal.cycle(); },
+        onArms: () => { if (LAB && this.state === 'playing' && !this.paused) { this.evolution.cycle(); return; } if (this.state === 'playing' && !this.opening.active && !this.paused) this.arsenal.cycle(); },
       });
     }
     this.admin = new Admin(this);
@@ -150,6 +153,8 @@ export class Game {
 
     this.surface = new Surface(this);
     this.campaign.refresh();
+    this.critters = [];
+    if (LAB) { this.evolution = new Evolution(this); this.lab = new Lab(this); }
     if (debug) { window.__g = this; window.__THREE = THREE; }
     this.last = performance.now();
     this.loop = this.loop.bind(this);
@@ -188,7 +193,8 @@ export class Game {
     const rooms = [workshopRoom(this.level), ...this.run.rooms];
     this.run.all = rooms;
     (this.shipLife || (this.shipLife = new ShipLife(this))).build(rooms);
-    this.campaign.dressRun(this.run, rooms);
+    if (!LAB) this.campaign.dressRun(this.run, rooms);
+    if (LAB) rooms[0].waves = [[{ type: 'android', variant: 'trooper', x: -7, z: -19 }, { type: 'android', variant: 'scout', x: 8, z: -26 }]];
     this.level.extraDoors = this.run.doors;
     this.level.alarmLights = this.level.baseAlarm.concat(this.run.alarmLights);
     this.level.flicker = this.level.baseFlicker.concat(this.run.flicker);
@@ -207,6 +213,8 @@ export class Game {
     if (s.type === 'bug') return new RobotBug(this, s.x, s.z, s.variant);
     return new SentryDrone(this, s.x, s.z, s.variant);
   }
+
+  clearCritters() { for (const c of this.critters) c.dispose(); this.critters = []; }
 
   clearEnemies() {
     for (const e of this.enemies) e.dispose();
@@ -316,6 +324,7 @@ export class Game {
   // ---------- flow ----------
   play() {
     this.keepAwake();
+    if (LAB) { if (this.touchMode) enterImmersive(); this.lab.start(true); return; }
     if (progress.introDone) { this.continueGame(); return; }
     this.audio.init();
     if (this.touchMode) enterImmersive();
@@ -329,6 +338,7 @@ export class Game {
 
   // Seen the introduction already: straight into the facility with the weapon.
   continueGame() {
+    if (LAB) { this.play(); return; }
     this.audio.init();
     if (['valley', 'chase', 'trial'].includes(this.campaign.beat)) this.campaign.setBeat('deck');
     if (this.touchMode) enterImmersive();
@@ -379,6 +389,7 @@ export class Game {
 
   restart(freshRun = false) {
     this.audio.init();
+    if (LAB) { this.lab.reincarnate(); return; }
     if (this.surface.active) { this.surface.respawn(); return; }
     // restarting during the opening replays the opening (or the flight); it never jumps ahead of the story
     if (this.state === 'flight') { this.flight.stop(); this.paused = false; this.ui.hideMenus(); this.state = 'flight'; this.flight.start(); this.input.lock(); return; }
@@ -634,6 +645,7 @@ export class Game {
     const p = this.player;
     if (p.dead || this.state !== 'playing') return;
     if (this.admin && this.admin.god) return;
+    if (LAB) amount *= this.evolution.mods.dmgTaken;
     p.health = Math.max(0, p.health - amount);
     this.viewmodel.fling = Math.max(this.viewmodel.fling || 0, clamp(amount / 22, 0.22, 0.6));         // the arms come up when something hits you
     this.ui.damageFlash(clamp(amount / 12, 0.7, 1));
@@ -667,6 +679,7 @@ export class Game {
     const raw = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
     let ts = this.admin.timeScale;
+    if (LAB) ts *= this.evolution.timeScale;
     if (this.hitStop > 0) { this.hitStop -= raw; ts *= 0.12; }
     if (this.state === 'dead' && !this.paused) {
       // a hit-stop, then the world slowly catches up while the body falls
@@ -699,7 +712,8 @@ export class Game {
     }
     const live = this.state === 'playing' && !player.dead;
     if (live && input.locked) {
-      player.look(lx, ly, this.sens);
+      if (LAB && this.evolution.wheel.open) { this.evolution.wheel.feed(lx, ly); this.lookX = this.lookY = 0; }
+      else player.look(lx, ly, this.sens);
       player.latch(input);
     }
 
@@ -713,11 +727,12 @@ export class Game {
 
     if (this.state === 'dead') this.updateDeath();
     if (this.ending) this.updateEnding(dt);
-    if (this.state === 'playing' && this.encounter.won && !this.ending) this.complete();
+    if (this.state === 'playing' && this.encounter.won && !this.ending) { if (LAB) this.lab.clear(); else this.complete(); }
+    if (LAB) this.evolution.update(dt);
 
     this.level.update(this.time);
     if (this.surface.active) this.surface.update(dt);
-    this.campaign.update(dt); this.campaign.updateChartLines(dt);
+    if (!LAB) { this.campaign.update(dt); this.campaign.updateChartLines(dt); }
     this.baseHemi.visible = !(this.surface.active || this.flight.active || (this.opening.home && this.opening.home.shown));
     if (this.state === 'playing' && !this.surface.active && !(this.opening.active && this.opening.phase !== 'gas')) { this.shipLife.group.visible = true; this.shipLife.update(dt); } else if (this.shipLife) this.shipLife.group.visible = false;
     this.effects.update(dt);
@@ -768,7 +783,8 @@ export class Game {
     this.poseCamera();
     {
       const fire = this.canFire();
-      if (this.arsenal.step(dt, input.mouse(0), fire, this.weapon.pressLatch)) this.weapon.pressLatch = false;
+      if (LAB) this.evolution.step(dt, input.mouse(0), fire, this.weapon.pressLatch);
+      else if (this.arsenal.step(dt, input.mouse(0), fire, this.weapon.pressLatch)) this.weapon.pressLatch = false;
       else this.weapon.step(dt, input.mouse(0), fire);
     }
     this.level.updateDoors(dt);
@@ -777,6 +793,7 @@ export class Game {
     if (playing && !player.dead && !this.opening.active) this.absorber.update(dt);
     if (playing) this.pickups.update(dt);
     for (const b of this.barrels) b.update(dt);
+    for (const c of this.critters) if (c.alive && !c.absorbing) c.update(dt);
     if (playing) {
       if (this.nav) this.nav.setTarget(player.pos.x, player.pos.z);
       if (!this.surface.active) this.encounter.update(dt);

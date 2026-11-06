@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { LAB } from '../v2/flags.js';
 import { HALCYON_LINES, YOUR_LINES } from './taunts.js';
 export const EncounterState = Object.freeze({ WAITING: 'waiting', SEALING: 'sealing', COMBAT: 'combat', CLEARED: 'cleared' });
 
@@ -41,7 +42,7 @@ export class Encounter {
   }
 
   // what is next on the deck, whichever room you are in
-  baseObjective() { const g = this.game; return g.run && this.room === g.run.navRoom && !g.campaign.s.chart ? 'TOUCH THE CHART' : 'REACH THE HANGAR'; }
+  baseObjective() { if (LAB) return ''; const g = this.game; return g.run && this.room === g.run.navRoom && !g.campaign.s.chart ? 'TOUCH THE CHART' : 'REACH THE HANGAR'; }
 
   cleanup() {
     const g = this.game;
@@ -127,7 +128,7 @@ export class Encounter {
       g.ui.setObjective('HANGAR LIFT');
       return;
     }
-    g.ui.setObjective(r === g.run?.navRoom && !g.campaign.s.chart ? 'TOUCH THE CHART' : `REACH THE HANGAR  ·  ${this.label(r)}`);
+    g.ui.setObjective(LAB ? `ROOM ${this.label(r)}` : r === g.run?.navRoom && !g.campaign.s.chart ? 'TOUCH THE CHART' : `REACH THE HANGAR  ·  ${this.label(r)}`);
     if (r === g.run?.navRoom && !g.campaign.s.chart && g.ui.subT <= 0.3) g.ui.subtitle('Their charts. Every world they have ever burned, and the way back to mine.', '', 3.6, true);
     if (r.id > 0 && r.kind === 'combat') g.ui.hintOnce('highground', g.touchMode ? 'TAP JUMP INTO CRATES AND DESKS TO CLIMB: HIGH GROUND' : 'JUMP INTO CRATES AND DESKS TO CLIMB: HIGH GROUND', 4);
     if (r.kind === 'quiet') {
@@ -154,8 +155,9 @@ export class Encounter {
     g.ui.banner(r.kind === 'finale' ? 'FINAL LOCKDOWN' : 'LOCKDOWN', 'red', 1.5);
     g.audio.play('announce', { vol: 0.8 });
     // the ship AI speaks at the first lockdown only; after that the alarm says enough
-    if (r.id === 0 || r.kind === 'finale') g.ui.subtitle(r.id === 0 ? 'Intruder in the Robotics Deck. Sealing the workshop.' : 'You will not reach the Meridian. All units to the hangar lift.', 'HALCYON', 2.6);
-    if (r.id === 0 && !this.told.intruder) { this.told.intruder = true; this.lineT = 2.9; }
+    if (!LAB && (r.id === 0 || r.kind === 'finale')) g.ui.subtitle(r.id === 0 ? 'Intruder in the Robotics Deck. Sealing the workshop.' : 'You will not reach the Meridian. All units to the hangar lift.', 'HALCYON', 2.6);
+    if (LAB) { /* no story yet */ }
+    else if (r.id === 0 && !this.told.intruder) { this.told.intruder = true; this.lineT = 2.9; }
     else if (this.taunt < HALCYON_LINES.length) g.ui.subtitle(HALCYON_LINES[this.taunt++], 'HALCYON', 3.4);
     if (!this.told.drums && r.barrels.length) { this.told.drums = true; g.ui.hintOnce('drums', 'RED DRUMS EXPLODE', 2.5); }
     g.addShake(0.25);
@@ -207,7 +209,7 @@ export class Encounter {
     r.cleared = true;
     this.state = EncounterState.CLEARED;
     g.audio.combatMusic(false);
-    if (r.id > 0 && r.kind !== 'finale') this.lineAfter = { t: 1.6, text: YOUR_LINES[this.answer++ % YOUR_LINES.length] };
+    if (!LAB && r.id > 0 && r.kind !== 'finale') this.lineAfter = { t: 1.6, text: YOUR_LINES[this.answer++ % YOUR_LINES.length] };
     g.level.alarm = false;
     g.audio.stopSiren();
     const locked = r.doors.out.locked;
@@ -215,7 +217,7 @@ export class Encounter {
     g.audio.play('unlock', { vol: 1 });
     g.audio.play('door', { vol: 0.8 });
     g.ui.banner(r.kind === 'finale' ? 'LIFT UNLOCKED' : locked ? 'SECTOR CLEAR' : 'EXIT UNLOCKED', 'green', 1.4);
-    g.ui.setObjective(locked ? 'FIND A WAY THROUGH THE DEAD DOOR' : 'REACH THE HANGAR');
+    g.ui.setObjective(LAB ? '' : locked ? 'FIND A WAY THROUGH THE DEAD DOOR' : 'REACH THE HANGAR');
     g.pickups.reveal(r, 'clear');
     g.clearEnemies();
     this.advance();

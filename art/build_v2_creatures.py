@@ -1,0 +1,50 @@
+# INTRUDER V2: the first organic thing you ever absorb. A shellback: a slow, harmless grazer about the size of a large dog, a domed ribbed shell over a soft frilled foot, two eye stalks.
+# Parts are split at their joints so the game can animate them. Exports to public/models/v2_creatures.glb. Run inside Blender with exec(open(path).read()).
+import bpy, math, random, sys, importlib
+from mathutils import Vector, noise
+sys.path.insert(0, r"C:\Users\cartd\Desktop\Intruder-V2\art")
+import v2kit; importlib.reload(v2kit)
+from v2kit import B, mat, clear_scene, export_all, save_v2
+
+clear_scene()
+save_v2(r"art\v2_creatures.blend")
+R = random.Random(4); PI = math.pi
+M = {
+  'shell': mat('ShellChitin', '#4e3b2b', 0.4), 'foot': mat('ShellFoot', '#8c6a68', 0.42), 'under': mat('ShellUnder', '#c2a093', 0.5),
+  'eye': mat('ShellEye', '#14100c', 0.12), 'lamp': mat('ShellPhoto', '#ffd7a0', 0.4, 0.0, '#ffc488', 1.6),
+}
+# the shell: a dome, ribbed along its length, knobbed at the crown, its rim overhanging the foot. The chitin on your own arm comes from this.
+sh = B()
+def dome(u, v):
+    a = u * 2 * PI; th = v * PI * 0.56
+    rib = 1 + 0.045 * math.cos(a * 11) * pow(math.sin(th), 0.8)
+    grow = 1 + 0.024 * math.sin(v * 44) * v
+    lump = 1 + noise.noise(Vector((math.cos(a) * 2, math.sin(a) * 2, v * 3))) * 0.06
+    k = rib * grow * lump
+    return Vector((math.sin(th) * math.cos(a) * 0.62 * k, math.cos(th) * 0.44 * k + 0.1, math.sin(th) * math.sin(a) * 0.86 * k))
+def dome_col(u, v):
+    a = u * 2 * PI
+    return min(1.0, 0.42 + 0.5 * max(0.0, math.cos(a * 11)) * v + 0.5 * pow(v, 3))
+sh.grid(dome, 66, 22, closed_u=True, col=dome_col)
+sh.make('Shell', M['shell'], grime=0.18, uv=2.0)
+# the foot: soft, wide, wrinkled, with a frill that ripples as it moves
+ft = B()
+def foot(u, v):
+    a = u * 2 * PI; rad = pow(v, 0.55)
+    fr = 1 + 0.05 * math.sin(a * 17) * pow(v, 4)
+    return Vector((math.cos(a) * 0.72 * rad * fr, 0.08 - 0.09 * pow(v, 2.5) + 0.018 * math.sin(a * 17) * pow(v, 5), math.sin(a) * 0.96 * rad * fr))
+ft.grid(foot, 54, 14, closed_u=True)
+ft.tube([(0, 0.08, -0.72), (0, 0.15, -0.97), (0, 0.13, -1.14), (0, 0.09, -1.24)], [0.2, 0.17, 0.12, 0.05], sides=14, rings=14)     # the soft head
+ft.make('ShellFoot', M['foot'], uv=3.0)
+# eye stalks: origin at the base so they can look about
+for sg, name in ((-1, 'ShellStalkL'), (1, 'ShellStalkR')):
+    st = B(); st.tube([(0, 0, 0), (sg * 0.03, 0.14, -0.03), (sg * 0.06, 0.26, -0.03)], [0.034, 0.024, 0.02], sides=9, rings=8); st.make(name, M['foot'], uv=4.0)
+    ey = B(); ey.blob((sg * 0.065, 0.285, -0.035), 0.036, seg=12, rows=8); ey.make(name + 'Eye', M['eye'], uv=4.0)
+# small lit pores along the rim: it is alive, and it is easy to see in a dark room
+pr = B()
+for i in range(18):
+    a = i / 18 * 2 * PI; pr.blob((math.cos(a) * 0.6, 0.0 + 0.012 * math.sin(a * 5), math.sin(a) * 0.82), 0.016, seg=7, rows=4)
+pr.make('ShellPores', M['lamp'], uv=4.0)
+save_v2(r"art\v2_creatures.blend")
+export_all(r"public\models\v2_creatures.glb")
+print('RESULT', sum(len(o.data.polygons) for o in bpy.data.objects), 'faces', bpy.data.filepath)

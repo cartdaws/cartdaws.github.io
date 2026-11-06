@@ -1,4 +1,5 @@
 import { nextMemory } from './memories.js';
+import { LAB } from '../v2/flags.js';
 import * as THREE from 'three';
 import { clamp, lerp, smooth, rand } from '../core/util.js';
 import { progress } from './progress.js';
@@ -64,7 +65,7 @@ export class Absorber {
     g.camera.getWorldDirection(_d);
     const cp = g.camera.position;
     let best = null, bestDot = CONE;
-    for (const e of g.enemies) {
+    for (const e of LAB ? g.enemies.concat(g.critters) : g.enemies) {
       if (!e.absorbable) continue;
       const c = e.hitSpheres[0].c;
       _t.subVectors(c, cp);
@@ -93,7 +94,7 @@ export class Absorber {
     vm.bulge = Math.max(0, vm.bulge - dt * 4);
 
     if (!target) { if (!g.storyAct && !g.opening.routePrompt) ui.setPrompt(''); return; }      // never wipe a prompt something else is showing
-    if (!this.hinted) { this.hinted = true; ui.hintOnce('absorb', g.touchMode ? 'TAP ABSORB ON SHUT-DOWN ROBOTS' : 'RIGHT CLICK SHUT-DOWN ROBOTS TO ABSORB', 3); }
+    if (!this.hinted) { this.hinted = true; ui.hintOnce('absorb', LAB ? (g.touchMode ? 'TAP ABSORB' : 'RIGHT CLICK TO ABSORB') : (g.touchMode ? 'TAP ABSORB ON SHUT-DOWN ROBOTS' : 'RIGHT CLICK SHUT-DOWN ROBOTS TO ABSORB'), 3); }
     ui.setPrompt(g.touchMode ? 'ABSORB' : 'ABSORB  ·  RMB');
     const c = target.hitSpheres[0].c;
     if (Math.random() < 0.5) g.effects.glowP.emit(c.x + rand(-0.25, 0.25), c.y + rand(-0.2, 0.2), c.z + rand(-0.25, 0.25), 0, 0.6, 0, 0.3, 0.04, 0.15, 0.6, 1);
@@ -242,6 +243,14 @@ export class Absorber {
     g.absorbFov = 0;
     g.viewmodel.reachW = 0;
     e.group.scale.setScalar(e.baseScale); e.group.rotation.x = 0; e.group.rotation.z = 0;
+    if (LAB) {
+      e.die(true);
+      p.health = Math.min(p.maxHealth, p.health + (e.heal ?? HEAL[e.kind] ?? 14));
+      g.evolution.energy = Math.min(100, g.evolution.energy + 30);
+      g.evolution.onAbsorbed(e);
+      g.ui.setHealth(p.health, p.maxHealth); g.ui.hitMarker(true); g.viewmodel.pulseGlow(0.8); g.addShake(0.05);
+      return;
+    }
     g.arsenal.onAbsorbed(e);
     e.die(true); // counts for the encounter, no explosion
     // every absorbed machine makes the body permanently sturdier

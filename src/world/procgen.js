@@ -1,3 +1,4 @@
+import { LAB } from '../v2/flags.js';
 import * as THREE from 'three';
 import { M, boxGeo, kitMaterial } from './materials.js';
 import { Door } from './door.js';
@@ -86,6 +87,11 @@ function planKinds(n) {
 function composeWave(depth, finale, wave) {
   const out = [];
   const add = (type, variant, n = 1) => { for (let i = 0; i < n; i++) out.push({ type, variant }); };
+  if (LAB) {                     // V2: security androids, each kind teaching something different
+    if (finale) { if (wave === 0) { add('android', 'trooper', 2); add('android', 'heavy', 1); } else { add('android', 'scout', 2); add('android', 'heavy', 1); } return out; }
+    add('android', 'trooper', 1 + (depth > 0 ? 1 : 0)); add('android', 'scout', 1); if (depth >= 1) add('android', 'heavy', 1);
+    return out;
+  }
   if (finale) {
     if (wave === 0) { add('android', 'trooper', 3); add('android', 'scout', 2); add('drone', 'std', 1); }
     else { add('android', 'heavy', 2); add('android', 'scout', 2); add('drone', 'armored', 1); }
@@ -414,16 +420,16 @@ export function generateRun(game) {
   const Lr = { flicker: run.flicker, alarmLights: run.alarmLights, beaconMat: L.beaconMat };
 
   // ---- plan
-  const N = irand(9, 11);
+  const N = LAB ? 5 : irand(9, 11);
   const cells = walkGrid(N);
-  const kinds = planKinds(N);
+  const kinds = LAB ? ['quiet', 'combat', 'combat', 'quiet', 'finale'] : planKinds(N);
   // the key lives in a combat room, the locked door in a quiet room beyond it
   let keyIdx = kinds.map((k, i) => (k === 'combat' && i >= 1 && i <= N - 4 ? i : -1)).filter((i) => i >= 0);
   if (!keyIdx.length) { kinds[2] = 'combat'; keyIdx = [2]; }
   keyIdx = pick(keyIdx);
   // the room before the last fight is always the chart room, so the door there has its own reason; the pass-locked door is another room, when there is one
   const lockCands = kinds.map((k, i) => (k === 'quiet' && i >= keyIdx + 2 && i < N - 2 ? i : -1)).filter((i) => i >= 0);
-  const lockIdx = lockCands.length ? pick(lockCands) : -1;
+  const lockIdx = !LAB && lockCands.length ? pick(lockCands) : -1;
 
   const rooms = [];
   let depth = 0;
@@ -432,7 +438,7 @@ export function generateRun(game) {
     const w = kind === 'quiet' ? 2 * irand(6, 9) : kind === 'finale' ? 2 * irand(12, 13) : 2 * irand(8, 12);
     const d = kind === 'quiet' ? 2 * irand(6, 9) : kind === 'finale' ? 2 * irand(12, 13) : 2 * irand(8, 12);
     const theme = kind === 'finale' ? COMBAT_THEMES[0] : pick(kind === 'quiet' ? QUIET_THEMES : COMBAT_THEMES);
-    rooms.push({ id: i + 1, kind, w, d, h: kind === 'quiet' ? 4.5 : 6.5, theme: i === N - 2 ? { ...QUIET_THEMES[3], name: ['NAVIGATION', 'CHART ROOM'], accent: '#35c06a' } : theme, cell: cells[i], waves: [], barrels: [], pickups: [], depth: kind === 'quiet' ? 0 : depth++ });
+    rooms.push({ id: i + 1, kind, w, d, h: kind === 'quiet' ? 4.5 : 6.5, theme: !LAB && i === N - 2 ? { ...QUIET_THEMES[3], name: ['NAVIGATION', 'CHART ROOM'], accent: '#35c06a' } : theme, cell: cells[i], waves: [], barrels: [], pickups: [], depth: kind === 'quiet' ? 0 : depth++ });
   }
   // positions
   const first = rooms[0];
@@ -523,12 +529,12 @@ export function generateRun(game) {
     const taken = [];
     if (r.kind === 'quiet') {
       const n = r.theme.id === 'storage' || r.theme.id === 'lab' ? 2 : 1;
-      if (r === rooms[N - 2]) { const s = freeSpot(r, pl, { pad: 2.2, avoid: taken }); taken.push(s); r.navSpot = s; pl.add(s.x - 1.4, s.x + 1.4, s.z - 1, s.z + 1); }
+      if (!LAB && r === rooms[N - 2]) { const s = freeSpot(r, pl, { pad: 2.2, avoid: taken }); taken.push(s); r.navSpot = s; pl.add(s.x - 1.4, s.x + 1.4, s.z - 1, s.z + 1); }
       else {
         const s = freeSpot(r, pl, { pad: 1.5, avoid: taken }); taken.push(s); pl.add(s.x - 1, s.x + 1, s.z - 1, s.z + 1);
         // every second jar sits up on a stack of cases: too high for a jump, not for arms that grip
         quietN++;
-        if (quietN % 2 === 0 && r.h > 4.4) { const H = 2.65; B.blk(s.x - 0.8, s.x + 0.8, 0, H, s.z - 0.8, s.z + 0.8, mats.dark); r.voiceSpot = { x: s.x, y: H, z: s.z }; }
+        if (!LAB && quietN % 2 === 0 && r.h > 4.4) { const H = 2.65; B.blk(s.x - 0.8, s.x + 0.8, 0, H, s.z - 0.8, s.z + 0.8, mats.dark); r.voiceSpot = { x: s.x, y: H, z: s.z }; }
         else r.voiceSpot = { x: s.x, y: 0, z: s.z };
       }
       for (let i = 0; i < n; i++) { const s = freeSpot(r, pl, { pad: 1.0, avoid: taken }); taken.push(s); r.pickups.push({ type: 'health', ...s, reveal: 'start' }); }
@@ -550,7 +556,7 @@ export function generateRun(game) {
     }
   }
   // key card + locked door
-  run.navRoom = rooms[N - 2]; run.navRoom.doors.out.lock();
+  if (!LAB) { run.navRoom = rooms[N - 2]; run.navRoom.doors.out.lock(); }
   if (lockIdx >= 0) {
   const keyRoom = rooms[keyIdx], lockRoom = rooms[lockIdx];
   const ks = freeSpot(keyRoom, keyRoom.placer, { pad: 1.2, avoid: keyRoom.pickups });

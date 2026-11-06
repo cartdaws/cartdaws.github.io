@@ -6,7 +6,7 @@ import * as THREE from 'three';
 //
 // The tube runs along -z: the elbow at z = +1.36, the tip at 1.36 - L0. s is 0 at the elbow and 1 at the tip.
 export const L0 = 2.2;
-const Z0 = 1.36;
+export const Z0 = 1.36;
 const CURL_START = 0.35;
 const STEPS = 12;
 
@@ -68,7 +68,7 @@ export function buildTentacleGeometry() {
 }
 
 // ---------------------------------------------------------------- the bend
-const POSE_GLSL = `
+export const POSE_GLSL = `
   uniform float tTime, uCurl, uSide, uBend, uLen, uThick, uMouth, uWave, uPhase, uPump, uGain;
   // walks along the arm from the elbow to s, turning as it goes: returns the point on the centre line and the frame there
   void tentacleFrame(float s, out vec3 c, out vec3 T, out vec3 N1, out vec3 N2) {
