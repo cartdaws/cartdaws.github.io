@@ -3,6 +3,7 @@ import { ShipLife } from '../world/shipLife.js';
 import { Surface } from '../world/surface.js';
 import { Campaign } from './campaign.js';
 import { LAB } from '../v2/flags.js';
+import { trypoSafe, setTrypoSafe } from '../v2/assets.js';
 import { Evolution } from '../v2/evolution.js';
 import { Lab } from '../v2/lab.js';
 import * as THREE from 'three';
@@ -267,6 +268,8 @@ export class Game {
     $('btn-flyon').onclick = () => this.takeTheShip();
     { const fo = $('btn-space'); if (fo) { if (progress.chapterDone) fo.classList.remove('hidden'); fo.onclick = () => this.takeTheShip(); } }
     for (const id of ['btn-gfx', 'btn-gfx2']) $(id).onclick = () => this.toggleGfx();
+    for (const id of ['btn-trypo', 'btn-trypo2']) $(id).onclick = () => { setTrypoSafe(!trypoSafe()); this.refreshTrypoButtons(); };
+    this.refreshTrypoButtons();
     for (const id of ['set-volume', 'set-volume-2']) $(id).oninput = (e) => { this.audio.setVolume(+e.target.value); $('set-volume').value = $('set-volume-2').value = e.target.value; this.saveSettings(); };
     for (const id of ['set-sens', 'set-sens-2']) $(id).oninput = (e) => { this.sens = +e.target.value; $('set-sens').value = $('set-sens-2').value = e.target.value; this.saveSettings(); };
     try {
@@ -303,6 +306,10 @@ export class Game {
 
   refreshGfxButtons() {
     for (const id of ['btn-gfx', 'btn-gfx2']) document.getElementById(id).textContent = `GRAPHICS: ${this.gfx === 'retro' ? 'RETRO' : 'REALISTIC'}`;
+  }
+
+  refreshTrypoButtons() {
+    for (const id of ['btn-trypo', 'btn-trypo2']) document.getElementById(id).textContent = `TRYPOPHOBIA MODE: ${trypoSafe() ? 'ON' : 'OFF'}`;
   }
 
   saveSettings() {
