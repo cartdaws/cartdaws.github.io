@@ -81,16 +81,6 @@ def scute(bld, s0, ds, a0, da, h, ridge=0.25, nu=10, nv=9):
         U, V = u * 2 - 1, v * 2 - 1
         return min(1.0, 0.1 + 0.8 * math.exp(-U * U * 22) * (0.55 + 0.45 * V) + 0.7 * pow(max(0.0, V), 6) + 0.25 * pow(abs(U), 8))    # paler along the ridge and the worn far edge
     bld.grid(fn, nu, nv, col=col)
-ch = B(); s = 0.1; i = 0
-while s < 0.93:
-    k = 1 - s
-    ds = 0.03 + 0.022 * k; h = 0.016 + 0.034 * k
-    scute(ch, s, ds * 1.25, BACK, 1.02 - 0.2 * s, h)
-    scute(ch, s + ds * 0.7, ds * 0.95, BACK - 1.05 + 0.18 * s, 0.56, h * 0.62, ridge=0.1, nu=7, nv=7)
-    scute(ch, s + ds * 0.7, ds * 0.95, BACK + 1.05 - 0.18 * s, 0.56, h * 0.62, ridge=0.1, nu=7, nv=7)
-    s += ds * 1.5; i += 1
-print('scute rows', i)
-ch.make('Mut_Carapace', M['chitin'], grime=0.28, uv=9.0)
 
 # ================================================================ SHARD SIPHON: biomechanical. Armour plates bolted down the back, a heavy feed housing, thick hoses, crystals growing through the mouth collar
 st = B(); dk = B(); gl = B()
@@ -184,7 +174,6 @@ ag.make('Mut_ArcGlow', M['arcglow'], uv=1.0)
 # ================================================================ WHERE THE FLESH MEETS THE MACHINE. Nothing here sits on the arm: every ring cuts in and the flesh swells either side, every hose goes in through a raw puckered socket, every plate has a welt round it.
 fl = B()      # shard
 fa = B()      # arc
-fc = B()      # husk
 rg = B()      # black rings on the shard arm
 def flesh_ring(bld, s, lift, th, n=34):
     pts = [surf(s, 2 * PI * q / (n - 1), lift + noise.noise(Vector((q * 0.4, s * 30, 1))) * th * 0.35) for q in range(n)]
@@ -217,14 +206,8 @@ for s0, s1, th in ((0.3, 0.42, 0.0098), (0.53, 0.63, 0.0082), (0.74, 0.82, 0.006
 for s0 in (0.475, 0.685, 0.86):
     for sg in (-1, 1): socket(fa, s0, BACK + sg * 0.52, 0.013)
 for sg in (-1, 1, 0): socket(fa, 0.25, BACK + sg * 0.95, 0.0085)
-# --- husk: raw flesh in the seams, where the shell is forcing its way out
-s = 0.1
-while s < 0.93:
-    k = 1 - s; ds = 0.03 + 0.022 * k; h = 0.016 + 0.034 * k
-    scute(fc, s - ds * 0.4, ds * 0.9, BACK, 1.15 - 0.2 * s, h * 0.42, ridge=0.0, nu=10, nv=6)
-    s += ds * 1.5
 fl.make('Mut_ShardFlesh', M['flesh'], uv=8.0); rg.make('Mut_ShardRings', M['black'], grime=0.1, uv=10.0)
-fa.make('Mut_ArcFlesh', M['flesh'], uv=8.0); fc.make('Mut_CarapaceFlesh', M['flesh'], uv=8.0)
+fa.make('Mut_ArcFlesh', M['flesh'], uv=8.0)
 
 # ================================================================ TENDON HOOK: biomechanical. A cable wound tight round the arm, reels let into the flesh, a barbed claw where the tip was.
 hs_ = B(); hd_ = B(); hc_ = B(); hf_ = B()
@@ -294,6 +277,17 @@ for sg in (-1, 1):
 for a, s0 in ((BACK - 0.5, 0.92), (BACK + 0.3, 0.96), (BACK + 0.7, 0.9)): sl_.tube([surf(s0 - 0.03, a, 0.098), surf(s0, a + 0.1, 0.108), surf(s0 + 0.03, a + 0.05, 0.1)], [0.0035, 0.005, 0.003], sides=5, rings=8)
 sm_.make('Mut_Slam', M['dark'], grime=0.3, uv=9.0); sc_.make('Mut_SlamSteel', M['steel'], grime=0.26, uv=9.0); sl_.make('Mut_SlamGlow', M['railglow'], uv=1.0)
 
+# --- PISTON RAM: a hydraulic ram down the back of the arm: a heavy cylinder, a rod run out to a flat steel head where the hand was, small rams alongside, clamp bands with a lit seam.
+pm_ = B(); pd_ = B(); pg_ = B()
+rod(pm_, 0.2, 0.7, BACK, 0.052, 0.04, 0.04, sides=16)
+pm_.blob(surf(0.2, BACK, 0.052), 0.04, sx=1.0, sy=1.0, sz=1.0, seg=14, rows=9)
+rod(pm_, 0.7, 0.9, BACK, 0.052, 0.017, 0.017, sides=10)
+pm_.blob(surf(0.955, BACK, 0.05), 0.075, sx=1.0, sy=0.9, sz=0.42, seg=18, rows=12)
+for sg in (-1, 1): rod(pd_, 0.3, 0.84, BACK + sg * 0.62, 0.028, 0.013, 0.01, sides=9)
+for s0 in (0.3, 0.42, 0.54, 0.66): pd_.tube([surf(s0, BACK - 0.5, 0.025), surf(s0, BACK - 0.28, 0.085), surf(s0, BACK, 0.1), surf(s0, BACK + 0.28, 0.085), surf(s0, BACK + 0.5, 0.025)], [0.0075] * 5, sides=6, rings=12)
+rod(pg_, 0.24, 0.66, BACK, 0.094, 0.0055, 0.0055, sides=6)
+pm_.make('Mut_Ram', M['steel'], grime=0.24, uv=9.0); pd_.make('Mut_RamDark', M['dark'], grime=0.22, uv=9.0); pg_.make('Mut_RamGlow', M['railglow'], uv=1.0)
+
 # ================================================================ THE TORSO: what you see of yourself looking down. A heavy soft column from under your line of sight to the floor, folding out into the roots of the six limbs on the ground. Its top is out of view; there are no eyes on it, because you are looking out of them.
 ROOTS = [-1.18, 1.18, -1.96, 1.96, -2.75, 2.75, -0.39, 0.39]       # the limbs' angles in the game: x = sin(a), z = -cos(a)
 TOP, BOT = 1.42, 0.3
@@ -356,23 +350,14 @@ def tsocket(bld, a, v, r):
         for j in range(seg): bld.f.append((base + k * seg + j, base + k * seg + (j + 1) % seg, base + (k + 1) * seg + (j + 1) % seg, base + (k + 1) * seg + j))
 ROOTS_ = [1.18, -1.18, 1.96, -1.96, 2.75, -2.75, 0.39, -0.39]
 
-# --- HUSK: a shell closing over the back from the limb roots upward, heaviest over the shoulders. It makes you a humped, armoured thing.
-hk = B(); hf = B()
-v = 0.04; row = 0
-while v < 0.86:
-    span = 2.05 if v < 0.34 else (2.55 if v < 0.55 else PI)      # the chest stays soft until it is low down
-    da = 0.34 + 0.16 * v; dv = 0.055 + 0.055 * v; step = da * 1.5; a = PI - span + (step * 0.5 if row % 2 else 0.0)
-    while a <= PI + span + 1e-3:
-        backk = max(0.0, -math.cos(a))
-        h = (0.032 + 0.06 * backk) * (1.0 + 0.5 * (1 - abs(v - 0.42) * 2))
-        tplate(hk, a, da, v, dv * 1.25, h, nu=8, nv=6)
-        tplate(hf, a, da * 1.08, v + dv * 0.5, dv * 0.7, h * 0.3, nu=5, nv=4, ridge=0.0, shade=False)
-        a += step
-    v += dv * 1.35; row += 1
-for a0 in (1.18, -1.18, 1.96, -1.96):     # great rounded plates over the limb roots
-    tplate(hk, a0, 0.46, 0.76, 0.15, 0.13, nu=12, nv=8, ridge=0.35)
-    tplate(hf, a0, 0.5, 0.86, 0.08, 0.05, nu=8, nv=4, ridge=0.0, shade=False)
-hk.make('Tor_Husk', M['chitin'], grime=0.28, uv=9.0); hf.make('Tor_HuskFlesh', M['flesh'], uv=8.0)
+# --- RAM: slab armour over the limb roots and down the spine, and a hydraulic cylinder down each flank: you carry the weight of something that hits first.
+tr2_ = B(); td2_ = B(); tg3_ = B()
+for a0 in (1.18, -1.18, 1.96, -1.96): tplate(tr2_, a0, 0.4, 0.74, 0.14, 0.1, nu=10, nv=7, ridge=0.1)
+tplate(tr2_, PI, 0.55, 0.3, 0.12, 0.11, nu=12, nv=8, ridge=0.1); tplate(tr2_, PI, 0.5, 0.52, 0.1, 0.1, nu=12, nv=8, ridge=0.1)
+for sg in (-1, 1):
+    td2_.tube([ts(PI + sg * 0.75, 0.2, 0.09), ts(PI + sg * 0.85, 0.5, 0.11), ts(PI + sg * 0.9, 0.8, 0.09)], [0.03, 0.032, 0.028], sides=12, rings=22)
+    tg3_.tube([ts(PI + sg * 0.75, 0.22, 0.128), ts(PI + sg * 0.85, 0.5, 0.15), ts(PI + sg * 0.9, 0.78, 0.128)], [0.005, 0.0055, 0.005], sides=6, rings=20)
+tr2_.make('Tor_Ram', M['steel'], grime=0.26, uv=9.0); td2_.make('Tor_RamDark', M['dark'], grime=0.22, uv=9.0); tg3_.make('Tor_RamGlow', M['railglow'], uv=1.0)
 
 # --- SHARD: machinery plugged into the spine. A feed housing and two tanks on the back, exhaust stacks over the shoulders, black rings cinched round the trunk, hoses running to every limb root.
 ss = B(); sd = B(); sr = B(); sf = B(); sg_ = B()

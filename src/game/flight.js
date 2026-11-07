@@ -766,9 +766,9 @@ export class Flight {
     let yawIn = 0, pitchIn = 0, rollIn = 0;
     // touch: the stick sets throttle (up/down) and bank (left/right); DASH boosts for a moment, JUMP brakes for a moment
     this.boostT = Math.max(0, (this.boostT || 0) - dt); this.brakeT = Math.max(0, (this.brakeT || 0) - dt);
-    if (input.touch) { if (input.was('ShiftLeft')) this.boostT = 1.6; if (input.was('Space')) this.brakeT = 1.2; }
+    if (input.touch || input.padActive) { if (input.was('ShiftLeft')) this.boostT = 1.6; if (input.was('Space')) this.brakeT = 1.2; }
     if (live) {
-      if (input.touch) { rollIn += -input.axisX; if (input.axisY > 0.25) this.throttle = Math.min(1, this.throttle + dt * 0.5 * input.axisY); if (input.axisY < -0.25) this.throttle = Math.max(0.1, this.throttle + dt * 0.5 * input.axisY); }
+      if (input.touch || input.padActive) { rollIn += -input.axisX; if (input.axisY > 0.25) this.throttle = Math.min(1, this.throttle + dt * 0.5 * input.axisY); if (input.axisY < -0.25) this.throttle = Math.max(0.1, this.throttle + dt * 0.5 * input.axisY); }
       yawIn = -lx * sens * GAIN; pitchIn = -ly * sens * GAIN;
       if (input.down('KeyA')) rollIn += 1; if (input.down('KeyD')) rollIn -= 1;
       if (input.down('KeyW')) this.throttle = Math.min(1, this.throttle + dt * 0.5);

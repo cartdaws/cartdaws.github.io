@@ -1,4 +1,4 @@
-import { Shellback } from './shellback.js';
+import { Crawler } from './crawler.js';
 import { Gym } from './gym.js';
 
 // The testing chapter: a generated deck, security androids, something to absorb. Death starts the chapter again in a new body, in a newly generated place, knowing what you knew.
@@ -50,8 +50,8 @@ export class Lab {
 
   populate() {
     const g = this.g;
-    g.critters.push(new Shellback(g, BAY[0][0], BAY[0][1]), new Shellback(g, BAY[1][0], BAY[1][1]));
-    let k = 0; for (const r of g.run.rooms) if (r.voiceSpot && !r.voiceSpot.y) g.critters.push(new Shellback(g, r.voiceSpot.x, r.voiceSpot.z));
+    g.critters.push(new Crawler(g, BAY[0][0], BAY[0][1]), new Crawler(g, BAY[1][0], BAY[1][1]));
+    let k = 0; for (const r of g.run.rooms) if (r.voiceSpot && !r.voiceSpot.y) g.critters.push(new Crawler(g, r.voiceSpot.x, r.voiceSpot.z));
   }
 
   // Death. A new individual, a new place. The body and what grew on it are gone; what you discovered is not.

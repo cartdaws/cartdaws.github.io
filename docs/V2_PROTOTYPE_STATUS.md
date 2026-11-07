@@ -25,15 +25,15 @@
 
 ## The five mutations
 
-| | **Chitin Husk** | **Shard Siphon** | **Arc Nerves** | **Tendon Hook** | **Acid Gland** |
+| | **Piston Ram** | **Shard Siphon** | **Arc Nerves** | **Tendon Hook** | **Acid Gland** |
 |---|---|---|---|---|---|
 | Nature | Organic | Biomechanical | Biomechanical | Biomechanical | Organic |
-| Absorb to get it | Shellback | Trooper | Heavy | Scout | Robot bug |
+| Absorb to get it | Service crawler | Trooper | Heavy | Scout | Robot bug |
 | Purpose | Close and brutal | At a distance | Against many | Control and movement | Controlling ground |
 | Strength | Armour wherever carried. Blows stagger. Dash becomes a charge | Hits at any range | Finds its own target, conducts through machines, stops them firing. Raised, you are quick | Yanks light machines to you. Pulls you to heavies and any surface, up and over ledges. Raised, you are agile | Pool damages, slows, and makes machines take 40% more from everything. Absorbing heals 30% more |
 | Limit | No reach. Raised: slow, slides, jumps low | Uses energy. Spreads as held. Slows you firing. Half damage to a heavy's front | Weak on one target. Huge cost. You take more damage. Burns out downed machines | Barely hurts. One target. Brings them into your face. You cannot steer while pulled. You take 5% more damage | Slow arc. Little damage at once. The pool burns you too |
 
-Measured, stage 3: Husk 6.05 m/s and cannot reach the 2.25 m ledge; Shard 7.2 m/s; Arc 7.63 m/s. Inert trooper: Husk 0.2 s within 4 m, Shard 0.3-0.37 s at any range, Arc 0.73 s. Inert heavy: Husk 0.9 s, Shard 1.5 s, Arc 3.17 s and all its energy. Arc on four machines: 32 damage each, all stopped. Hook: dragged a trooper 10.3 m, hauled the player 8.9 m to a heavy that did not move, carried the player onto the 2.25 m ledge. Acid: lands within 0.5 m at 4 to 16 m, flight 0.3 to 1.07 s; 19 on impact and 16 per second at stage 3; burns you 8 per second.
+Measured, stage 3: Ram 6.05 m/s and cannot reach the 2.25 m ledge; Shard 7.2 m/s; Arc 7.63 m/s. Inert trooper: Ram 0.2 s within 4 m, Shard 0.3-0.37 s at any range, Arc 0.73 s. Inert heavy: Husk 0.9 s, Shard 1.5 s, Arc 3.17 s and all its energy. Arc on four machines: 32 damage each, all stopped. Hook: dragged a trooper 10.3 m, hauled the player 8.9 m to a heavy that did not move, carried the player onto the 2.25 m ledge. Acid: lands within 0.5 m at 4 to 16 m, flight 0.3 to 1.07 s; 19 on impact and 16 per second at stage 3; burns you 8 per second.
 
 Stacking, measured: Shard stage 3 does 15 per shot; at 8 absorbs, 24. Still one limb.
 

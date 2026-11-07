@@ -1157,3 +1157,6 @@ body.touch #goal { font-size: 9px; }
 #fh-wp { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; transform: rotate(45deg); border: 2px solid rgba(255, 214, 130, 0.92); display: none; pointer-events: none; }
 #fh-wp.off { border-left-color: transparent; border-bottom-color: transparent; }
 #fh-wpl { position: absolute; font: 600 11px/1 ui-monospace, Consolas, monospace; letter-spacing: 0.12em; color: rgba(255, 224, 160, 0.95); text-shadow: 0 0 6px #000; transform: translate(-50%, 16px); white-space: nowrap; display: none; pointer-events: none; }
+
+/* the controller walks the menus: whatever has focus must be obvious */
+body.pad button:focus, body.pad input[type=range]:focus { outline: 2px solid #8fd8ff; outline-offset: 3px; }

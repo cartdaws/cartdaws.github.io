@@ -668,6 +668,7 @@ export class Game {
     if (p.dead || this.state !== 'playing') return;
     if (this.admin && this.admin.god) return;
     if (LAB) amount *= this.evolution.mods.dmgTaken;
+    this.input.rumble(0.8, 0.5, 170);
     p.health = Math.max(0, p.health - amount);
     this.viewmodel.fling = Math.max(this.viewmodel.fling || 0, clamp(amount / 22, 0.22, 0.6));         // the arms come up when something hits you
     this.ui.damageFlash(clamp(amount / 12, 0.7, 1));
@@ -700,6 +701,7 @@ export class Game {
     requestAnimationFrame(this.loop);
     const raw = Math.min(0.05, (now - this.last) / 1000);
     this.last = now;
+    this.input.poll(raw);                 // the gamepad, read once a frame whether or not the game is paused: its menus need it too
     let ts = this.admin.timeScale;
     if (LAB) ts *= this.evolution.timeScale;
     if (this.hitStop > 0) { this.hitStop -= raw; ts *= 0.12; }

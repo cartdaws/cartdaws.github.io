@@ -146,6 +146,7 @@ export class Evolution {
     if (i === this.selected || (i >= 0 && !this.equipped[i])) return;
     this.lastSelected = this.selected; this.selected = i; this.g.audio.play('gel', { vol: 0.35 }); this.recompute(); this.applyLook(false);
   }
+  cyclePrev() { const n = this.equipped.length; if (n) this.select(this.selected <= 0 ? n - 1 : this.selected - 1); }
   cycle() { const n = this.equipped.length; if (!n) return; this.select(((this.selected + 1) % n)); }
 
   // What each limb should be carrying now.
@@ -183,6 +184,7 @@ export class Evolution {
       } else if (this.qBlock) { if (!input.down('KeyQ')) this.qBlock = false; }        // the Q that answered must not also change your arm when it lifts
       else {
         for (let i = 0; i < SLOTS; i++) if (input.was('Digit' + (i + 1))) this.select(i);
+        if (input.was('PadPrev')) this.cyclePrev();
         if (input.was('Digit0')) this.select(-1);
         if (input.down('KeyQ')) { if (this.qT < 0) this.qT = 0; else { this.qT += dt; if (this.qT > 0.18 && !this.wheel.open) this.wheel.show(); } }
         else if (this.qT >= 0) { if (this.wheel.open) this.wheel.close(); else this.cycle(); this.qT = -1; }
@@ -207,14 +209,14 @@ export class Evolution {
       weapon.damage = a.dmg[ti] * kc; weapon.interval = a.interval[ti]; weapon.bloomK = a.bloom ? a.bloom[ti] : undefined;
       const can = this.energy >= a.cost[ti], before = weapon.shots;
       weapon.step(dt, trigger, want && can);
-      if (weapon.shots > before) this.energy -= a.cost[ti];
+      if (weapon.shots > before) { this.energy -= a.cost[ti]; g.input.rumble(0.1, 0.4, 40); }
       if (want && can && (trigger || latched)) g.player.evoFire = a.fireSpeed ?? 1;
       if (want && !can && (trigger || latched)) this.dry();
     } else {
       if (want && (trigger || latched) && this.cool <= 0) {
         if (this.energy < a.cost[ti]) this.dry();
         else {
-          this.energy -= a.cost[ti]; this.cool = a.rate[ti];
+          this.energy -= a.cost[ti]; this.cool = a.rate[ti]; g.input.rumble(0.3, 0.7, 90);
           if (a.type === 'melee') { vm.strike(a.dur, a.heavy); this.pending = { t: a.hitAt, a }; g.audio.play('dash', { vol: a.heavy ? 0.7 : 0.45 }); }
           else if (a.type === 'arc') { g.arsenal.arcV2({ range: a.range[ti], links: a.links[ti], radius: a.radius, dmg: a.dmg[ti] * kc, stun: a.stun[ti] }); this.regenHold = a.regenHold; }
           else if (a.type === 'hook') this.abilities.hook(a, ti, kc);
@@ -227,7 +229,7 @@ export class Evolution {
       weapon.step(dt, false, false);
       weapon.pressLatch = false;
     }
-    // a dash with the husk raised is a charge: whatever is in the way takes all of it
+    // a dash with the ram raised is a charge: whatever is in the way takes all of it
     { const c = this.current, ch = c && c.m.charge, P = g.player;
       if (P.justDashed) this.chargeHit.clear();
       if (ch && P.dashing && live) for (const e of g.enemies) {

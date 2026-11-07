@@ -8,6 +8,8 @@ import { addSign } from './signs.js';
 import { ARENA, HALL_ANCHOR } from './level.js';
 import { rand } from '../core/util.js';
 import { validateRun } from './validate.js';
+import { designRoom, pickArch, sizeFor, DECK_H, RISE } from './layouts.js';
+import { doorT, doorPos as geomDoorPos, laneRect, roomSides } from './roomgeom.js';
 
 // Procedural facility: a winding chain of rooms joined by straight hallways, built from the same Blender kit,
 // materials, doors and signage as the hand-made workshop. Every run is different.
@@ -38,12 +40,15 @@ const COMBAT_THEMES = [
   { id: 'cargo', name: ['CARGO HANDLING', 'BAY'], accent: '#d99a1c' },
   { id: 'foundry', name: ['FABRICATION', 'HALL'], accent: '#c9402a' },
   { id: 'range', name: ['SECURITY', 'TEST RANGE'], accent: '#3aa7b8' },
+  { id: 'engineering', name: ['ENGINEERING', 'AUXILIARY PLANT'], accent: '#c9402a' },
 ];
 const QUIET_THEMES = [
   { id: 'lab', name: ['SAMPLE ANALYSIS', 'LAB'], accent: '#3aa7b8' },
   { id: 'server', name: ['DATA CORE', 'ACCESS'], accent: '#3aa7b8' },
   { id: 'storage', name: ['EQUIPMENT', 'STORES'], accent: '#d99a1c' },
   { id: 'control', name: ['ROBOTICS', 'CONTROL ROOM'], accent: '#3aa7b8' },
+  { id: 'containment', name: ['ISOLATION', 'CONTAINMENT'], accent: '#c9402a' },
+  { id: 'crew', name: ['CREW DECK', 'QUARTERS AND MESS'], accent: '#d99a1c' },
 ];
 
 // ---------------------------------------------------------------- layout
@@ -155,24 +160,24 @@ function makeRoomShell(B, r, mats) {
   const { x0, x1, z0, z1, h, cx, cz } = r;
   const { blk, deco } = B;
   const dark = mats.dark;
-  const has = (s) => r.inSide === s || r.outSide === s;
-  const cut = (a, b, c, door) => (door ? [[a, c - 1.5], [c + 1.5, b]] : [[a, b]]);
+  const has = (s) => roomSides(r).includes(s);
+  const cut = (a, b, c, door) => (door ? [[a, c - 1.52], [c + 1.52, b]] : [[a, b]]);        // 2 cm wider than the door frame's opening: the frame hides it, and its faces and the wall's no longer share a plane
 
   deco(x0 - T, x1 + T, -0.2, FLOOR_Y, z0 - T, z1 + T, M.floor);
   blk(x0 - T, x1 + T, h, h + 0.4, z0 - T, z1 + T, M.wall);
   for (const side of ['zmin', 'zmax']) {
     const za = side === 'zmin' ? z0 - T : z1, zb = side === 'zmin' ? z0 : z1 + T;
-    for (const [a, b] of cut(x0 - T, x1 + T, cx, has(side))) blk(a, b, 0, h, za, zb, M.wall);
-    if (has(side)) blk(cx - 1.5, cx + 1.5, 3, h, za, zb, M.wall);
+    for (const [a, b] of cut(x0 - T, x1 + T, doorT(r, side), has(side))) blk(a, b, 0, h, za, zb, M.wall);
+    if (has(side)) blk(doorT(r, side) - 1.52, doorT(r, side) + 1.52, 3.03, h, za, zb, M.wall);
     const pz = side === 'zmin' ? z0 : z1 - 0.04;
-    for (const [a, b] of cut(x0, x1, cx, has(side))) deco(a, b, 0, 0.3, pz, pz + 0.04, dark);
+    for (const [a, b] of cut(x0, x1, doorT(r, side), has(side))) deco(a, b, 0, 0.3, pz, pz + 0.04, dark);
   }
   for (const side of ['xmin', 'xmax']) {
     const xa = side === 'xmin' ? x0 - T : x1, xb = side === 'xmin' ? x0 : x1 + T;
-    for (const [a, b] of cut(z0, z1, cz, has(side))) blk(xa, xb, 0, h, a, b, M.wall);
-    if (has(side)) blk(xa, xb, 3, h, cz - 1.5, cz + 1.5, M.wall);
+    for (const [a, b] of cut(z0, z1, doorT(r, side), has(side))) blk(xa, xb, 0, h, a, b, M.wall);
+    if (has(side)) blk(xa, xb, 3.03, h, doorT(r, side) - 1.52, doorT(r, side) + 1.52, M.wall);
     const px = side === 'xmin' ? x0 : x1 - 0.04;
-    for (const [a, b] of cut(z0, z1, cz, has(side))) deco(px, px + 0.04, 0, 0.3, a, b, dark);
+    for (const [a, b] of cut(z0, z1, doorT(r, side), has(side))) deco(px, px + 0.04, 0, 0.3, a, b, dark);
   }
 
   // structural ribs along the walls, kept clear of doorways
@@ -181,7 +186,7 @@ function makeRoomShell(B, r, mats) {
     const n = Math.max(1, Math.floor((to - from) / step));
     for (let i = 0; i < n; i++) {
       const t = from + ((i + 0.5) * (to - from)) / n;
-      const along = side[0] === 'z' ? cx : cz;
+      const along = doorT(r, side);
       if (has(side) && Math.abs(t - along) < 2.4) continue;
       const rot = SIDES[side].rot;
       if (side === 'zmin') B.kit.place(B.group, ribName, { x: t, z: z0 + 0.14, rotY: rot });
@@ -234,9 +239,50 @@ function roomLighting(B, r, L, mats) {
 
 // ---------------------------------------------------------------- furnishing
 
+// What a room's structure is built from, then what stands in it. Structure comes from the plan (layouts.js); here it is made solid, and furnished by the room's purpose.
+function buildPlan(B, r, mats) {
+  const plan = r.plan; if (!plan) return;
+  const { blk, deco } = B, h = r.h;
+  const struct = kitMaterial('PaintStructural'), equip = kitMaterial('PaintEquipment'), dark = mats.dark;
+  for (const b of plan.blocks) {
+    if (b.kind === 'wall') {
+      blk(b.x0, b.x1, 0, h, b.z0, b.z1, M.wall);
+      deco(b.x0 - 0.04, b.x1 + 0.04, 0, 0.3, b.z0 - 0.04, b.z1 + 0.04, dark);                                      // the skirting, as on the outer walls
+    } else if (b.kind === 'cell') {
+      blk(b.x0, b.x1, 0, 1.0, b.z0, b.z1, M.wall);
+      blk(b.x0, b.x1, 1.0, 3.2, b.z0, b.z1, M.glass, true, 'glass');                                                 // a sample cell: a low wall under glass
+      deco(b.x0 - 0.03, b.x1 + 0.03, 3.2, 3.32, b.z0 - 0.03, b.z1 + 0.03, dark);
+    } else if (b.kind === 'cover') {
+      blk(b.x0, b.x1, 0, 1.1, b.z0, b.z1, struct);
+      deco(b.x0 - 0.03, b.x1 + 0.03, 1.1, 1.14, b.z0 - 0.03, b.z1 + 0.03, M.hazard);
+      deco(b.x0 - 0.03, b.x1 + 0.03, 0, 0.12, b.z0 - 0.03, b.z1 + 0.03, dark);
+    } else if (b.kind === 'deck') {
+      blk(b.x0, b.x1, 0, b.top - 0.12, b.z0, b.z1, dark);
+      blk(b.x0, b.x1, b.top - 0.12, b.top, b.z0, b.z1, equip);
+      // a hazard edge along the side that faces the room
+      const alongX = (b.x1 - b.x0) >= (b.z1 - b.z0), nearLow = alongX ? (b.z0 - r.z0) < (r.z1 - b.z1) : (b.x0 - r.x0) < (r.x1 - b.x1);
+      if (alongX) { const z = nearLow ? b.z1 - 0.3 : b.z0; deco(b.x0, b.x1, b.top, b.top + 0.012, z, z + 0.3, M.hazard); }
+      else { const x = nearLow ? b.x1 - 0.3 : b.x0; deco(x, x + 0.3, b.top, b.top + 0.012, b.z0, b.z1, M.hazard); }
+    } else if (b.kind === 'stairs') {
+      const n = 4, d = b.dir, alongX = d[1] === 'x', up = d[0] === '+';
+      for (let k = 0; k < n; k++) {
+        const top = (k + 1) * RISE, a0 = alongX ? b.x0 : b.z0, a1 = alongX ? b.x1 : b.z1, len = (a1 - a0) / n;
+        const lo = up ? a0 + k * len : a1 - (k + 1) * len, hi = lo + len;
+        const box = alongX ? [lo, hi, b.z0, b.z1] : [b.x0, b.x1, lo, hi];
+        blk(box[0], box[1], 0, top - 0.04, box[2], box[3], dark);
+        blk(box[0], box[1], top - 0.04, top, box[2], box[3], equip);
+      }
+    } else if (b.kind === 'dais') {
+      blk(b.x0, b.x1, 0, b.top - 0.03, b.z0, b.z1, dark);
+      blk(b.x0, b.x1, b.top - 0.03, b.top, b.z0, b.z1, equip);
+    }
+  }
+}
+
 function furnish(B, r, placer, L) {
   const kit = B.kit;
   const { x0, x1, z0, z1, cx, cz } = r;
+  const plan = r.plan || { blocks: [], shape: 'open' };
   const solid = (name, x, z, rot = 0, y = 0) => {
     kit.solid(B.group, B.W, name, x, z, rot, y);
     const f = kit.footprint(name, rot);
@@ -246,21 +292,23 @@ function furnish(B, r, placer, L) {
   };
   // the kit has no collider for a chair: a small box, so you bump into it like everything else in the room
   const chair = (x, z, rot = 0) => { kit.place(B.group, 'chair', { x, z, rotY: rot }); B.W.add(x - 0.26, 0, z - 0.26, x + 0.26, 0.61, z + 0.26); placer.add(x - 0.3, x + 0.3, z - 0.3, z + 0.3); };
-  const hasDoor = (s) => r.inSide === s || r.outSide === s;
+  const hasDoor = (s) => roomSides(r).includes(s);
 
-  // approach lanes in front of each doorway stay clear
-  const lane = (side) => {
-    if (side === 'zmin') placer.add(cx - 2.2, cx + 2.2, z0, z0 + 4.2);
-    else if (side === 'zmax') placer.add(cx - 2.2, cx + 2.2, z1 - 4.2, z1);
-    else if (side === 'xmin') placer.add(x0, x0 + 4.2, cz - 2.2, cz + 2.2);
-    else placer.add(x1 - 4.2, x1, cz - 2.2, cz + 2.2);
-  };
+  // what is already there is reserved first: the approach to every door, then the room's own structure
+  for (const s of roomSides(r)) { const [a, b, c, d] = laneRect(r, s); placer.add(a, b, c, d); }
+  for (const b of plan.blocks) placer.add(b.x0, b.x1, b.z0, b.z1);
+  if (plan.stairs) { const s = plan.stairs, e = 1.6, d = s.dir; if (d === '+x') placer.add(s.x0 - e, s.x0, s.z0, s.z1); else if (d === '-x') placer.add(s.x1, s.x1 + e, s.z0, s.z1); else if (d === '+z') placer.add(s.x0, s.x1, s.z0 - e, s.z0); else placer.add(s.x0, s.x1, s.z1, s.z1 + e); }
 
+  const sides = shuffled(['zmin', 'zmax', 'xmin', 'xmax']);
+  const wallsFree = sides.filter((s) => !hasDoor(s));
+  const beaconed = [];
+
+  // pieces standing against an outer wall, in a row, never in front of a door
   const line = (name, side, count, gap = 0.12) => {
     const rot = SIDES[side].rot;
     const f = kit.footprint(name, rot);
     const zs = side[0] === 'z';
-    const lo = zs ? x0 : z0, hi = zs ? x1 : z1, ctr = zs ? cx : cz;
+    const lo = zs ? x0 : z0, hi = zs ? x1 : z1, ctr = doorT(r, side);
     const len = zs ? f.w : f.d;
     let placed = 0;
     for (let tries = 0; tries < 40 && placed < count; tries++) {
@@ -287,40 +335,96 @@ function furnish(B, r, placer, L) {
     }
     return placed;
   };
-  const sides = shuffled(['zmin', 'zmax', 'xmin', 'xmax']);
-  const wallsFree = sides.filter((s) => !hasDoor(s));
-  const beaconed = [];
+  // the same inside a rectangle (the sample cell, a deck)
+  const scatterIn = (rc, name, count, pad = 0.3, y = 0, rots = [0, PI / 2, PI, -PI / 2]) => {
+    let placed = 0;
+    for (let tries = 0; tries < 50 && placed < count; tries++) {
+      const rot = pick(rots), f = kit.footprint(name, rot);
+      if (rc.x1 - rc.x0 < f.w + 0.8 || rc.z1 - rc.z0 < f.d + 0.8) continue;
+      const x = rand(rc.x0 + 0.4 + f.w / 2, rc.x1 - 0.4 - f.w / 2), z = rand(rc.z0 + 0.4 + f.d / 2, rc.z1 - 0.4 - f.d / 2);
+      if (!placer.free(x - f.w / 2, x + f.w / 2, z - f.d / 2, z + f.d / 2, pad)) continue;
+      solid(name, x, z, rot, y); placed++; r._last = { x, z, f, rot };
+    }
+    return placed;
+  };
+  // equipment against the faces of the room's own inner walls: they are walls too
+  const innerFaces = () => {
+    const out = [];
+    for (const b of plan.blocks) {
+      if (b.kind !== 'wall') continue;
+      for (const f of [{ n: [0, 1], ax: 'x', c: b.z1, lo: b.x0, hi: b.x1 }, { n: [0, -1], ax: 'x', c: b.z0, lo: b.x0, hi: b.x1 }, { n: [1, 0], ax: 'z', c: b.x1, lo: b.z0, hi: b.z1 }, { n: [-1, 0], ax: 'z', c: b.x0, lo: b.z0, hi: b.z1 }]) {
+        const mx = f.ax === 'x' ? (f.lo + f.hi) / 2 : f.c + f.n[0] * 0.6, mz = f.ax === 'x' ? f.c + f.n[1] * 0.6 : (f.lo + f.hi) / 2;
+        if (mx < x0 + 0.3 || mx > x1 - 0.3 || mz < z0 + 0.3 || mz > z1 - 0.3) continue;            // that is an outer wall: line() covers those
+        if (plan.blocks.some((o) => o !== b && mx > o.x0 && mx < o.x1 && mz > o.z0 && mz < o.z1)) continue;
+        out.push({ ...f });
+      }
+    }
+    return out;
+  };
+  const inner = (name, count, gap = 0.1) => {
+    let placed = 0;
+    for (const f of shuffled(innerFaces())) {
+      if (placed >= count) break;
+      const rot = f.n[1] === 1 ? 0 : f.n[1] === -1 ? PI : f.n[0] === 1 ? PI / 2 : -PI / 2, fp = kit.footprint(name, rot), len = f.ax === 'x' ? fp.w : fp.d;
+      if (f.hi - f.lo < len + 1.4) continue;
+      for (let t = 0; t < 12 && placed < count; t++) {
+        const a = rand(f.lo + len / 2 + 0.5, f.hi - len / 2 - 0.5);
+        const x = f.ax === 'x' ? a : f.c + f.n[0] * (fp.w / 2 + gap), z = f.ax === 'x' ? f.c + f.n[1] * (fp.d / 2 + gap) : a;
+        if (!placer.free(x - fp.w / 2, x + fp.w / 2, z - fp.d / 2, z + fp.d / 2, 0)) continue;
+        solid(name, x, z, rot); placed++; r._last = { x, z, f: fp, rot };
+      }
+    }
+    return placed;
+  };
+  // rows of the same fixture in the aisles plan, facing the aisle, with a gap in the middle to cross
+  const fillRows = (name) => {
+    for (const row of plan.rows || []) {
+      const alongX = row.axis === 'x', mid = alongX ? (row.z0 + row.z1) / 2 : (row.x0 + row.x1) / 2;
+      const rot = alongX ? (mid < cz ? 0 : PI) : (mid < cx ? PI / 2 : -PI / 2), fp = kit.footprint(name, rot), step = (alongX ? fp.w : fp.d) + 0.04;
+      const lo = alongX ? row.x0 : row.z0, hi = alongX ? row.x1 : row.z1, c = (lo + hi) / 2;
+      for (let p = lo + step / 2; p + step / 2 <= hi + 0.01; p += step) {
+        if (Math.abs(p - c) < 1.4 + step / 2 - 0.02) continue;
+        const x = alongX ? p : mid, z = alongX ? mid : p;
+        if (placer.free(x - fp.w / 2, x + fp.w / 2, z - fp.d / 2, z + fp.d / 2, 0)) solid(name, x, z, rot);
+      }
+    }
+  };
 
   const theme = r.theme.id;
   const big = r.w >= 20 && r.d >= 18;
+  const bare = plan.shape === 'open' || plan.shape === 'islands';
   if (r.kind !== 'quiet') {
     if (theme === 'assembly' || r.kind === 'finale') {
-      if (big) { const rot = Math.random() < 0.5 ? 0 : PI / 2; solid('robot_test_cell', cx, cz, rot); }
-      for (const side of ['zmin', 'zmax', 'xmin', 'xmax']) if (hasDoor(side)) lane(side);
+      if (big && bare) { const rot = Math.random() < 0.5 ? 0 : PI / 2, f = kit.footprint('robot_test_cell', rot); if (placer.free(cx - f.w / 2, cx + f.w / 2, cz - f.d / 2, cz + f.d / 2, 1.6)) solid('robot_test_cell', cx, cz, rot); }
       scatter('pillar', big ? 2 : 3, 2.8);
       for (const n of shuffled(['equip_cabinet_A', 'equip_cabinet_B', 'equip_cabinet_C', 'equip_cabinet_D']).slice(0, 2)) { if (scatter(n, 1, 1.9)) beaconed.push([n, r._last]); }
       line('charging_dock', wallsFree[0] || 'zmin', irand(2, 4));
       scatter('assembly_arm', big ? 2 : 1, 2.4);
+      inner('equip_cabinet_C', 1);
       scatter('barrier_26', 2); scatter('barrier_22', 2); scatter('canister', 2, 1.2);
     } else if (theme === 'cargo') {
-      for (const side of ['zmin', 'zmax', 'xmin', 'xmax']) if (hasDoor(side)) lane(side);
       for (let i = 0; i < irand(3, 4); i++) { if (scatter('crate_A', 1, 1.7)) solid('crate_top', r._last.x, r._last.z, 0, 1.4); }
       scatter('crate_B', 3, 1.5); scatter('barrier_26', 3);
-      line('storage_rack', wallsFree[0] || 'zmin', irand(2, 3)); line('storage_rack', wallsFree[1] || 'xmin', irand(1, 3));
+      line('storage_rack', wallsFree[0] || 'zmin', irand(2, 3)); line('storage_rack', wallsFree[1] || 'xmin', irand(1, 3)); inner('storage_rack', 2);
       scatter('canister', 3, 1.2); scatter('fuel_tank', 1, 2.0, [0, PI]); line('pipe_bank', wallsFree[2] || 'xmax', 1);
       if (scatter('equip_cabinet_C', 1, 1.9)) beaconed.push(['equip_cabinet_C', r._last]);
     } else if (theme === 'foundry') {
-      for (const side of ['zmin', 'zmax', 'xmin', 'xmax']) if (hasDoor(side)) lane(side);
-      scatter('pillar', irand(4, 6), 2.6);
-      line('workstation', wallsFree[0] || 'zmin', irand(2, 3)); line('workstation', wallsFree[1] || 'xmin', irand(1, 2));
+      scatter('pillar', irand(3, 5), 2.6);
+      line('workstation', wallsFree[0] || 'zmin', irand(2, 3)); line('workstation', wallsFree[1] || 'xmin', irand(1, 2)); inner('workstation', 1);
       scatter('barrier_22', 3); scatter('canister', 2, 1.2); line('pipe_bank', wallsFree[2] || 'xmax', irand(1, 2)); scatter('fuel_tank', 1, 2.0, [0, PI]);
       if (scatter('equip_cabinet_D', 1, 1.9)) beaconed.push(['equip_cabinet_D', r._last]);
       if (scatter('equip_cabinet_A', 1, 1.9)) beaconed.push(['equip_cabinet_A', r._last]);
+    } else if (theme === 'engineering') {
+      scatter('generator', bare && big ? 2 : 1, 3.0);
+      line('pipe_bank', wallsFree[0] || 'zmin', irand(2, 3)); line('pipe_bank', wallsFree[1] || 'xmax', 1); inner('pipe_bank', 2);
+      scatter('fuel_tank', 1, 2.0, [0, PI]); scatter('barrier_22', 2); scatter('canister', 2, 1.2); inner('equip_cabinet_B', 1);
+      if (scatter('equip_cabinet_B', 1, 1.9)) beaconed.push(['equip_cabinet_B', r._last]);
     } else { // range
-      for (const side of ['zmin', 'zmax', 'xmin', 'xmax']) if (hasDoor(side)) lane(side);
       scatter('barrier_26', 5, 1.7); scatter('pillar', 2, 2.8); scatter('crate_B', 2, 1.5);
-      line('workstation', wallsFree[0] || 'zmin', irand(2, 3)); line('charging_dock', wallsFree[1] || 'xmin', irand(1, 2)); line('pipe_bank', wallsFree[2] || 'xmax', 1);
+      line('workstation', wallsFree[0] || 'zmin', irand(2, 3)); line('charging_dock', wallsFree[1] || 'xmin', irand(1, 2)); line('pipe_bank', wallsFree[2] || 'xmax', 1); inner('barrier_26', 1);
     }
+    // a gallery's deck is somewhere to hold: cover on it, and a console that could be anything
+    if (plan.deck) { const D = plan.deck; scatterIn(D, 'barrier_22', 1, 0.2, DECK_H, [0, PI / 2]); scatterIn(D, 'crate_B', 1, 0.2, DECK_H, [0, PI / 2]); }
     for (const [name, p] of beaconed) {
       const f = p.f;
       kit.place(B.group, 'beacon', { x: p.x, y: f.h + 0.14, z: p.z });
@@ -335,31 +439,46 @@ function furnish(B, r, placer, L) {
         placer.add(x - 1.4, x + 1.4, z - 1.0, z + 1.0);
         r.barrels.push({ x: x - 0.45, z }, { x: x + 0.5, z: z + rand(-0.3, 0.3) });
         const th = 0.12;
-        for (const [a, b, c, d] of [[x - 1.3, x + 1.3, z - 0.95, z - 0.95 + th], [x - 1.3, x + 1.3, z + 0.95 - th, z + 0.95], [x - 1.3, x - 1.3 + th, z - 0.95, z + 0.95], [x + 1.3 - th, x + 1.3, z - 0.95, z + 0.95]]) B.deco(a, b, 0.012, 0.03, c, d, M.hazard);
+        for (const [a, b, c, d] of [[x - 1.3, x + 1.3, z - 0.95, z - 0.95 + th], [x - 1.3, x + 1.3, z + 0.95 - th, z + 0.95], [x - 1.3, x - 1.3 + th, z - 0.95, z + 0.95], [x + 1.3 - th, x + 1.3, z - 0.95, z + 0.95]]) B.deco(a, b, 0.012, 0.05, c, d, M.hazard);
         break;
       }
     }
   } else {
-    for (const side of ['zmin', 'zmax', 'xmin', 'xmax']) if (hasDoor(side)) lane(side);
     if (theme === 'lab') {
-      line('storage_cabinet', wallsFree[0] || 'zmin', irand(3, 5)); line('storage_cabinet', wallsFree[1] || 'xmin', irand(2, 3));
-      for (let i = 0; i < irand(2, 3); i++) { if (scatter('analysis_bench', 1, 1.5, [0, PI / 2])) chair( r._last.x + 0.1, r._last.z + (r._last.rot === 0 ? 1.0 : 0), 0.3 * i); }
-      scatter('instrument_cart', 2, 1.1); scatter('restraint_bed', 1, 1.8, [0, PI / 2]); scatter('cryo_pod', irand(2, 3), 1.7);
+      if (plan.cell) { scatterIn(plan.cell, 'cryo_pod', irand(1, 2), 0.3); scatterIn(plan.cell, 'instrument_cart', 1, 0.3); }
+      line('storage_cabinet', wallsFree[0] || 'zmin', irand(3, 5)); line('storage_cabinet', wallsFree[1] || 'xmin', irand(2, 3)); inner('storage_cabinet', 2);
+      for (let i = 0; i < irand(2, 3); i++) { if (scatter('analysis_bench', 1, 1.5, [0, PI / 2])) chair(r._last.x + 0.1, r._last.z + (r._last.rot === 0 ? 1.0 : 0), 0.3 * i); }
+      scatter('instrument_cart', 2, 1.1); scatter('restraint_bed', 1, 1.8, [0, PI / 2]); scatter('cryo_pod', irand(1, 2), 1.7);
     } else if (theme === 'server') {
-      line('server_rack', wallsFree[0] || 'zmin', irand(4, 6)); line('server_rack', wallsFree[1] || 'xmax', irand(2, 4)); line('pipe_bank', wallsFree[2] || 'xmin', 1);
-      for (let i = 0; i < 2; i++) { if (scatter('monitor_station', 1, 1.6, [0, PI])) chair( r._last.x, r._last.z + (r._last.rot === 0 ? 1.1 : -1.1), r._last.rot + PI); }
-      line('storage_cabinet', wallsFree[1] || 'zmax', 2);
+      fillRows('server_rack');
+      line('server_rack', wallsFree[0] || 'zmin', irand(3, 5)); line('server_rack', wallsFree[1] || 'xmax', irand(1, 3)); line('pipe_bank', wallsFree[2] || 'xmin', 1);
+      inner('server_rack', 2);
+      for (let i = 0; i < 2; i++) { if (scatter('monitor_station', 1, 1.6, [0, PI])) chair(r._last.x, r._last.z + (r._last.rot === 0 ? 1.1 : -1.1), r._last.rot + PI); }
     } else if (theme === 'storage') {
-      line('storage_rack', wallsFree[0] || 'zmin', irand(3, 4)); line('storage_rack', wallsFree[1] || 'xmin', irand(2, 3));
+      fillRows('storage_rack');
+      line('storage_rack', wallsFree[0] || 'zmin', irand(2, 4)); line('storage_rack', wallsFree[1] || 'xmin', irand(2, 3)); inner('storage_rack', 2);
       scatter('crate_A', 2, 1.6); scatter('crate_B', 3, 1.5); scatter('canister', 3, 1.2); scatter('barrier_22', 1);
-    } else {
+    } else if (theme === 'containment') {
+      if (plan.cell) scatterIn(plan.cell, 'cryo_pod', 2, 0.3);
+      line('cryo_pod', wallsFree[0] || 'zmin', irand(3, 4)); scatter('restraint_bed', irand(1, 2), 1.8, [0, PI / 2]);
+      line('storage_cabinet', wallsFree[1] || 'xmin', 2); inner('cryo_pod', 1); scatter('instrument_cart', 1, 1.1);
+    } else if (theme === 'crew') {
+      line('bunk_bed', wallsFree[0] || 'zmin', irand(3, 4)); line('bunk_bed', wallsFree[1] || 'xmin', irand(1, 2)); inner('bunk_bed', 1);
+      line('storage_cabinet', wallsFree[2] || 'xmax', irand(2, 3)); scatter('mess_table', irand(1, 2), 1.8, [0, PI / 2]); scatter('canister', 1, 1.2);
+    } else {          // control rooms, and the chart room
+      if (plan.dais) solid('monitor_station', (plan.dais.x0 + plan.dais.x1) / 2, (plan.dais.z0 + plan.dais.z1) / 2, 0, RISE);
       line('workstation', wallsFree[0] || 'zmin', irand(3, 4));
-      for (let i = 0; i < 2; i++) { if (scatter('monitor_station', 1, 1.6, [0, PI])) chair( r._last.x, r._last.z + (r._last.rot === 0 ? 1.1 : -1.1), r._last.rot + PI); }
+      for (let i = 0; i < 2; i++) { if (scatter('monitor_station', 1, 1.6, [0, PI])) chair(r._last.x, r._last.z + (r._last.rot === 0 ? 1.1 : -1.1), r._last.rot + PI); }
       line('server_rack', wallsFree[1] || 'xmax', 2); scatter('instrument_cart', 1, 1.1);
     }
   }
-  // cable trays overhead, with slack: a ship has wiring, and it is never taut
-  for (let i = 0, n = Math.round(r.w * r.d / 80) + 1; i < n; i++) kit.place(B.group, 'cable_swag', { x: rand(x0 + 2.5, x1 - 2.5), y: r.h - 0.02, z: rand(z0 + 2.5, z1 - 2.5), rotY: pick([0, PI / 2]) });
+  // cable trays overhead, with slack: a ship has wiring, and it is never taut. Spaced so no two lie on each other.
+  const swags = [];
+  for (let t = 0, n = Math.round(r.w * r.d / 80) + 1; t < 30 && swags.length < n; t++) {
+    const x = rand(x0 + 2.5, x1 - 2.5), z = rand(z0 + 2.5, z1 - 2.5);
+    if (swags.some((s) => Math.hypot(s.x - x, s.z - z) < 4.2)) continue;
+    swags.push({ x, z }); kit.place(B.group, 'cable_swag', { x, y: r.h - 0.02 - swags.length * 0.004, z, rotY: pick([0, PI / 2]) });
+  }
 }
 
 function freeSpot(r, placer, { pad = 1.0, minFromIn = 0, avoid = [], tries = 120 } = {}) {
@@ -388,7 +507,7 @@ function buildHall(B, L, axis, fixed, t0, t1, mats, label, flicker) {
   const hd = (uA, uB, y0, y1, tA, tB, mat) => hb(uA, uB, y0, y1, tA, tB, mat, false);
   const len = t1 - t0;
   hd(-2, 2, -0.2, FLOOR_Y, t0, t1, M.floor);
-  hb(-2, -1.5, 0, HALL_H, t0, t1, M.wall, true); hb(1.5, 2, 0, HALL_H, t0, t1, M.wall, true);
+  hb(-2, -1.52, 0, HALL_H, t0, t1, M.wall, true); hb(1.52, 2, 0, HALL_H, t0, t1, M.wall, true);
   hb(-2, 2, HALL_H, HALL_H + 0.4, t0, t1, M.wall, true);
   hd(-1.5, -1.46, 0, 0.2, t0, t1, mats.dark); hd(1.46, 1.5, 0, 0.2, t0, t1, mats.dark);
   hd(-1.3, -1.2, 0.012, 0.03, t0, t1, M.hazard); hd(1.2, 1.3, 0.012, 0.03, t0, t1, M.hazard);
@@ -411,6 +530,9 @@ function buildHall(B, L, axis, fixed, t0, t1, mats, label, flicker) {
     else addSign(B.group, label.lines, 1.7, t, 2.2, fixed - 1.43, 0, o);
   }
 }
+
+// A sign hangs on a wall where nothing built against it hides it
+const signHidden = (r, side, b) => (side === 'zmin' ? b.z0 <= r.z0 + 0.6 && b.x1 > r.x0 + 4 && b.x0 < r.x1 - 4 && (b.x1 - b.x0) > r.w * 0.5 : side === 'zmax' ? b.z1 >= r.z1 - 0.6 && (b.x1 - b.x0) > r.w * 0.5 : side === 'xmin' ? b.x0 <= r.x0 + 0.6 && (b.z1 - b.z0) > r.d * 0.5 : b.x1 >= r.x1 - 0.6 && (b.z1 - b.z0) > r.d * 0.5);
 
 // ---------------------------------------------------------------- the run
 
@@ -468,10 +590,10 @@ function buildRun(game) {
   let depth = 0;
   for (let i = 0; i < N; i++) {
     const kind = kinds[i];
-    const w = kind === 'quiet' ? 2 * irand(6, 9) : kind === 'finale' ? 2 * irand(12, 13) : 2 * irand(8, 12);
-    const d = kind === 'quiet' ? 2 * irand(6, 9) : kind === 'finale' ? 2 * irand(12, 13) : 2 * irand(8, 12);
-    const theme = kind === 'finale' ? COMBAT_THEMES[0] : pick(kind === 'quiet' ? QUIET_THEMES : COMBAT_THEMES);
-    rooms.push({ id: i + 1, kind, w, d, h: kind === 'quiet' ? 4.5 : 6.5, theme: !LAB && i === N - 2 ? { ...QUIET_THEMES[3], name: ['NAVIGATION', 'CHART ROOM'], accent: '#35c06a' } : theme, cell: cells[i], waves: [], barrels: [], pickups: [], depth: kind === 'quiet' ? 0 : depth++ });
+    const finale = kind === 'finale', isChart = !LAB && i === N - 2;
+    const theme = finale ? COMBAT_THEMES[0] : isChart ? { ...QUIET_THEMES[3], name: ['NAVIGATION', 'CHART ROOM'], accent: '#35c06a' } : pick(kind === 'quiet' ? QUIET_THEMES : COMBAT_THEMES);
+    const arch = pickArch(isChart ? 'chart' : theme.id, finale), sz = sizeFor(arch, finale);
+    rooms.push({ id: i + 1, kind, arch, w: sz.w, d: sz.d, h: finale ? Math.max(sz.h, 7) : sz.h, theme, cell: cells[i], waves: [], barrels: [], pickups: [], doorT: {}, depth: kind === 'quiet' ? 0 : depth++ });
   }
   // positions
   const first = rooms[0];
@@ -490,26 +612,30 @@ function buildRun(game) {
     const inn = m.dz ? 'zmax' : m.dx > 0 ? 'xmin' : 'xmax';
     rooms[i].outSide = out; rooms[i + 1].inSide = inn;
   }
+  rooms[0].doorT.zmax = HALL_ANCHOR.x;
+  for (let i = 0; i < N - 1; i++) {
+    const A = rooms[i], Bm = rooms[i + 1], zl = A.outSide[0] === 'z';
+    const lo = Math.max(zl ? A.x0 : A.z0, zl ? Bm.x0 : Bm.z0) + 4.5, hi = Math.min(zl ? A.x1 : A.z1, zl ? Bm.x1 : Bm.z1) - 4.5;
+    const t = hi > lo ? rand(lo, hi) : zl ? A.cx : A.cz;
+    A.doorT[A.outSide] = t; Bm.doorT[Bm.inSide] = t;
+  }
   const fin = rooms[N - 1];
-  fin.outSide = 'zmin';
+  fin.outSide = 'zmin'; fin.doorT.zmin = rand(fin.x0 + 5, fin.x1 - 5);
 
   // the lift the finale leads to
   const lz1 = fin.z0 - T - 6 - T;
-  const lift = { id: N + 1, kind: 'lift', w: 8, d: 8, h: 4.5, theme: { id: 'lift', name: ['HANGAR LIFT', 'DECK 9'], accent: '#35c06a' }, cx: fin.cx, z1: lz1, z0: lz1 - 8, waves: [], barrels: [], pickups: [], inSide: 'zmax', outSide: 'zmin' };
+  const lift = { id: N + 1, kind: 'lift', w: 8, d: 8, h: 4.5, theme: { id: 'lift', name: ['HANGAR LIFT', 'DECK 9'], accent: '#35c06a' }, cx: fin.doorT.zmin, z1: lz1, z0: lz1 - 8, waves: [], barrels: [], pickups: [], inSide: 'zmax', outSide: 'zmin' };
   lift.cz = (lift.z0 + lift.z1) / 2; lift.x0 = lift.cx - 4; lift.x1 = lift.cx + 4;
   lift.bounds = { minX: lift.x0, maxX: lift.x1, minZ: lift.z0, maxZ: lift.z1 };
   rooms.push(lift);
 
   // ---- build every room
-  const doorPos = (r, side) => {
-    if (side === 'zmin') return { x: r.cx, z: r.z0 - T / 2, axis: 'z' };
-    if (side === 'zmax') return { x: r.cx, z: r.z1 + T / 2, axis: 'z' };
-    if (side === 'xmin') return { x: r.x0 - T / 2, z: r.cz, axis: 'x' };
-    return { x: r.x1 + T / 2, z: r.cz, axis: 'x' };
-  };
+  const doorPos = geomDoorPos;
   for (const r of rooms) {
     r.doors = {};
+    if (r.kind !== 'lift') { r.plan = designRoom(r); r.shape = r.plan.shape; }
     makeRoomShell(B, r, mats);
+    buildPlan(B, r, mats);
     for (const [key, side] of [['in', r.inSide], ['out', r.outSide]]) {
       if (!side) continue;
       const p = doorPos(r, side);
@@ -532,9 +658,9 @@ function buildRun(game) {
   // ---- halls between rooms
   const hallTo = (A, Bm, label) => {
     const s = A.outSide;
-    if (s === 'zmin') buildHall(B, Lr, 'z', A.cx, Bm.z1 + T, A.z0 - T, mats, label, Math.random() < 0.25);
-    else if (s === 'xmax') buildHall(B, Lr, 'x', A.cz, A.x1 + T, Bm.x0 - T, mats, label, Math.random() < 0.25);
-    else buildHall(B, Lr, 'x', A.cz, Bm.x1 + T, A.x0 - T, mats, label, Math.random() < 0.25);
+    if (s === 'zmin') buildHall(B, Lr, 'z', doorT(A, s), Bm.z1 + T, A.z0 - T, mats, label, Math.random() < 0.25);
+    else if (s === 'xmax') buildHall(B, Lr, 'x', doorT(A, s), A.x1 + T, Bm.x0 - T, mats, label, Math.random() < 0.25);
+    else buildHall(B, Lr, 'x', doorT(A, s), Bm.x1 + T, A.x0 - T, mats, label, Math.random() < 0.25);
   };
   // lobby -> first room
   buildHall(B, Lr, 'z', HALL_ANCHOR.x, rooms[0].z1 + T, HALL_ANCHOR.z, mats, { lines: ['DECK 9', 'SERVICE ROUTE'], accent: '#35c06a', arrow: '▼' }, false);
@@ -549,7 +675,7 @@ function buildRun(game) {
   let quietN = 0;
   for (const r of rooms) {
     if (r.kind === 'lift') continue;
-    const sideForSign = shuffled(['zmin', 'zmax', 'xmin', 'xmax']).find((s) => s !== r.inSide && s !== r.outSide) || 'zmin';
+    const sideForSign = shuffled(['zmin', 'zmax', 'xmin', 'xmax']).find((s) => !roomSides(r).includes(s) && !(r.plan && r.plan.blocks.some((b) => signHidden(r, s, b)))) || shuffled(['zmin', 'zmax', 'xmin', 'xmax']).find((s) => !roomSides(r).includes(s)) || 'zmin';
     const y = r.h > 5 ? 4.9 : 3.5, wd = r.h > 5 ? 3.3 : 2.5;
     const sn = [`SECTOR ${String(r.id).padStart(2, '0')}`, ...r.theme.name];
     const opt = { accent: r.theme.accent };
@@ -597,10 +723,10 @@ function buildRun(game) {
   run.keyRoom = keyRoom; run.lockRoom = lockRoom;
   lockRoom.doors.out.lock();
     const r = lockRoom, o = { accent: '#c9402a', w: 768, h: 192 }, L2 = ['NO POWER', 'HANDLER PASS OR CURRENT'];
-    if (r.outSide === 'zmin') addSign(group, L2, 1.6, r.cx + 2.5, 1.9, r.z0 + 0.03, 0, o);
-    else if (r.outSide === 'zmax') addSign(group, L2, 1.6, r.cx + 2.5, 1.9, r.z1 - 0.03, PI, o);
-    else if (r.outSide === 'xmin') addSign(group, L2, 1.6, r.x0 + 0.03, 1.9, r.cz + 2.5, PI / 2, o);
-    else addSign(group, L2, 1.6, r.x1 - 0.03, 1.9, r.cz + 2.5, -PI / 2, o);
+    if (r.outSide === 'zmin') addSign(group, L2, 1.6, doorT(r, r.outSide) + 2.5, 1.9, r.z0 + 0.03, 0, o);
+    else if (r.outSide === 'zmax') addSign(group, L2, 1.6, doorT(r, r.outSide) + 2.5, 1.9, r.z1 - 0.03, PI, o);
+    else if (r.outSide === 'xmin') addSign(group, L2, 1.6, r.x0 + 0.03, 1.9, doorT(r, r.outSide) + 2.5, PI / 2, o);
+    else addSign(group, L2, 1.6, r.x1 - 0.03, 1.9, doorT(r, r.outSide) + 2.5, -PI / 2, o);
   }
 
   // ---- lift interior

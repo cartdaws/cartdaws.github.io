@@ -1,5 +1,7 @@
 const GAME_KEYS = new Set(['Space', 'ShiftLeft', 'ShiftRight', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab']);
 
+import { PadInput } from './gamepad.js';
+
 export class Input {
   constructor(canvas) {
     this.canvas = canvas;
@@ -12,6 +14,8 @@ export class Input {
     this.dy = 0;
     this.locked = false;
     this.fake = false; // test-only: pretend pointer lock is held
+    this.padActive = false; // a gamepad is the device in use: like touch, there is no pointer lock, "locked" simply means the game has control
+    this.pad = new PadInput(this);
     this.touch = false; // touch device: there is no pointer lock, "locked" simply means the game has control
     this.axisX = 0; this.axisY = 0; // analog move stick
     this.touchAbsorb = false;
@@ -22,6 +26,7 @@ export class Input {
     this.onMouseDown = () => {};
 
     document.addEventListener('keydown', (e) => {
+      if (this.padActive) this.useKeyboard();
       if (GAME_KEYS.has(e.code)) e.preventDefault();
       if (e.repeat) return;
       this.keys.add(e.code);
@@ -31,12 +36,13 @@ export class Input {
     document.addEventListener('keyup', (e) => this.keys.delete(e.code));
     window.addEventListener('blur', () => this.clear());
     document.addEventListener('mousemove', (e) => {
-      if (!this.locked) return;
+      if (!this.locked || this.padActive) return;
       if (Math.abs(e.movementX) > 500 || Math.abs(e.movementY) > 500) return; // pointer-lock spikes
       this.dx += e.movementX;
       this.dy += e.movementY;
     });
     document.addEventListener('mousedown', (e) => {
+      if (this.padActive) { this.useKeyboard(); return; }
       if (!this.locked || performance.now() < this.fireGuardUntil) return;
       this.buttons.add(e.button);
       this.clicks.add(e.button);
@@ -58,7 +64,7 @@ export class Input {
   lock() {
     // Swallow the click that resumes play so it cannot fire a shot.
     this.fireGuardUntil = performance.now() + 250;
-    if (this.fake || this.touch) { this.setLocked(true); return; }
+    if (this.fake || this.touch || this.padActive) { this.setLocked(true); return; }
     try {
       const p = this.canvas.requestPointerLock();
       if (p && p.catch) p.catch(() => this.onLockError());
@@ -66,10 +72,18 @@ export class Input {
   }
 
   unlock() {
-    if (this.fake || this.touch) { this.setLocked(false); return; }
+    if (this.fake || this.touch || (this.padActive && !document.pointerLockElement)) { this.setLocked(false); return; }
     if (document.pointerLockElement) document.exitPointerLock();
   }
 
+  // the keyboard or mouse was touched while the pad was in use: they take over, and what was running under the pad's fake lock pauses until a real one is taken
+  useKeyboard() {
+    this.padActive = false; document.body.classList.remove('pad'); this.pad.release();
+    this.axisX = this.axisY = 0;
+    if (this.locked && !document.pointerLockElement && !this.fake && !this.touch) this.setLocked(false);
+  }
+  poll(dt) { this.pad.poll(dt); }
+  rumble(strong, weak, ms) { this.pad.rumble(strong, weak, ms); }
   clear() { this.axisX = this.axisY = 0; this.keys.clear(); this.pressed.clear(); this.buttons.clear(); this.clicks.clear(); this.absorbTap = false; this.dx = 0; this.dy = 0; }
   down(code) { return this.keys.has(code); }
   was(code) { return this.pressed.has(code); }

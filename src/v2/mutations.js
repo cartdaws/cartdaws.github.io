@@ -21,17 +21,17 @@ export const BARE = {
 };
 
 export const MUTATIONS = {
-  husk: {
-    id: 'husk', name: 'CHITIN HUSK', kind: 'organic', sources: ['shellback'], nodes: ['Mut_Carapace', 'Mut_CarapaceFlesh'], infect: 0.5,
-    trunk: ['Tor_Husk', 'Tor_HuskFlesh'], limbK: 0.22, massK: 0.05, hud: '#8a6f52',
-    note: 'HEAVY BLOWS. ALWAYS ARMOURS YOU. RAISED, YOU BECOME SLOW AND HEAVY.',
-    role: 'CLOSE AND BRUTAL', plus: 'ARMOUR WHEREVER YOU CARRY IT. BLOWS STAGGER. DASH BECOMES A CHARGE', minus: 'RAISED: SLOW, SLIDES, JUMPS LOW. NO REACH',
-    style: { rim: 0xc09a70, suck: 0x000000, suckI: 0, grip: 0, spread: 0, swell: 0.55, weapon: 0.8, noMouth: true, roll: 2.2 },
-    attack: { type: 'melee', dmg: [36, 46, 58], range: 4.0, cone: 0.42, rate: [0.8, 0.75, 0.7], cost: [10, 10, 10], hitAt: 0.17, dur: 0.62, heavy: true, stagger: 0.55 },
-    charge: { dmg: [28, 38, 50], stagger: 0.8, knock: 1.6 },
+  ram: {
+    id: 'ram', name: 'PISTON RAM', kind: 'tech', sources: ['crawler'], nodes: ['Mut_Ram', 'Mut_RamDark', 'Mut_RamGlow'], infect: 0.75,
+    trunk: ['Tor_Ram', 'Tor_RamDark', 'Tor_RamGlow'], limbK: 0.16, massK: 0.05, hud: '#b8c0c8',
+    note: 'A HYDRAULIC RAM THAT HITS FIRST AND HARDEST. ALWAYS ARMOURS YOU. RAISED, YOU ARE SLOW AND PLANTED.',
+    role: 'CLOSE AND BRUTAL', plus: 'ARMOUR WHEREVER YOU CARRY IT. BLOWS STAGGER AND THROW. DASH BECOMES A CHARGE', minus: 'RAISED: SLOW, PLANTED, JUMPS LOW. NO REACH',
+    style: { rim: 0xc8d0d8, suck: 0x000000, suckI: 0, grip: 0, spread: 0, swell: 0.4, weapon: 0.8, noMouth: true, roll: 2.2 },
+    attack: { type: 'melee', dmg: [36, 46, 58], range: 4.0, cone: 0.42, rate: [0.8, 0.75, 0.7], cost: [10, 10, 10], hitAt: 0.17, dur: 0.62, heavy: true, stagger: 0.6 },
+    charge: { dmg: [28, 38, 50], stagger: 0.8, knock: 2.0 },
     mods: (t) => ({ dmgTaken: 1 - (0.2 + t * 0.07) }),
     move: (t) => ({ speed: 1 - (0.07 + t * 0.03), accel: 0.42, jump: 0.85, dash: 0.72, dashT: 1.7 }),
-    moveNote: (t) => `${Math.round((0.07 + t * 0.03) * 100)}% SLOWER, HEAVY`,
+    moveNote: (t) => `${Math.round((0.07 + t * 0.03) * 100)}% SLOWER, PLANTED`,
   },
   shard: {
     id: 'shard', name: 'SHARD SIPHON', kind: 'tech', sources: ['trooper'], nodes: ['Mut_Shard', 'Mut_ShardDark', 'Mut_ShardGlow', 'Mut_ShardFlesh', 'Mut_ShardRings'], infect: 0.85,

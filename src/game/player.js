@@ -70,7 +70,7 @@ export class Player {
     if (controllable) {
       mz = (input.down('KeyW') || input.down('ArrowUp') ? 1 : 0) - (input.down('KeyS') || input.down('ArrowDown') ? 1 : 0);
       mx = (input.down('KeyD') || input.down('ArrowRight') ? 1 : 0) - (input.down('KeyA') || input.down('ArrowLeft') ? 1 : 0);
-      if (input.touch && (input.axisX || input.axisY)) { mx = input.axisX; mz = input.axisY; }
+      if ((input.touch || input.padActive) && (input.axisX || input.axisY)) { mx = input.axisX; mz = input.axisY; }
     } else { this.jumpBuf = 0; this.dashBuf = 0; }
     const l = Math.hypot(mx, mz);
     if (l > 1) { mx /= l; mz /= l; }

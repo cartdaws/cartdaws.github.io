@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { M, boxGeo, kitMaterial } from '../world/materials.js';
 import { FaceGuard } from '../world/coplanar.js';
-import { Shellback } from './shellback.js';
+import { Crawler } from './crawler.js';
 import { BARE, MUTATIONS, SLOTS, MAX_TIER, STACK_BONUS } from './mutations.js';
 
 // THE EVOLUTION LAB. One room where everything about evolving can be tried and compared. No story, no chapter.
@@ -12,7 +12,7 @@ import { BARE, MUTATIONS, SLOTS, MAX_TIER, STACK_BONUS } from './mutations.js';
 const X0 = -15, X1 = 15, Z0 = 72, Z1 = 100, H = 5.5, CZ = 86;
 const BOUNDS = { minX: X0, maxX: X1, minZ: Z0, maxZ: Z1 };
 const SPAWN = { x: 0, z: 92 };
-const SPECIMENS = [{ who: 'shellback', x: -13, z: 76, label: 'SHELLBACK', sub: 'CHITIN HUSK' }, { who: 'bug', x: -9.3, z: 76, label: 'ROBOT BUG', sub: 'BLAST BLADDER' }, { who: 'trooper', x: -5.6, z: 76, label: 'TROOPER', sub: 'SHARD SIPHON' }, { who: 'scout', x: -1.9, z: 76, label: 'SCOUT', sub: 'TENDON HOOK' }, { who: 'heavy', x: 1.9, z: 76, label: 'HEAVY', sub: 'ARC NERVES' }, { who: 'drone', x: 5.6, z: 76, label: 'SENTRY', sub: 'RAIL SPIKE' }, { who: 'armored', x: 9.3, z: 76, label: 'ARMORED SENTRY', sub: 'SEEKER' }, { who: 'brute', x: 13, z: 76, label: 'BRUTE BUG', sub: 'SEISMIC FIST' }];
+const SPECIMENS = [{ who: 'crawler', x: -13, z: 76, label: 'SERVICE CRAWLER', sub: 'PISTON RAM' }, { who: 'bug', x: -9.3, z: 76, label: 'ROBOT BUG', sub: 'BLAST BLADDER' }, { who: 'trooper', x: -5.6, z: 76, label: 'TROOPER', sub: 'SHARD SIPHON' }, { who: 'scout', x: -1.9, z: 76, label: 'SCOUT', sub: 'TENDON HOOK' }, { who: 'heavy', x: 1.9, z: 76, label: 'HEAVY', sub: 'ARC NERVES' }, { who: 'drone', x: 5.6, z: 76, label: 'SENTRY', sub: 'RAIL SPIKE' }, { who: 'armored', x: 9.3, z: 76, label: 'ARMORED SENTRY', sub: 'SEEKER' }, { who: 'brute', x: 13, z: 76, label: 'BRUTE BUG', sub: 'SEISMIC FIST' }];
 const DUMMIES = [{ v: 'trooper', x: 8.5, z: 83 }, { v: 'scout', x: 12.5, z: 86 }, { v: 'trooper', x: 8.5, z: 89 }, { v: 'heavy', x: 12.5, z: 92 }];
 const PADS = [{ id: 'squad', x: -6, z: 97, label: 'WAKE A SQUAD', prompt: 'E  ·  WAKE A SQUAD' }, { id: 'fill', x: 0, z: 97, label: 'TRY THE 8-LIMB CHOICE', prompt: 'E  ·  FILL EMPTY LIMBS WITH STAND-INS' }, { id: 'reset', x: 6, z: 97, label: 'A NEW BODY', prompt: 'E  ·  A NEW BODY' }];
 const jumpOf = (k) => { const v = 9.9 * k; return (v * v) / 54; };
@@ -63,7 +63,7 @@ export class Gym {
     // the movement course
     const LOW = 1.2, HIGH = 2.25;
     blk(-14.5, -11, 0, LOW, 79, 83, kitMaterial('PaintStructural')); blk(-14.5, -11, 0, HIGH, 84, 88, kitMaterial('PaintStructural'));
-    { const a = sign('1.2 M', 'ANY BODY'); a.position.set(-10.97, 2.0, 81); a.rotation.y = Math.PI / 2; G.add(a); const b = sign('2.25 M', 'NOT WITH THE HUSK RAISED'); b.position.set(-10.97, 3.0, 86); b.rotation.y = Math.PI / 2; G.add(b); }
+    { const a = sign('1.2 M', 'ANY BODY'); a.position.set(-10.97, 2.0, 81); a.rotation.y = Math.PI / 2; G.add(a); const b = sign('2.25 M', 'NOT WITH THE RAM RAISED'); b.position.set(-10.97, 3.0, 86); b.rotation.y = Math.PI / 2; G.add(b); }
     // dash lane: floor stripes one metre apart
     for (let i = 0; i <= 8; i++) blk(-10 + i * 0, -7, 0.002, 0.012, 89 + i, 89 + i + 0.08, i % 4 ? dark : paint, false);
     { const c = sign('DASH LANE', 'A STRIPE EVERY METRE'); c.position.set(X0 + 0.06, 2.4, 93); c.rotation.y = Math.PI / 2; G.add(c); }
@@ -112,7 +112,7 @@ export class Gym {
 
   spawnSpecimen(s) {
     const g = this.g;
-    if (s.who === 'shellback') { const c = new Shellback(g, s.x, s.z); c.home = [s.x, s.z]; g.critters.push(c); this.specimens[s.who] = c; return; }
+    if (s.who === 'crawler') { const c = new Crawler(g, s.x, s.z); c.home = [s.x, s.z]; g.critters.push(c); this.specimens[s.who] = c; return; }
     const KIND = { drone: ['drone', 'std'], armored: ['drone', 'armored'], brute: ['bug', 'brute'], bug: ['bug', 'std'] }[s.who] || ['android', s.who];
     const e = g.makeEnemy({ type: KIND[0], variant: KIND[1], x: s.x, z: s.z }); e.noReboot = true; e.yaw = e.group.rotation.y = Math.PI; g.enemies.push(e); e.activate(); e.takeDamage(e.hp * 0.85, null); this.specimens[s.who] = e;
   }

@@ -127,3 +127,55 @@ p.rbox((0.0, 0, -0.3), (0.34, 0.3, 0.24), E, r=0.03, seg=2)                     
 p.rbox((0.0, -0.152, -0.3), (0.2, 0.012, 0.1), S, r=0.006, seg=1)
 p.rbox((0.07, -0.158, -0.3), (0.026, 0.01, 0.026), ST, r=0.004, seg=1)
 finish(p)
+
+# ------------------------------------------------------------------ BUNK BED (crew quarters). 2.1 x 1.0 x 1.9, a head at -x.
+p = Part('bunk_bed')
+for sx in (-1, 1):
+    for sy in (-1, 1):
+        p.rbox((sx * 1.0, sy * 0.46, 0.95), (0.07, 0.07, 1.9), S, r=0.015, seg=1)          # four posts
+for z in (0.42, 1.2):
+    p.rbox((0, 0, z), (2.04, 0.94, 0.07), D, r=0.015, seg=1)                               # the two bed frames
+    p.rbox((0, 0, z + 0.1), (1.96, 0.88, 0.12), 'Fabric', r=0.04, seg=2)                  # the mattress
+    p.rbox((-0.78, 0, z + 0.2), (0.4, 0.5, 0.1), E, r=0.04, seg=2)                         # the pillow
+    p.rbox((0.4, 0.0, z + 0.16), (1.1, 0.88, 0.05), S, r=0.02, seg=1)                      # the blanket
+p.rbox((0, -0.5, 1.2), (2.04, 0.03, 0.2), D, r=0.01, seg=1)                                # the rail on the open side
+p.rbox((1.0, -0.2, 1.7), (0.05, 0.05, 0.06), ST, r=0.006, seg=1)                           # a reading lamp
+p.rbox((1.02, 0.0, 0.03), (0.06, 0.8, 0.06), D, r=0.01, seg=1)
+p.rbox((0.0, 0.0, 1.88), (2.1, 1.0, 0.04), D, r=0.015, seg=1)                              # the top of the frame
+# a ladder up to the top bunk
+for z in (0.45, 0.7, 0.95, 1.2):
+    p.rbox((1.06, -0.1, z), (0.04, 0.34, 0.03), B, r=0.008, seg=1)
+finish(p, col=(2.1, 1.0, 1.9))
+
+# ------------------------------------------------------------------ MESS TABLE: a fixed table with a bench on each side. 2.6 x 1.9 x 0.95
+p = Part('mess_table')
+p.rbox((0, 0, 0.78), (2.6, 0.9, 0.06), E, r=0.02, seg=2)
+p.rbox((0, 0, 0.84), (2.5, 0.8, 0.012), S, r=0.004, seg=1)
+for x in (-1.0, 1.0):
+    p.rbox((x, 0, 0.38), (0.12, 0.7, 0.76), D, r=0.015, seg=1)                             # the legs
+for sy in (-1, 1):
+    p.rbox((0, sy * 0.75, 0.45), (2.4, 0.34, 0.06), D, r=0.015, seg=1)                     # the benches
+    p.rbox((0, sy * 0.75, 0.5), (2.3, 0.3, 0.03), 'Fabric', r=0.012, seg=1)
+    for x in (-1.0, 1.0): p.rbox((x, sy * 0.75, 0.22), (0.08, 0.3, 0.44), D, r=0.01, seg=1)
+p.cyl((0.4, 0.15, 0.9), 0.07, 0.1, B, seg=14)                                              # a drinking vessel on the table
+p.rbox((-0.7, -0.1, 0.9), (0.3, 0.2, 0.05), D, r=0.01, seg=1)                              # a tray
+finish(p, col=(2.6, 1.9, 0.95))
+
+# ------------------------------------------------------------------ GENERATOR: a drum on a frame with a lit core, pipes into the floor. 2.2 x 2.2 x 2.7
+p = Part('generator')
+p.rbox((0, 0, 0.12), (2.2, 2.2, 0.24), D, r=0.03, seg=2)
+p.rbox((0, 0, 0.26), (2.0, 2.0, 0.04), H, r=0.005, seg=1)
+p.cyl((0, 0, 0.3), 0.82, 0.2, S, seg=32, bev=0.02)
+p.cyl((0, 0, 1.25), 0.7, 1.7, E, seg=32, bev=0.02)                                         # the housing
+for z in (0.7, 1.25, 1.8):
+    p.cyl((0, 0, z), 0.74, 0.07, D, seg=32)                                                 # bands
+p.lathe((0, 0, 2.1), [(0.7, 0.0), (0.64, 0.14), (0.4, 0.26), (0.0, 0.3)], S, seg=32)
+p.cyl((0, -0.7, 1.25), 0.2, 0.05, D, axis='y', seg=20, bev=0.01)                            # a window onto the core
+p.cyl((0, -0.74, 1.25), 0.15, 0.03, SC, axis='y', seg=20)
+for a in (pi / 5, 3 * pi / 5, 7 * pi / 5):
+    p.tube([(cos(a) * 0.5, sin(a) * 0.5, 2.3), (cos(a) * 0.9, sin(a) * 0.9, 2.65), (cos(a) * 1.0, sin(a) * 1.0, 1.9), (cos(a) * 1.05, sin(a) * 1.05, 0.3)], 0.06, R, seg=8)
+p.cyl((0, 0, 2.5), 0.16, 0.24, B, seg=16)
+for i in range(4):
+    p.rbox((-0.5 + i * 0.33, -0.99, 0.5), (0.2, 0.05, 0.26), D, r=0.01, seg=1)             # the access panels
+    p.rbox((-0.5 + i * 0.33, -1.025, 0.5), (0.04, 0.012, 0.04), ST if i != 2 else O, r=0.004, seg=1)
+finish(p, col=(2.2, 2.2, 2.75))

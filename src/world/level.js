@@ -94,9 +94,9 @@ export function buildLevel(scene, world, kit) {
   // ---- Specimen containment bay: x[-6,6] z[0,11] h4.5 ----
   blk(-6.5, 6.5, 4.5, 4.9, -0.5, 11.5, M.wall);
   blk(-6.5, 6.5, 0, 4.5, 11, 11.5, M.wall);
-  blk(-6.5, -1.5, 0, 4.5, -0.5, 0, M.wall);
-  blk(1.5, 6.5, 0, 4.5, -0.5, 0, M.wall);
-  blk(-1.5, 1.5, 3, 4.5, -0.5, 0, M.wall);
+  blk(-6.5, -1.52, 0, 4.5, -0.5, 0, M.wall);
+  blk(1.52, 6.5, 0, 4.5, -0.5, 0, M.wall);
+  blk(-1.52, 1.52, 3.03, 4.5, -0.5, 0, M.wall);
   for (const s of [-1, 1]) {
     const x0 = s < 0 ? -6.5 : 6, x1 = s < 0 ? -6 : 6.5;
     blk(x0, x1, 0, 4.5, -0.5, 2, M.wall);
@@ -262,14 +262,14 @@ export function buildLevel(scene, world, kit) {
   addSign(scene, ['SECURITY CHECKPOINT'], 2.2, 0, 3.55, -0.56, PI, { accent: '#c9402a', w: 1024, h: 256 });
 
   // ---- Robotics security workshop: x[-15,15] z[-36.5,-8.5] h6.5 ----
-  blk(-15.5, -1.5, 0, 6.5, -8.5, -8, M.wall);
-  blk(1.5, 15.5, 0, 6.5, -8.5, -8, M.wall);
-  blk(-1.5, 1.5, 3, 6.5, -8.5, -8, M.wall);
+  blk(-15.5, -1.52, 0, 6.5, -8.5, -8, M.wall);
+  blk(1.52, 15.5, 0, 6.5, -8.5, -8, M.wall);
+  blk(-1.52, 1.52, 3.03, 6.5, -8.5, -8, M.wall);
   blk(-15.5, -15, 0, 6.5, -37, -8, M.wall);
   blk(15, 15.5, 0, 6.5, -37, -8, M.wall);
-  blk(-15.5, -1.5, 0, 6.5, -37, -36.5, M.wall);
-  blk(1.5, 15.5, 0, 6.5, -37, -36.5, M.wall);
-  blk(-1.5, 1.5, 3, 6.5, -37, -36.5, M.wall);
+  blk(-15.5, -1.52, 0, 6.5, -37, -36.5, M.wall);
+  blk(1.52, 15.5, 0, 6.5, -37, -36.5, M.wall);
+  blk(-1.52, 1.52, 3.03, 6.5, -37, -36.5, M.wall);
   blk(-15.5, 15.5, 6.5, 6.9, -37, -8, M.wall);
   kit.place(scene, 'door_frame', { x: 0, z: -36.75 });
   // kick plates and structural ribs
@@ -327,9 +327,9 @@ export function buildLevel(scene, world, kit) {
   // ---- Hangar transit room: x[-4,4] z[-46,-37] h3.5 ----
   blk(-4.5, -4, 0, 3.5, -46.5, -37, M.wall);
   blk(4, 4.5, 0, 3.5, -46.5, -37, M.wall);
-  blk(-4.5, -1.5, 0, 3.5, -46.5, -46, M.wall);
-  blk(1.5, 4.5, 0, 3.5, -46.5, -46, M.wall);
-  blk(-1.5, 1.5, 3, 3.5, -46.5, -46, M.wall);
+  blk(-4.5, -1.52, 0, 3.5, -46.5, -46, M.wall);
+  blk(1.52, 4.5, 0, 3.5, -46.5, -46, M.wall);
+  blk(-1.52, 1.52, 3.03, 3.5, -46.5, -46, M.wall);
   kit.place(scene, 'door_frame', { x: 0, z: -46.25 });
   blk(-4.5, 4.5, 3.5, 3.9, -46.5, -37, M.wall);
   panel(0, -41.5, 3.5, 2.0, 0.8);
