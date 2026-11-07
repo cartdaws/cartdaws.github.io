@@ -447,7 +447,8 @@ def machine_cabinet(name, w, d, h, style):
     p.rbox((0, 0, 0.1), (w, d, 0.2), D, r=0.02, seg=2)
     for sx in (-w * 0.28, w * 0.28):
         p.rbox((sx, -d / 2 + 0.01, 0.06), (0.4, 0.04, 0.1), S, r=0.01, seg=1)
-    p.rbox((0, 0, 0.2 + (h - 0.2) / 2), (w - 0.04, d - 0.04, h - 0.2), E, r=0.035, seg=3)
+    # the body stops 12 mm short of the cap plate: its top and the cap's top used to share one plane and fought for the pixel
+    p.rbox((0, 0, 0.2 + (h - 0.212) / 2), (w - 0.04, d - 0.04, h - 0.212), E, r=0.035, seg=3)
     p.rbox((0, 0, h - 0.04), (w, d, 0.08), D, r=0.03, seg=2)
     n = max(2, int(w // 1.15))
     dw = (w - 0.3) / n
