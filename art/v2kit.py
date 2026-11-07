@@ -44,7 +44,7 @@ def catmull(pts, n):
 
 # ---------------------------------------------------------------- the arm's surface: everything sits on this
 def arm_r(s):
-    return 0.112 + (0.05 - 0.112) * pow(max(0.0, s), 1.2)
+    return 0.094 + (0.014 - 0.094) * pow(max(0.0, s), 0.92)      # slim, and tapering to a fine point, not a blunt rounded end
 
 def surf(s, a, lift=0.0):
     """A point on the arm at length s (0 elbow, 1 tip) and angle a round it (pi/2 = underside, -pi/2 = back), raised by lift."""

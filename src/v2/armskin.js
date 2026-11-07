@@ -19,15 +19,15 @@ export const SKIN_FRAG = `
         vec3 q = vP * vec3(24.0, 24.0, 8.0);
         float m = n3(q) * 0.62 + n3(q * 2.9 + 3.1) * 0.28 + n3(q * 7.3) * 0.1;
         float blotch = smoothstep(0.5, 0.66, m), speck = smoothstep(0.62, 0.74, n3(vP * vec3(150.0, 150.0, 60.0)));
-        vec3 back = mix(vec3(0.2, 0.155, 0.17), vec3(0.09, 0.07, 0.08), blotch);
-        back = mix(back, vec3(0.055, 0.045, 0.05), speck * 0.5);
-        vec3 belly = vec3(0.36, 0.3, 0.31) * (0.92 + 0.1 * m);
+        vec3 back = mix(vec3(0.11, 0.155, 0.17), vec3(0.045, 0.07, 0.08), blotch);
+        back = mix(back, vec3(0.02, 0.03, 0.035), speck * 0.5);
+        vec3 belly = vec3(0.21, 0.28, 0.28) * (0.92 + 0.1 * m);
         vec3 body = mix(back, belly, smoothstep(0.05, 0.85, vVent));
         // around a mutation: bruised, thickened flesh, and veins carrying whatever it is
         float zone = smoothstep(uFront - 0.16, uFront + 0.03, vS) * uInfect;
-        body = mix(body, body * vec3(0.78, 0.66, 0.68), zone);
+        body = mix(body, body * vec3(0.7, 0.72, 0.78), zone);
         float vein = (1.0 - smoothstep(0.0, 0.035, abs(n3(vP * vec3(34.0, 34.0, 9.0)) - 0.5))) * zone * (1.0 - smoothstep(0.1, 0.9, vVent));
-        vec3 c = body * (0.5 + 1.0 * lam) * uEnv + vec3(0.42, 0.32, 0.36) * f * 0.26 * uEnv + vec3(spec * 0.34);
+        vec3 c = body * (0.5 + 1.0 * lam) * uEnv + vec3(0.2, 0.34, 0.36) * f * 0.3 * uEnv + vec3(spec * 0.5);
         c += uRim * vein * 0.42;
         // the edge of the growth, while it is growing: raw
         float d = (vS - uFront) / 0.035; c = mix(c, vec3(0.17, 0.035, 0.04), 0.8 * exp(-d * d) * uWound) + vec3(0.025, 0.005, 0.005) * exp(-d * d) * uWound;
@@ -39,7 +39,7 @@ export const SKIN_FRAG = `
         gl_FragColor = vec4(pow(max(c, vec3(0.0)), vec3(2.2)), uAlpha);
       }`;
 
-// The arm's skin. An ordinary living animal first: mottled plum on the back, pale on the underside, wet. Mutations raise bruised flesh and veins around themselves as they spread.
+// The arm's skin. An ordinary living animal first: mottled slate-teal on the back, paler underneath, wet. Mutations raise bruised flesh and veins around themselves as they spread.
 export function makeV2Skin(shared, U, own) {
   return new THREE.ShaderMaterial({
     transparent: true, depthWrite: true,
