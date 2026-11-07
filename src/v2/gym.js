@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { M, boxGeo, kitMaterial } from '../world/materials.js';
 import { Shellback } from './shellback.js';
-import { Bladderback } from './bladderback.js';
 import { BARE, MUTATIONS, SLOTS, MAX_TIER, STACK_BONUS } from './mutations.js';
 
 // THE EVOLUTION LAB. One room where everything about evolving can be tried and compared. No story, no chapter.
@@ -12,7 +11,7 @@ import { BARE, MUTATIONS, SLOTS, MAX_TIER, STACK_BONUS } from './mutations.js';
 const X0 = -15, X1 = 15, Z0 = 72, Z1 = 100, H = 5.5, CZ = 86;
 const BOUNDS = { minX: X0, maxX: X1, minZ: Z0, maxZ: Z1 };
 const SPAWN = { x: 0, z: 92 };
-const SPECIMENS = [{ who: 'shellback', x: -13, z: 76, label: 'SHELLBACK', sub: 'CHITIN HUSK' }, { who: 'bladder', x: -9.3, z: 76, label: 'BLADDERBACK', sub: 'BLAST BLADDER' }, { who: 'trooper', x: -5.6, z: 76, label: 'TROOPER', sub: 'SHARD SIPHON' }, { who: 'scout', x: -1.9, z: 76, label: 'SCOUT', sub: 'TENDON HOOK' }, { who: 'heavy', x: 1.9, z: 76, label: 'HEAVY', sub: 'ARC NERVES' }, { who: 'drone', x: 5.6, z: 76, label: 'SENTRY', sub: 'RAIL SPIKE' }, { who: 'armored', x: 9.3, z: 76, label: 'ARMORED SENTRY', sub: 'SEEKER' }, { who: 'brute', x: 13, z: 76, label: 'BRUTE BUG', sub: 'SEISMIC FIST' }];
+const SPECIMENS = [{ who: 'shellback', x: -13, z: 76, label: 'SHELLBACK', sub: 'CHITIN HUSK' }, { who: 'bug', x: -9.3, z: 76, label: 'ROBOT BUG', sub: 'BLAST BLADDER' }, { who: 'trooper', x: -5.6, z: 76, label: 'TROOPER', sub: 'SHARD SIPHON' }, { who: 'scout', x: -1.9, z: 76, label: 'SCOUT', sub: 'TENDON HOOK' }, { who: 'heavy', x: 1.9, z: 76, label: 'HEAVY', sub: 'ARC NERVES' }, { who: 'drone', x: 5.6, z: 76, label: 'SENTRY', sub: 'RAIL SPIKE' }, { who: 'armored', x: 9.3, z: 76, label: 'ARMORED SENTRY', sub: 'SEEKER' }, { who: 'brute', x: 13, z: 76, label: 'BRUTE BUG', sub: 'SEISMIC FIST' }];
 const DUMMIES = [{ v: 'trooper', x: 8.5, z: 83 }, { v: 'scout', x: 12.5, z: 86 }, { v: 'trooper', x: 8.5, z: 89 }, { v: 'heavy', x: 12.5, z: 92 }];
 const PADS = [{ id: 'squad', x: -6, z: 97, label: 'WAKE A SQUAD', prompt: 'E  ·  WAKE A SQUAD' }, { id: 'fill', x: 0, z: 97, label: 'TRY THE 8-LIMB CHOICE', prompt: 'E  ·  FILL EMPTY LIMBS WITH STAND-INS' }, { id: 'reset', x: 6, z: 97, label: 'A NEW BODY', prompt: 'E  ·  A NEW BODY' }];
 const jumpOf = (k) => { const v = 9.9 * k; return (v * v) / 54; };
@@ -103,8 +102,8 @@ export class Gym {
 
   spawnSpecimen(s) {
     const g = this.g;
-    if (s.who === 'shellback' || s.who === 'bladder') { const c = s.who === 'bladder' ? new Bladderback(g, s.x, s.z) : new Shellback(g, s.x, s.z); c.home = [s.x, s.z]; g.critters.push(c); this.specimens[s.who] = c; return; }
-    const KIND = { drone: ['drone', 'std'], armored: ['drone', 'armored'], brute: ['bug', 'brute'] }[s.who] || ['android', s.who];
+    if (s.who === 'shellback') { const c = new Shellback(g, s.x, s.z); c.home = [s.x, s.z]; g.critters.push(c); this.specimens[s.who] = c; return; }
+    const KIND = { drone: ['drone', 'std'], armored: ['drone', 'armored'], brute: ['bug', 'brute'], bug: ['bug', 'std'] }[s.who] || ['android', s.who];
     const e = g.makeEnemy({ type: KIND[0], variant: KIND[1], x: s.x, z: s.z }); e.noReboot = true; e.yaw = e.group.rotation.y = Math.PI; g.enemies.push(e); e.activate(); e.takeDamage(e.hp * 0.85, null); this.specimens[s.who] = e;
   }
   spawnDummy(d) { const g = this.g, e = g.makeEnemy({ type: 'android', variant: d.v, x: d.x, z: d.z }); e.warning = true; e.yaw = e.group.rotation.y = -Math.PI / 2; e.inert = true; g.enemies.push(e); this.dummies.push({ d, e }); }

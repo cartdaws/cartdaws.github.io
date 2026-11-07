@@ -66,7 +66,7 @@ export const MUTATIONS = {
     moveNote: () => 'AGILE',
   },
   blast: {
-    id: 'blast', name: 'BLAST BLADDER', kind: 'organic', sources: ['bladder'], nodes: ['Mut_Blast', 'Mut_BlastBone'], infect: 0.4,
+    id: 'blast', name: 'BLAST BLADDER', kind: 'organic', sources: ['bug'], nodes: ['Mut_Blast', 'Mut_BlastBone'], infect: 0.4,
     trunk: ['Tor_Blast', 'Tor_BlastBone'], limbK: 0.14, massK: 0.05, hud: '#d8c0ae',
     note: 'THE ARM FILLS, THEN VENTS. A CONE OF PRESSURE THAT THROWS EVERYTHING IN FRONT OF YOU BACK. WORST AT A DISTANCE.',
     role: 'CLOSE AND CROWDED', plus: 'HITS EVERYTHING IN A WIDE CONE AT ONCE. HURLS MACHINES BACK AND OFF THEIR AIM. LOOSES THE ONES CLOSING ON YOU', minus: 'HALF THE POWER BY THE EDGE OF ITS REACH. SHORT RANGE. KICKS YOU BACK A STEP',

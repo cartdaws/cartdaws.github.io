@@ -9,7 +9,7 @@ export const v2node = (n) => NODES[n];
 export const v2prefix = (p) => Object.keys(NODES).filter((n) => n.startsWith(p));
 
 // Trypophobia setting: every dense cluster of bumps, sacs, suckers or pores is a shared geometry, so emptying its draw range removes it everywhere at once, live.
-const TRYPO_KEY = 'intruderv2-trypo', CLUSTERS = ['BladderSacs', 'ArmSuckers', 'ShellPores'];
+const TRYPO_KEY = 'intruderv2-trypo', CLUSTERS = ['ArmSuckers', 'ShellPores'];
 let trypo = false; try { trypo = localStorage.getItem(TRYPO_KEY) === '1'; } catch (e) { /* default off */ }
 export const trypoSafe = () => trypo;
 export function setTrypoSafe(on) {
@@ -37,5 +37,5 @@ export async function loadV2Assets() {
   { const c = NODES.Mut_Carapace.material; c.color.multiplyScalar(0.62); c.roughness = 0.58; }
   dress('T__torso__plate__1', null, armorN, 0.8); dress('T__torso__body__1', null, wornN, 0.7);
   dress('Mut_Shard', plate, plateN); dress('Mut_ShardDark', rust, rustN); dress('Mut_ArcCable', null, rustN, 0.5);
-  dress('Mut_Carapace', null, rockN, 0.55); dress('Mut_ShardRings', null, plateN, 0.6); dress('Shell', rock, rockFaceN, 1.0); dress('ShellFoot', skin, skinN, 0.8); dress('Bladder', skin, skinN, 0.9); dress('BladderFoot', skin, skinN, 0.8);
+  dress('Mut_Carapace', null, rockN, 0.55); dress('Mut_ShardRings', null, plateN, 0.6); dress('Shell', rock, rockFaceN, 1.0); dress('ShellFoot', skin, skinN, 0.8);
 }

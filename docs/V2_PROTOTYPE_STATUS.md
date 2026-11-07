@@ -28,7 +28,7 @@
 | | **Chitin Husk** | **Shard Siphon** | **Arc Nerves** | **Tendon Hook** | **Acid Gland** |
 |---|---|---|---|---|---|
 | Nature | Organic | Biomechanical | Biomechanical | Biomechanical | Organic |
-| Absorb to get it | Shellback | Trooper | Heavy | Scout | Bladderback |
+| Absorb to get it | Shellback | Trooper | Heavy | Scout | Robot bug |
 | Purpose | Close and brutal | At a distance | Against many | Control and movement | Controlling ground |
 | Strength | Armour wherever carried. Blows stagger. Dash becomes a charge | Hits at any range | Finds its own target, conducts through machines, stops them firing. Raised, you are quick | Yanks light machines to you. Pulls you to heavies and any surface, up and over ledges. Raised, you are agile | Pool damages, slows, and makes machines take 40% more from everything. Absorbing heals 30% more |
 | Limit | No reach. Raised: slow, slides, jumps low | Uses energy. Spreads as held. Slows you firing. Half damage to a heavy's front | Weak on one target. Huge cost. You take more damage. Burns out downed machines | Barely hurts. One target. Brings them into your face. You cannot steer while pulled. You take 5% more damage | Slow arc. Little damage at once. The pool burns you too |
