@@ -66,6 +66,7 @@ export class Encounter {
       this.prepare(r);
       r.doors.in.open(true);
       r.doors.out.close(true);
+      for (const d of r.sideDoors || []) d.close(true);
     }
     g.ui.setObjective(this.baseObjective());
   }
@@ -80,6 +81,9 @@ export class Encounter {
 
   advance() {
     this.i++;
+    // a shortcut between two rooms comes alive once both are behind you
+    const run = this.game.run;
+    if (run && run.loops) for (const Lp of run.loops) if (!Lp.live && this.i > Lp.after + 1) { Lp.live = true; for (const d of Lp.doors) { d.unlock(); d.open(); } this.game.ui.rewardNote('SERVICE POWER RESTORED  ·  A SHORTCUT'); this.game.audio.play('unlock', { vol: 0.8 }); }
     this.state = EncounterState.WAITING;
     this.prepare(this.room);
   }
@@ -148,6 +152,7 @@ export class Encounter {
     g.waypoints = r.waypoints || (r.waypoints = g.buildWaypoints(r.bounds));
     g.nav.forceRefresh();
     r.doors.in.close();
+    for (const d of r.sideDoors || []) d.close();
     g.level.alarm = true;
     g.audio.play('door', { vol: 0.9 });
     g.audio.play('lockdown', { vol: 0.9 });
@@ -214,6 +219,7 @@ export class Encounter {
     g.audio.stopSiren();
     const locked = r.doors.out.locked;
     r.doors.out.open();
+    for (const d of r.sideDoors || []) d.open();
     g.audio.play('unlock', { vol: 1 });
     g.audio.play('door', { vol: 0.8 });
     g.ui.banner(r.kind === 'finale' ? 'LIFT UNLOCKED' : locked ? 'SECTOR CLEAR' : 'EXIT UNLOCKED', 'green', 1.4);

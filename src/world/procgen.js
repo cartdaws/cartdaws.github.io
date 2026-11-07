@@ -60,8 +60,8 @@ function walkGrid(n) {
     let horiz = 0, ok = true;
     while (cells.length < n) {
       const l = cells[cells.length - 1];
-      const opts = [{ dx: 0, dz: 1, w: 3 }];
-      if (horiz < 2) opts.push({ dx: 1, dz: 0, w: 1.6 }, { dx: -1, dz: 0, w: 1.6 });
+      const opts = [{ dx: 0, dz: 1, w: 2.2 }];
+      if (horiz < 3) opts.push({ dx: 1, dz: 0, w: 2.2 }, { dx: -1, dz: 0, w: 2.2 });       // the route turns back on itself often, so rooms that are not neighbours in it end up side by side
       const free = opts.filter((o) => !used.has(`${l.gx + o.dx},${l.gz + o.dz}`));
       if (!free.length) { ok = false; break; }
       let r = Math.random() * free.reduce((s, o) => s + o.w, 0), c = free[0];
@@ -646,7 +646,7 @@ function buildRun(game) {
     const finale = kind === 'finale', isChart = !LAB && i === N - 2;
     const theme = finale ? COMBAT_THEMES[0] : isChart ? { ...QUIET_THEMES[3], name: ['NAVIGATION', 'CHART ROOM'], accent: '#35c06a' } : pick(kind === 'quiet' ? QUIET_THEMES : COMBAT_THEMES);
     const arch = pickArch(isChart ? 'chart' : theme.id, finale), sz = sizeFor(arch, finale);
-    rooms.push({ id: i + 1, kind, arch, w: sz.w, d: sz.d, h: finale ? Math.max(sz.h, 7) : sz.h, theme, cell: cells[i], waves: [], barrels: [], pickups: [], doorT: {}, depth: kind === 'quiet' ? 0 : depth++ });
+    rooms.push({ id: i + 1, kind, arch, w: sz.w, d: sz.d, h: finale ? Math.max(sz.h, 7) : sz.h, theme, cell: cells[i], waves: [], barrels: [], pickups: [], doorT: {}, extra: [], extraSides: [], depth: kind === 'quiet' ? 0 : depth++ });
   }
   // positions
   const first = rooms[0];
@@ -677,24 +677,79 @@ function buildRun(game) {
 
   // the lift the finale leads to
   const lz1 = fin.z0 - T - 6 - T;
-  const lift = { id: N + 1, kind: 'lift', w: 8, d: 8, h: 4.5, theme: { id: 'lift', name: ['HANGAR LIFT', 'DECK 9'], accent: '#35c06a' }, cx: fin.doorT.zmin, z1: lz1, z0: lz1 - 8, waves: [], barrels: [], pickups: [], inSide: 'zmax', outSide: 'zmin' };
+  const lift = { id: N + 1, kind: 'lift', w: 8, d: 8, h: 4.5, theme: { id: 'lift', name: ['HANGAR LIFT', 'DECK 9'], accent: '#35c06a' }, cx: fin.doorT.zmin, z1: lz1, z0: lz1 - 8, waves: [], barrels: [], pickups: [], extra: [], extraSides: [], inSide: 'zmax', outSide: 'zmin' };
   lift.cz = (lift.z0 + lift.z1) / 2; lift.x0 = lift.cx - 4; lift.x1 = lift.cx + 4;
   lift.bounds = { minX: lift.x0, maxX: lift.x1, minZ: lift.z0, maxZ: lift.z1 };
   rooms.push(lift);
 
+  // ---- branches and loops. Dead-end rooms off a room's spare walls, and shortcut doors between rooms that sit side by side in the grid but are not neighbours in the route.
+  const sideRooms = [], loops = [];
+  {
+    const GRID = { xmax: [1, 0], xmin: [-1, 0], zmin: [0, 1], zmax: [0, -1] }, OPP = { xmax: 'xmin', xmin: 'xmax', zmin: 'zmax', zmax: 'zmin' };
+    const occ = new Set(rooms.filter((q) => q.cell).map((q) => q.cell.gx + ',' + q.cell.gz)); occ.add(fin.cell.gx + ',' + (fin.cell.gz + 1));
+    const span = (A, B2, zl) => { const lo = Math.max(zl ? A.x0 : A.z0, zl ? B2.x0 : B2.z0) + 4.5, hi = Math.min(zl ? A.x1 : A.z1, zl ? B2.x1 : B2.z1) - 4.5; return hi > lo ? [lo, hi] : null; };
+    const chain = rooms.filter((q) => q.kind !== 'lift');
+    const pairs = [];
+    for (let i = 0; i < chain.length - 1; i++) for (let j = i + 2; j < chain.length - 1; j++) {      // never the finale: it is the one room nobody may reach early
+      const A = chain[i], B2 = chain[j], dx = B2.cell.gx - A.cell.gx, dz = B2.cell.gz - A.cell.gz; if (Math.abs(dx) + Math.abs(dz) !== 1) continue;
+      const sa = Object.keys(GRID).find((k) => GRID[k][0] === dx && GRID[k][1] === dz), sb = OPP[sa];
+      if (roomSides(A).includes(sa) || roomSides(B2).includes(sb)) continue;
+      const rg = span(A, B2, sa[0] === 'z'); if (rg) pairs.push({ A, B2, sa, sb, rg, j });
+    }
+    for (const P of shuffled(pairs).slice(0, LAB ? irand(0, 1) : irand(0, 2))) {
+      if (roomSides(P.A).includes(P.sa) || roomSides(P.B2).includes(P.sb)) continue;
+      const t = rand(P.rg[0], P.rg[1]), Lp = { a: P.A, b: P.B2, sa: P.sa, sb: P.sb, t, after: P.j, doors: [] };
+      P.A.extra.push({ side: P.sa, kind: 'loop', other: P.B2, t, loop: Lp }); P.A.extraSides.push(P.sa); P.A.doorT[P.sa] = t;
+      P.B2.extra.push({ side: P.sb, kind: 'loop', other: P.A, t, loop: Lp }); P.B2.extraSides.push(P.sb); P.B2.doorT[P.sb] = t;
+      loops.push(Lp);
+    }
+    const cands = [];
+    for (const p of chain) { if (p.kind === 'finale') continue; for (const side of Object.keys(GRID)) { if (roomSides(p).includes(side)) continue; const gx = p.cell.gx + GRID[side][0], gz = p.cell.gz + GRID[side][1]; if (gz < 0 || occ.has(gx + ',' + gz)) continue; cands.push({ p, side, gx, gz }); } }
+    const want = LAB ? irand(1, 2) : irand(2, 4), usedParents = new Set();
+    for (const c of shuffled(cands)) {
+      if (sideRooms.length >= want) break;
+      if (usedParents.has(c.p) || occ.has(c.gx + ',' + c.gz) || roomSides(c.p).includes(c.side)) continue;
+      const w = 2 * irand(5, 7), d = 2 * irand(5, 7), cx = HALL_ANCHOR.x + c.gx * SPACING, cz = cz0 - c.gz * SPACING;
+      const tid = pick(['storage', 'lab', 'crew', 'containment', 'server']), th = QUIET_THEMES.find((q) => q.id === tid);
+      const S = { id: 100 + sideRooms.length, kind: 'quiet', annex: true, arch: 'open', w, d, h: 4.4, theme: th, cell: { gx: c.gx, gz: c.gz }, cx, cz, x0: cx - w / 2, x1: cx + w / 2, z0: cz - d / 2, z1: cz + d / 2, waves: [], barrels: [], pickups: [], doorT: {}, depth: 0, parent: c.p, inSide: OPP[c.side], extra: [], extraSides: [] };
+      S.bounds = { minX: S.x0, maxX: S.x1, minZ: S.z0, maxZ: S.z1 };
+      const rg = span(c.p, S, c.side[0] === 'z'); if (!rg) continue;
+      const t = rand(rg[0], rg[1]);
+      c.p.extra.push({ side: c.side, kind: 'side', room: S, t }); c.p.extraSides.push(c.side); c.p.doorT[c.side] = t; S.doorT[S.inSide] = t;
+      occ.add(c.gx + ',' + c.gz); usedParents.add(c.p); sideRooms.push(S);
+      // if this room's cell also touches a room that is not next to its parent in the route, a second door joins them: a loop, dead until both are behind you
+      const ip = chain.indexOf(c.p);
+      for (const q of shuffled(chain)) {
+        if (q === c.p || q.kind === 'finale' || !q.cell || Math.abs(q.cell.gx - c.gx) + Math.abs(q.cell.gz - c.gz) !== 1 || Math.abs(chain.indexOf(q) - ip) < 2) continue;
+        const s2 = Object.keys(GRID).find((k) => GRID[k][0] === q.cell.gx - c.gx && GRID[k][1] === q.cell.gz - c.gz), sq = OPP[s2];
+        if (!s2 || S.inSide === s2 || roomSides(q).includes(sq)) continue;
+        const rg2 = span(S, q, s2[0] === 'z'); if (!rg2) continue;
+        const t2 = rand(rg2[0], rg2[1]), Lp = { a: S, b: q, sa: s2, sb: sq, t: t2, after: Math.max(ip, chain.indexOf(q)), doors: [] };
+        S.extra.push({ side: s2, kind: 'loop', other: q, t: t2, loop: Lp }); S.extraSides.push(s2); S.doorT[s2] = t2;
+        q.extra.push({ side: sq, kind: 'loop', other: S, t: t2, loop: Lp }); q.extraSides.push(sq); q.doorT[sq] = t2;
+        loops.push(Lp); break;
+      }
+    }
+  }
+  run.sideRooms = sideRooms; run.loops = loops;
+
   // ---- build every room
   const doorPos = geomDoorPos;
-  for (const r of rooms) {
+  for (const r of rooms.concat(sideRooms)) {
     r.doors = {};
     if (r.kind !== 'lift') { r.plan = designRoom(r); r.shape = r.plan.shape; }
     makeRoomShell(B, r, mats);
     buildPlan(B, r, mats);
-    for (const [key, side] of [['in', r.inSide], ['out', r.outSide]]) {
+    for (const [key, side, e] of [['in', r.inSide], ['out', r.outSide], ...r.extra.map((x, k) => ['x' + k, x.side, x])]) {
       if (!side) continue;
       const p = doorPos(r, side);
       kit.place(group, 'door_frame', { x: p.x, z: p.z, rotY: p.axis === 'x' ? PI / 2 : 0 });
-      const shut = key === 'out' && r.kind !== 'quiet';
-      r.doors[key] = new Door(group, B.W, { x: p.x, z: p.z, closed: shut, kit, axis: p.axis });
+      let shut = key === 'out' && r.kind !== 'quiet';
+      if (e && e.kind === 'side') shut = r.kind !== 'quiet';           // a side room off a fight opens when the fight is won
+      const d = new Door(group, B.W, { x: p.x, z: p.z, closed: shut, kit, axis: p.axis });
+      if (e && e.kind === 'loop') { d.lock(); e.loop.doors.push(d); }   // a shortcut stays dead until both rooms it joins are behind you
+      if (e && e.kind === 'side' && shut) (r.sideDoors || (r.sideDoors = [])).push(d);
+      r.doors[key] = d;
     }
     // where the player stands when a checkpoint restarts this room
     const [dx, dz] = SIDES[r.inSide].dir;
@@ -715,6 +770,14 @@ function buildRun(game) {
     else if (s === 'xmax') buildHall(B, Lr, 'x', doorT(A, s), A.x1 + T, Bm.x0 - T, mats, label, Math.random() < 0.25);
     else buildHall(B, Lr, 'x', doorT(A, s), Bm.x1 + T, A.x0 - T, mats, label, Math.random() < 0.25);
   };
+  const hallBetween = (A, sA, Bm, t, label) => {
+    if (sA === 'zmin') buildHall(B, Lr, 'z', t, Bm.z1 + T, A.z0 - T, mats, label, false);
+    else if (sA === 'zmax') buildHall(B, Lr, 'z', t, A.z1 + T, Bm.z0 - T, mats, label, false);
+    else if (sA === 'xmin') buildHall(B, Lr, 'x', t, Bm.x1 + T, A.x0 - T, mats, label, false);
+    else buildHall(B, Lr, 'x', t, A.x1 + T, Bm.x0 - T, mats, label, false);
+  };
+  for (const p of rooms) for (const e of p.extra) if (e.kind === 'side') hallBetween(p, e.side, e.room, e.t, { lines: [e.room.theme.name[0]], accent: e.room.theme.accent });
+  for (const Lp of loops) hallBetween(Lp.a, Lp.sa, Lp.b, Lp.t, { lines: ['SERVICE', 'SHORTCUT'], accent: '#35c06a' });
   // lobby -> first room
   buildHall(B, Lr, 'z', HALL_ANCHOR.x, rooms[0].z1 + T, HALL_ANCHOR.z, mats, { lines: ['DECK 9', 'SERVICE ROUTE'], accent: '#35c06a', arrow: '▼' }, false);
   for (let i = 0; i < rooms.length - 1; i++) {
@@ -767,6 +830,10 @@ function buildRun(game) {
       comb++;
     }
   }
+  for (const S of sideRooms) {
+    const pl = S.placer, taken = [];
+    for (let i = 0; i < 2; i++) { const s = freeSpot(S, pl, { pad: 1.0, avoid: taken }); taken.push(s); S.parent.pickups.push({ type: 'health', ...s, reveal: S.parent.kind === 'quiet' ? 'start' : 'clear' }); }
+  }
   // key card + locked door
   if (!LAB) { run.navRoom = rooms[N - 2]; run.navRoom.doors.out.lock(); }
   if (lockIdx >= 0) {
@@ -796,7 +863,7 @@ function buildRun(game) {
 
   run.rooms = rooms;
   run.lift = lift;
-  run.doors = rooms.flatMap((r) => Object.values(r.doors));
+  run.doors = rooms.concat(sideRooms).flatMap((r) => Object.values(r.doors));
   run.merged = mergeStatic(group);
   return run;
 }

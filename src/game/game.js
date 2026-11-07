@@ -204,7 +204,7 @@ export class Game {
     for (const b of this.barrels) b.dispose();
     this.barrels = [];
     this.pickups.clear();
-    this.run = generateRun(this);
+    this.run = generateRun(this, { seed: this.nextSeed }); this.nextSeed = undefined;       // a test or a bug report can name the layout
     const rooms = [workshopRoom(this.level), ...this.run.rooms];
     this.run.all = rooms;
     (this.shipLife || (this.shipLife = new ShipLife(this))).build(rooms);
