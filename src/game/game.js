@@ -3,7 +3,6 @@ import { ShipLife } from '../world/shipLife.js';
 import { Surface } from '../world/surface.js';
 import { Campaign } from './campaign.js';
 import { LAB } from '../v2/flags.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { trypoSafe, setTrypoSafe } from '../v2/assets.js';
 import { Evolution } from '../v2/evolution.js';
 import { Lab } from '../v2/lab.js';
@@ -41,6 +40,18 @@ import { Admin } from './admin.js';
 const STEP = 1 / 60;
 const BASE_FOV = 78;
 
+// A soft, even interior for reflections: a dim ceiling, mid walls, a dark floor, and no bright panels, so flat surfaces never catch a hot white reflection and no patch flips between grey and white as you move.
+function makeInteriorEnvironment(renderer) {
+  const geo = new THREE.SphereGeometry(10, 32, 20), pos = geo.attributes.position, col = new Float32Array(pos.count * 3), c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i) / 10, k = y > 0 ? 0.3 + 0.1 * y : 0.3 + 0.2 * y;          // 0.4 straight up, 0.3 at the horizon, 0.1 straight down
+    c.setRGB(k * 0.8, k * 0.92, k * 1.0); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const sc = new THREE.Scene(); sc.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide })));
+  const pm = new THREE.PMREMGenerator(renderer), tex = pm.fromScene(sc, 0.1).texture; pm.dispose(); return tex;
+}
+
 export class Game {
   constructor(canvas, armGeos, kit, handAsset, homeAsset, creatureAsset) {
     this.homeAsset = homeAsset;
@@ -63,7 +74,7 @@ export class Game {
     this.scene.background = new THREE.Color(0x04070a);
     this.scene.fog = new THREE.FogExp2(0x050709, 0.016);
     // Image-based light: without it every metal surface has nothing to reflect and goes black. A small interior room, blurred, kept dim so the dark stays dark but the materials read.
-    { const pm = new THREE.PMREMGenerator(this.renderer); this.scene.environment = pm.fromScene(new RoomEnvironment(), 0.06).texture; this.scene.environmentIntensity = 0.42; pm.dispose(); }
+    { this.scene.environment = makeInteriorEnvironment(this.renderer); this.scene.environmentIntensity = 1.0; }
     this.baseHemi = new THREE.HemisphereLight(0x7f95a4, 0x14181b, 0.42); this.scene.add(this.baseHemi);       // the ship's own interior fill; anywhere with a sky has its own light
 
     this.camera = new THREE.PerspectiveCamera(BASE_FOV, 1, 0.08, 500);

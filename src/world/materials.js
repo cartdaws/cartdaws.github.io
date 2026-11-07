@@ -309,7 +309,7 @@ function patchMaterial(mat, { atlas = false, tile = 2.4, seed = 1, dirtOn = true
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\n' + GLSL_COMMON)
       .replace('#include <map_fragment>', GLSL_MAP)
-      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = clamp(roughnessFactor * (0.65 + 0.7 * (1.0 - fbm(wp * 0.9 + uSeed))), 0.15, 1.0);');
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = clamp(roughnessFactor * (0.8 + 0.4 * (1.0 - fbm(wp * 0.9 + uSeed))), 0.62, 1.0);');
   };
   return mat;
 }
