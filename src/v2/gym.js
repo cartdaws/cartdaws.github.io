@@ -42,7 +42,15 @@ export class Gym {
     const light = (x, z, i) => { const l = new THREE.PointLight(0xc4d8ee, i, 30, 1.6); l.position.set(x, H - 0.6, z); G.add(l); };
     for (const x of [-9, 0, 9]) { light(x, CZ - 7.2, 125); light(x, CZ + 7.2, 125); }
     for (const z of [Z0 + 0.1, Z1 - 0.14]) for (const x of [-13, -9.3, -5.6, -1.9, 1.9, 5.6, 9.3, 13]) blk(x - 0.18, x + 0.18, 0, H, z - 0.03, z + 0.03, dark, false);
+    // floor markings are lit paint, not lamps: the ceiling's white glow is for the ceiling
+    const paint = new THREE.MeshStandardMaterial({ color: 0x1a2024, emissive: 0x8fb4c8, emissiveIntensity: 0.4, roughness: 0.8 }); paint.userData.noSnap = true;
     const mark = (x, z, s, mat) => blk(x - s, x + s, 0.002, 0.012, z - s, z + s, mat, false);
+    // the ship's own features, so the lab is part of the same deck
+    { const K = g.kit, put = (n, x, z, rot) => K.solid(G, W, n, x, z, rot);
+      put('cryo_pod', 13.4, 95.2, -Math.PI / 2); put('cryo_pod', 13.4, 98.0, -Math.PI / 2);
+      put('fuel_tank', -12.2, 98.3, 0); put('assembly_arm', 10.0, 97.0, Math.PI);
+      put('pipe_bank', -9.2, Z1 - 0.32, Math.PI); put('pipe_bank', 9.2, Z1 - 0.32, Math.PI);
+      for (const [x, z, r] of [[-7, 82, 0], [0, 88, Math.PI / 2], [7, 94, 0], [-4, 96, Math.PI / 2]]) K.place(G, 'cable_swag', { x, y: H - 0.02, z, rotY: r }); }
     // specimens
     for (const s of SPECIMENS) {
       mark(s.x, s.z, 1.7, dark); const t = sign(s.label, 'BECOMES ' + s.sub); t.position.set(s.x, 3.1, Z0 + 0.06); G.add(t);
@@ -55,10 +63,10 @@ export class Gym {
     blk(-14.5, -11, 0, LOW, 79, 83, kitMaterial('PaintStructural')); blk(-14.5, -11, 0, HIGH, 84, 88, kitMaterial('PaintStructural'));
     { const a = sign('1.2 M', 'ANY BODY'); a.position.set(-10.97, 2.0, 81); a.rotation.y = Math.PI / 2; G.add(a); const b = sign('2.25 M', 'NOT WITH THE HUSK RAISED'); b.position.set(-10.97, 3.0, 86); b.rotation.y = Math.PI / 2; G.add(b); }
     // dash lane: floor stripes one metre apart
-    for (let i = 0; i <= 8; i++) blk(-10 + i * 0, -7, 0.002, 0.012, 89 + i, 89 + i + 0.08, i % 4 ? dark : M.white, false);
+    for (let i = 0; i <= 8; i++) blk(-10 + i * 0, -7, 0.002, 0.012, 89 + i, 89 + i + 0.08, i % 4 ? dark : paint, false);
     { const c = sign('DASH LANE', 'A STRIPE EVERY METRE'); c.position.set(X0 + 0.06, 2.4, 93); c.rotation.y = Math.PI / 2; G.add(c); }
     // pads
-    for (const p of PADS) { mark(p.x, p.z, 1.1, M.white).scale.y = 0.4; const t = sign(p.label, ''); t.position.set(p.x, 2.6, Z1 - 0.06); t.rotation.y = Math.PI; G.add(t); }
+    for (const p of PADS) { mark(p.x, p.z, 1.1, paint).scale.y = 0.4; const t = sign(p.label, ''); t.position.set(p.x, 2.6, Z1 - 0.06); t.rotation.y = Math.PI; G.add(t); }
     // something to take cover behind in a fight
     for (const [x, z] of [[-6.5, 85], [-3.2, 80], [4.2, 80.5], [5.6, 90]]) { blk(x - 0.6, x + 0.6, 0, 3.2, z - 0.6, z + 0.6, kitMaterial('PaintStructural')); blk(x - 0.64, x + 0.64, 0, 0.3, z - 0.64, z + 0.64, dark, false); }
     g.kit.solid(G, W, 'crate_A', -3, 84, 0, 0, 'gym'); g.kit.solid(G, W, 'crate_B', 3.4, 86, 0, 0, 'gym'); g.kit.solid(G, W, 'barrier_22', 0, 81, 0, 0, 'gym');

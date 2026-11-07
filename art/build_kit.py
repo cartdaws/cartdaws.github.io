@@ -663,6 +663,7 @@ for k in range(6):
     p.rbox((cos(a) * 0.1, sin(a) * 0.1, 0.25), (0.012, 0.012, 0.12), D, r=0.002, seg=1, rot=Rz(a))
 finish(p)
 
+exec(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'kit_ship.py')).read())      # ship features
 bpy.ops.wm.save_as_mainfile(filepath=OUT_BLEND)
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.export_scene.gltf(filepath=OUT_GLB, export_format='GLB', use_selection=True, export_apply=True, export_yup=True,

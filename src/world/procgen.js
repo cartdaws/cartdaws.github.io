@@ -296,25 +296,26 @@ function furnish(B, r, placer, L) {
       scatter('pillar', big ? 2 : 3, 2.8);
       for (const n of shuffled(['equip_cabinet_A', 'equip_cabinet_B', 'equip_cabinet_C', 'equip_cabinet_D']).slice(0, 2)) { if (scatter(n, 1, 1.9)) beaconed.push([n, r._last]); }
       line('charging_dock', wallsFree[0] || 'zmin', irand(2, 4));
+      scatter('assembly_arm', big ? 2 : 1, 2.4);
       scatter('barrier_26', 2); scatter('barrier_22', 2); scatter('canister', 2, 1.2);
     } else if (theme === 'cargo') {
       for (const side of ['zmin', 'zmax', 'xmin', 'xmax']) if (hasDoor(side)) lane(side);
       for (let i = 0; i < irand(3, 4); i++) { if (scatter('crate_A', 1, 1.7)) solid('crate_top', r._last.x, r._last.z, 0, 1.4); }
       scatter('crate_B', 3, 1.5); scatter('barrier_26', 3);
       line('storage_rack', wallsFree[0] || 'zmin', irand(2, 3)); line('storage_rack', wallsFree[1] || 'xmin', irand(1, 3));
-      scatter('canister', 3, 1.2);
+      scatter('canister', 3, 1.2); scatter('fuel_tank', 1, 2.0, [0, PI]); line('pipe_bank', wallsFree[2] || 'xmax', 1);
       if (scatter('equip_cabinet_C', 1, 1.9)) beaconed.push(['equip_cabinet_C', r._last]);
     } else if (theme === 'foundry') {
       for (const side of ['zmin', 'zmax', 'xmin', 'xmax']) if (hasDoor(side)) lane(side);
       scatter('pillar', irand(4, 6), 2.6);
       line('workstation', wallsFree[0] || 'zmin', irand(2, 3)); line('workstation', wallsFree[1] || 'xmin', irand(1, 2));
-      scatter('barrier_22', 3); scatter('canister', 2, 1.2);
+      scatter('barrier_22', 3); scatter('canister', 2, 1.2); line('pipe_bank', wallsFree[2] || 'xmax', irand(1, 2)); scatter('fuel_tank', 1, 2.0, [0, PI]);
       if (scatter('equip_cabinet_D', 1, 1.9)) beaconed.push(['equip_cabinet_D', r._last]);
       if (scatter('equip_cabinet_A', 1, 1.9)) beaconed.push(['equip_cabinet_A', r._last]);
     } else { // range
       for (const side of ['zmin', 'zmax', 'xmin', 'xmax']) if (hasDoor(side)) lane(side);
       scatter('barrier_26', 5, 1.7); scatter('pillar', 2, 2.8); scatter('crate_B', 2, 1.5);
-      line('workstation', wallsFree[0] || 'zmin', irand(2, 3)); line('charging_dock', wallsFree[1] || 'xmin', irand(1, 2));
+      line('workstation', wallsFree[0] || 'zmin', irand(2, 3)); line('charging_dock', wallsFree[1] || 'xmin', irand(1, 2)); line('pipe_bank', wallsFree[2] || 'xmax', 1);
     }
     for (const [name, p] of beaconed) {
       const f = p.f;
@@ -339,9 +340,9 @@ function furnish(B, r, placer, L) {
     if (theme === 'lab') {
       line('storage_cabinet', wallsFree[0] || 'zmin', irand(3, 5)); line('storage_cabinet', wallsFree[1] || 'xmin', irand(2, 3));
       for (let i = 0; i < irand(2, 3); i++) { if (scatter('analysis_bench', 1, 1.5, [0, PI / 2])) chair( r._last.x + 0.1, r._last.z + (r._last.rot === 0 ? 1.0 : 0), 0.3 * i); }
-      scatter('instrument_cart', 2, 1.1); scatter('restraint_bed', 1, 1.8, [0, PI / 2]);
+      scatter('instrument_cart', 2, 1.1); scatter('restraint_bed', 1, 1.8, [0, PI / 2]); scatter('cryo_pod', irand(2, 3), 1.7);
     } else if (theme === 'server') {
-      line('server_rack', wallsFree[0] || 'zmin', irand(4, 6)); line('server_rack', wallsFree[1] || 'xmax', irand(2, 4));
+      line('server_rack', wallsFree[0] || 'zmin', irand(4, 6)); line('server_rack', wallsFree[1] || 'xmax', irand(2, 4)); line('pipe_bank', wallsFree[2] || 'xmin', 1);
       for (let i = 0; i < 2; i++) { if (scatter('monitor_station', 1, 1.6, [0, PI])) chair( r._last.x, r._last.z + (r._last.rot === 0 ? 1.1 : -1.1), r._last.rot + PI); }
       line('storage_cabinet', wallsFree[1] || 'zmax', 2);
     } else if (theme === 'storage') {
@@ -353,6 +354,8 @@ function furnish(B, r, placer, L) {
       line('server_rack', wallsFree[1] || 'xmax', 2); scatter('instrument_cart', 1, 1.1);
     }
   }
+  // cable trays overhead, with slack: a ship has wiring, and it is never taut
+  for (let i = 0, n = Math.round(r.w * r.d / 80) + 1; i < n; i++) kit.place(B.group, 'cable_swag', { x: rand(x0 + 2.5, x1 - 2.5), y: r.h - 0.02, z: rand(z0 + 2.5, z1 - 2.5), rotY: pick([0, PI / 2]) });
 }
 
 function freeSpot(r, placer, { pad = 1.0, minFromIn = 0, avoid = [], tries = 120 } = {}) {
