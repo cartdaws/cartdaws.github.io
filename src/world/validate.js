@@ -105,3 +105,15 @@ export function validateRun(game, run) {
 }
 
 export { doorT, WALL_T };
+
+// A picture of one room as the validator sees it: '#' too tight for a body, '.' reachable from the entrance, ' ' open but cut off, S a spawn, E the entrance. For debugging a layout.
+export function drawRoom(game, run, r) {
+  const rooms = run.rooms; let minX = 1e9, maxX = -1e9, minZ = 1e9, maxZ = -1e9;
+  for (const q of rooms.concat(run.sideRooms || [])) { minX = Math.min(minX, q.x0 - 8); maxX = Math.max(maxX, q.x1 + 8); minZ = Math.min(minZ, q.z0 - 8); maxZ = Math.max(maxZ, q.z1 + 8); }
+  const wide = new Grid(game.world, { minX, maxX, minZ, maxZ: maxZ + 12 }, WIDE_R), a = doorPos(r, r.inSide), d = { zmin: [0, 1], zmax: [0, -1], xmin: [1, 0], xmax: [-1, 0] }[r.inSide];
+  const fa = wide.flood(a.x + d[0] * 2.4, a.z + d[1] * 2.4), rows = [];
+  for (let z = r.z0 - 1; z <= r.z1 + 1; z += RES) { let line = ''; for (let x = r.x0 - 1; x <= r.x1 + 1; x += RES) { const c = wide.cell(x, z); line += c < 0 ? '?' : wide.blocked[c] ? '#' : fa[c] ? '.' : ' '; } rows.push(line); }
+  const put = (x, z, ch) => { const i = Math.round((x - (r.x0 - 1)) / RES), j = Math.round((z - (r.z0 - 1)) / RES); if (rows[j]) rows[j] = rows[j].slice(0, i) + ch + rows[j].slice(i + 1); };
+  put(a.x + d[0] * 2.4, a.z + d[1] * 2.4, 'E'); for (const w of r.waves || []) for (const s of w) put(s.x, s.z, 'S');
+  return rows.join('\n');
+}

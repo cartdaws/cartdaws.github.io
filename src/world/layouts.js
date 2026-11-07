@@ -151,6 +151,21 @@ function annex(r) {
   }
   return { shape: 'annex', blocks, cell };
 }
+// rows of fixtures are cut wherever they would cross the approach to a door
+function splitRows(r, rows) {
+  const lanes = roomSides(r).map((s) => laneRect(r, s, 0.9)), out = [];
+  for (const row of rows) {
+    const alongX = row.axis === 'x'; let segs = [[alongX ? row.x0 : row.z0, alongX ? row.x1 : row.z1]];
+    for (const L of lanes) {
+      if (!inter(L, rect(row))) continue;
+      const lo = alongX ? L[0] : L[2], hi = alongX ? L[1] : L[3], next = [];
+      for (const [a, b] of segs) { if (hi <= a || lo >= b) { next.push([a, b]); continue; } if (lo - a > 0) next.push([a, lo]); if (b - hi > 0) next.push([hi, b]); }
+      segs = next;
+    }
+    for (const [a, b] of segs) if (b - a >= 3.2) out.push(alongX ? { ...row, x0: a, x1: b } : { ...row, z0: a, z1: b });
+  }
+  return out;
+}
 function aisles(r) {
   const alongX = r.w >= r.d, n = r.d >= 16 && !alongX || r.w >= 16 && alongX ? 3 : 2; const rows = [];
   const len = (alongX ? r.w : r.d) * 0.62, spread = (alongX ? r.d : r.w), pitch = Math.min(3.6, (spread - 7) / (n - 1 || 1));
@@ -158,7 +173,8 @@ function aisles(r) {
     const off = (k - (n - 1) / 2) * pitch;
     rows.push(alongX ? { x0: r.cx - len / 2, x1: r.cx + len / 2, z0: r.cz + off - 0.5, z1: r.cz + off + 0.5, axis: 'x' } : { x0: r.cx + off - 0.5, x1: r.cx + off + 0.5, z0: r.cz - len / 2, z1: r.cz + len / 2, axis: 'z' });
   }
-  return { shape: 'aisles', blocks: [], rows };
+  const cut = splitRows(r, rows);
+  return cut.length >= 2 ? { shape: 'aisles', blocks: [], rows: cut } : null;
 }
 function dais(r) {
   const w = R5(r.w * U(0.3, 0.4)), d = R5(r.d * U(0.3, 0.4));

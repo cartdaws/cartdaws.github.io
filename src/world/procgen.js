@@ -144,13 +144,64 @@ function makeBuilder(group, world, kit, boxes, lights) {
   return { group, W, blk, deco, light, kit };
 }
 
+// A coarse floor plan of a room as it is furnished. A prop may only go where the doors can still reach one another through a passage a body fits in, and a spawn
+// or pickup only where that space reaches it: so no arrangement of props can wall a door in, make a squeeze of a corridor, or strand something in a corner.
+class RoomGrid {
+  constructor(r) {
+    // the validator asks for 0.85 m clear on each side: this asks for 2.3 m, so nothing is ever built near the limit and the two cannot disagree
+    this.r = r; this.res = 0.4; this.R = 1.15;
+    this.nx = Math.ceil(r.w / this.res); this.nz = Math.ceil(r.d / this.res); this.blocked = new Uint8Array(this.nx * this.nz); this.ver = 0; this.cache = null;
+    const gaps = roomSides(r).map((side) => ({ side, t: doorT(r, side) }));
+    for (let j = 0; j < this.nz; j++) for (let i = 0; i < this.nx; i++) {
+      const x = r.x0 + (i + 0.5) * this.res, z = r.z0 + (j + 0.5) * this.res; let b = x < r.x0 + this.R || x > r.x1 - this.R || z < r.z0 + this.R || z > r.z1 - this.R;
+      if (b) for (const g of gaps) {      // the wall is dilated like any other, except through the doorway
+        const along = g.side[0] === 'z' ? x : z, near = g.side === 'zmin' ? z < r.z0 + this.R : g.side === 'zmax' ? z > r.z1 - this.R : g.side === 'xmin' ? x < r.x0 + this.R : x > r.x1 - this.R;
+        const other = g.side[0] === 'z' ? (x < r.x0 + this.R || x > r.x1 - this.R) : (z < r.z0 + this.R || z > r.z1 - this.R);
+        if (near && !other && Math.abs(along - g.t) <= 1.52 - this.R) { b = false; break; }
+      }
+      this.blocked[j * this.nx + i] = b ? 1 : 0;
+    }
+    // the points a person stands at just inside each door
+    this.starts = gaps.map(({ side, t }) => { const d = { zmin: [0, 1], zmax: [0, -1], xmin: [1, 0], xmax: [-1, 0] }[side]; const p = geomDoorPos(r, side); return [p.x + d[0] * 2.4, p.z + d[1] * 2.4]; });
+  }
+  cell(x, z) { const i = Math.floor((x - this.r.x0) / this.res), j = Math.floor((z - this.r.z0) / this.res); return i < 0 || j < 0 || i >= this.nx || j >= this.nz ? -1 : j * this.nx + i; }
+  cells(x0, x1, z0, z1) {
+    const out = [], R = this.R, i0 = Math.max(0, Math.floor((x0 - R - this.r.x0) / this.res)), i1 = Math.min(this.nx - 1, Math.floor((x1 + R - this.r.x0) / this.res)), j0 = Math.max(0, Math.floor((z0 - R - this.r.z0) / this.res)), j1 = Math.min(this.nz - 1, Math.floor((z1 + R - this.r.z0) / this.res));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
+      const x = this.r.x0 + (i + 0.5) * this.res, z = this.r.z0 + (j + 0.5) * this.res, cx = Math.max(x0, Math.min(x, x1)), cz = Math.max(z0, Math.min(z, z1));
+      if ((x - cx) ** 2 + (z - cz) ** 2 < R * R) out.push(j * this.nx + i);
+    }
+    return out;
+  }
+  flood() {
+    const seen = new Uint8Array(this.blocked.length), q = []; const { nx, nz, blocked } = this;
+    for (const [x, z] of this.starts) { const c = this.cell(x, z); if (c >= 0 && !blocked[c] && !seen[c]) { seen[c] = 1; q.push(c); break; } }
+    for (let qi = 0; qi < q.length; qi++) {
+      const c = q[qi], ci = c % nx, cj = (c / nx) | 0;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const ni = ci + di, nj = cj + dj; if (ni < 0 || nj < 0 || ni >= nx || nj >= nz) continue; const n = nj * nx + ni; if (blocked[n] || seen[n]) continue; seen[n] = 1; q.push(n); }
+    }
+    return seen;
+  }
+  allReached(seen) { return this.starts.every(([x, z]) => { const c = this.cell(x, z); return c >= 0 && seen[c]; }); }
+  commit(x0, x1, z0, z1) { for (const c of this.cells(x0, x1, z0, z1)) this.blocked[c] = 1; this.ver++; this.cache = null; }
+  // would the doors still reach each other if this were put down?
+  keepsOpen(x0, x1, z0, z1) {
+    const cs = this.cells(x0, x1, z0, z1), was = cs.filter((c) => !this.blocked[c]); if (!was.length) return true;
+    for (const c of was) this.blocked[c] = 1;
+    const ok = this.allReached(this.flood());
+    for (const c of was) this.blocked[c] = 0;
+    return ok;
+  }
+  reach(x, z) { if (!this.cache) this.cache = this.flood(); const c = this.cell(x, z); return c >= 0 && !!this.cache[c]; }
+}
+
 // Keeps props from colliding with each other and from clogging door approaches.
 class Placer {
-  constructor() { this.rects = []; }
-  add(x0, x1, z0, z1) { this.rects.push({ x0, x1, z0, z1 }); }
+  constructor() { this.rects = []; this.grid = null; }
+  add(x0, x1, z0, z1, obstacle = false) { this.rects.push({ x0, x1, z0, z1 }); if (obstacle && this.grid) this.grid.commit(x0, x1, z0, z1); }
   free(x0, x1, z0, z1, pad) {
     for (const r of this.rects) if (!(x1 + pad < r.x0 || x0 - pad > r.x1 || z1 + pad < r.z0 || z0 - pad > r.z1)) return false;
-    return true;
+    return this.grid ? this.grid.keepsOpen(x0, x1, z0, z1) : true;
   }
 }
 
@@ -286,17 +337,18 @@ function furnish(B, r, placer, L) {
   const solid = (name, x, z, rot = 0, y = 0) => {
     kit.solid(B.group, B.W, name, x, z, rot, y);
     const f = kit.footprint(name, rot);
-    placer.add(x - f.w / 2, x + f.w / 2, z - f.d / 2, z + f.d / 2);
+    placer.add(x - f.w / 2, x + f.w / 2, z - f.d / 2, z + f.d / 2, y < 0.3);
     (r.props || (r.props = [])).push({ name, x0: x - f.w / 2, x1: x + f.w / 2, z0: z - f.d / 2, z1: z + f.d / 2, y0: y, y1: y + f.h });
     return f;
   };
   // the kit has no collider for a chair: a small box, so you bump into it like everything else in the room
-  const chair = (x, z, rot = 0) => { kit.place(B.group, 'chair', { x, z, rotY: rot }); B.W.add(x - 0.26, 0, z - 0.26, x + 0.26, 0.61, z + 0.26); placer.add(x - 0.3, x + 0.3, z - 0.3, z + 0.3); };
+  const chair = (x, z, rot = 0) => { kit.place(B.group, 'chair', { x, z, rotY: rot }); B.W.add(x - 0.26, 0, z - 0.26, x + 0.26, 0.61, z + 0.26); placer.add(x - 0.3, x + 0.3, z - 0.3, z + 0.3, true); };
   const hasDoor = (s) => roomSides(r).includes(s);
 
   // what is already there is reserved first: the approach to every door, then the room's own structure
+  placer.grid = new RoomGrid(r);
   for (const s of roomSides(r)) { const [a, b, c, d] = laneRect(r, s); placer.add(a, b, c, d); }
-  for (const b of plan.blocks) placer.add(b.x0, b.x1, b.z0, b.z1);
+  for (const b of plan.blocks) placer.add(b.x0, b.x1, b.z0, b.z1, b.kind !== 'dais');
   if (plan.stairs) { const s = plan.stairs, e = 1.6, d = s.dir; if (d === '+x') placer.add(s.x0 - e, s.x0, s.z0, s.z1); else if (d === '-x') placer.add(s.x1, s.x1 + e, s.z0, s.z1); else if (d === '+z') placer.add(s.x0, s.x1, s.z0 - e, s.z0); else placer.add(s.x0, s.x1, s.z1, s.z1 + e); }
 
   const sides = shuffled(['zmin', 'zmax', 'xmin', 'xmax']);
@@ -383,7 +435,7 @@ function furnish(B, r, placer, L) {
       const rot = alongX ? (mid < cz ? 0 : PI) : (mid < cx ? PI / 2 : -PI / 2), fp = kit.footprint(name, rot), step = (alongX ? fp.w : fp.d) + 0.04;
       const lo = alongX ? row.x0 : row.z0, hi = alongX ? row.x1 : row.z1, c = (lo + hi) / 2;
       for (let p = lo + step / 2; p + step / 2 <= hi + 0.01; p += step) {
-        if (Math.abs(p - c) < 1.4 + step / 2 - 0.02) continue;
+        if (hi - lo > 8 && Math.abs(p - c) < 1.4 + step / 2 - 0.02) continue;
         const x = alongX ? p : mid, z = alongX ? mid : p;
         if (placer.free(x - fp.w / 2, x + fp.w / 2, z - fp.d / 2, z + fp.d / 2, 0)) solid(name, x, z, rot);
       }
@@ -436,7 +488,7 @@ function furnish(B, r, placer, L) {
       for (let t = 0; t < 40; t++) {
         const x = rand(x0 + 3, x1 - 3), z = rand(z0 + 3, z1 - 3);
         if (!placer.free(x - 1.4, x + 1.4, z - 1.0, z + 1.0, 0.9)) continue;
-        placer.add(x - 1.4, x + 1.4, z - 1.0, z + 1.0);
+        placer.add(x - 1.4, x + 1.4, z - 1.0, z + 1.0, true);
         r.barrels.push({ x: x - 0.45, z }, { x: x + 0.5, z: z + rand(-0.3, 0.3) });
         const th = 0.12;
         for (const [a, b, c, d] of [[x - 1.3, x + 1.3, z - 0.95, z - 0.95 + th], [x - 1.3, x + 1.3, z + 0.95 - th, z + 0.95], [x - 1.3, x - 1.3 + th, z - 0.95, z + 0.95], [x + 1.3 - th, x + 1.3, z - 0.95, z + 0.95]]) B.deco(a, b, 0.012, 0.05, c, d, M.hazard);
@@ -488,13 +540,14 @@ function freeSpot(r, placer, { pad = 1.0, minFromIn = 0, avoid = [], tries = 120
     for (let t = 0; t < tries; t++) {
       const x = rand(r.x0 + 1.8, r.x1 - 1.8), z = rand(r.z0 + 1.8, r.z1 - 1.8);
       if (!placer.free(x - 0.3, x + 0.3, z - 0.3, z + 0.3, Math.max(0.7, pad * k))) continue;
+      if (placer.grid && !placer.grid.reach(x, z)) continue;
       if (k === 1 && ip && Math.hypot(x - ip.x, z - ip.z) < minFromIn) continue;
       if (k < 1 ? false : avoid.some((a) => Math.hypot(a.x - x, a.z - z) < 2.4)) continue;
       return { x, z };
     }
   }
   for (let x = r.x0 + 1.8; x <= r.x1 - 1.8; x += 0.6) for (let z = r.z0 + 1.8; z <= r.z1 - 1.8; z += 0.6) {
-    if (placer.free(x - 0.3, x + 0.3, z - 0.3, z + 0.3, 0.7)) return { x, z };
+    if (placer.free(x - 0.3, x + 0.3, z - 0.3, z + 0.3, 0.7) && (!placer.grid || placer.grid.reach(x, z))) return { x, z };
   }
   return { x: r.cx, z: r.cz };
 }
@@ -688,9 +741,9 @@ function buildRun(game) {
     const taken = [];
     if (r.kind === 'quiet') {
       const n = r.theme.id === 'storage' || r.theme.id === 'lab' ? 2 : 1;
-      if (!LAB && r === rooms[N - 2]) { const s = freeSpot(r, pl, { pad: 2.2, avoid: taken }); taken.push(s); r.navSpot = s; pl.add(s.x - 1.4, s.x + 1.4, s.z - 1, s.z + 1); }
+      if (!LAB && r === rooms[N - 2]) { const s = freeSpot(r, pl, { pad: 2.2, avoid: taken }); taken.push(s); r.navSpot = s; pl.add(s.x - 1.4, s.x + 1.4, s.z - 1, s.z + 1, true); }
       else {
-        const s = freeSpot(r, pl, { pad: 1.5, avoid: taken }); taken.push(s); pl.add(s.x - 1, s.x + 1, s.z - 1, s.z + 1);
+        const s = freeSpot(r, pl, { pad: 1.5, avoid: taken }); taken.push(s); pl.add(s.x - 1, s.x + 1, s.z - 1, s.z + 1, !LAB && (quietN + 1) % 2 === 0 && r.h > 4.4);
         // every second jar sits up on a stack of cases: too high for a jump, not for arms that grip
         quietN++;
         if (!LAB && quietN % 2 === 0 && r.h > 4.4) { const H = 2.65; B.blk(s.x - 0.8, s.x + 0.8, 0, H, s.z - 0.8, s.z + 0.8, mats.dark); r.voiceSpot = { x: s.x, y: H, z: s.z }; }

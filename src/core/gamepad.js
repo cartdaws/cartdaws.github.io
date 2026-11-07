@@ -77,7 +77,7 @@ export class PadInput {
   menu(s, lx, ly, dt, edge) {
     const dir = (key, down, first = 0.3, again = 0.11) => { if (!down) { this.rep[key] = 0; return false; } if (this.rep[key] === 0) { this.rep[key] = first; return true; } this.rep[key] -= dt; if (this.rep[key] <= 0) { this.rep[key] = again; return true; } return false; };
     const up = dir('u', s.b[12] || ly < -0.5), down = dir('d', s.b[13] || ly > 0.5), left = dir('l', s.b[14] || lx < -0.5), right = dir('r', s.b[15] || lx > 0.5);
-    const vis = (el) => el.offsetParent !== null && !el.closest('.hidden');
+    const vis = (el) => el.getClientRects().length > 0 && !el.closest('.hidden');      // not offsetParent: it is null for every fixed-position menu
     const panel = [...document.querySelectorAll('.panel')].find(vis), menu = [...document.querySelectorAll('.menu')].find(vis);
     const root = panel || menu; if (!root) return;
     const items = [...root.querySelectorAll('button, input[type=range]')].filter((el) => vis(el) && !el.disabled);
