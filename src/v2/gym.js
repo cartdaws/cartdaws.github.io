@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { M, boxGeo, kitMaterial } from '../world/materials.js';
+import { FaceGuard } from '../world/coplanar.js';
 import { Shellback } from './shellback.js';
 import { BARE, MUTATIONS, SLOTS, MAX_TIER, STACK_BONUS } from './mutations.js';
 
@@ -32,7 +33,8 @@ export class Gym {
     if (this.built) return; this.built = true;
     const g = this.g, W = g.world, G = this.group = new THREE.Group(); g.scene.add(G);
     const dark = kitMaterial('PaintDark');
-    const blk = (x0, x1, y0, y1, z0, z1, mat, solid = true, opt = {}) => { const w = x1 - x0, h = y1 - y0, d = z1 - z0, m = new THREE.Mesh(boxGeo(w, h, d, 2, x0 * 3.1 + z0 * 1.7), mat); m.position.set(x0 + w / 2, y0 + h / 2, z0 + d / 2); G.add(m); if (solid) W.add(x0, y0, z0, x1, y1, z1, { tag: opt.tag || 'gym' }); return m; };
+    const guard = new FaceGuard();
+    const blk = (x0, x1, y0, y1, z0, z1, mat, solid = true, opt = {}) => { const [a0, a1, b0, b1, c0, c1] = guard.fit([x0, x1, y0, y1, z0, z1]), m = new THREE.Mesh(boxGeo(a1 - a0, b1 - b0, c1 - c0, 2, x0 * 3.1 + z0 * 1.7), mat); m.position.set((a0 + a1) / 2, (b0 + b1) / 2, (c0 + c1) / 2); G.add(m); if (solid) W.add(x0, y0, z0, x1, y1, z1, { tag: opt.tag || 'gym' }); return m; };
     blk(X0 - 0.5, X1 + 0.5, -0.2, 0, Z0 - 0.5, Z1 + 0.5, M.floor, false);
     blk(X0 - 0.5, X1 + 0.5, H, H + 0.4, Z0 - 0.5, Z1 + 0.5, M.wall);
     blk(X0 - 0.5, X1 + 0.5, 0, H, Z0 - 0.5, Z0, M.wall); blk(X0 - 0.5, X1 + 0.5, 0, H, Z1, Z1 + 0.5, M.wall);

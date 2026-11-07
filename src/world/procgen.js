@@ -1,5 +1,6 @@
 import { LAB } from '../v2/flags.js';
 import * as THREE from 'three';
+import { FaceGuard } from './coplanar.js';
 import { M, boxGeo, kitMaterial } from './materials.js';
 import { Door } from './door.js';
 import { mergeStatic } from './merge.js';
@@ -117,10 +118,11 @@ function composeWave(depth, finale, wave) {
 
 function makeBuilder(group, world, kit, boxes, lights) {
   const W = { add: (...a) => { const b = world.add(...a); boxes.push(b); return b; } };
+  const guard = new FaceGuard(); (typeof scene !== "undefined" ? scene : group).userData.faceGuard = guard;
   const blk = (x0, x1, y0, y1, z0, z1, mat, solid = true, tag = '') => {
-    const w = x1 - x0, h = y1 - y0, d = z1 - z0;
-    const m = new THREE.Mesh(boxGeo(w, h, d, 2, x0 * 3.1 + z0 * 1.7 + y0 * 0.9), mat);
-    m.position.set(x0 + w / 2, y0 + h / 2, z0 + d / 2);
+    const [a0, a1, b0, b1, c0, c1] = guard.fit([x0, x1, y0, y1, z0, z1]);
+    const m = new THREE.Mesh(boxGeo(a1 - a0, b1 - b0, c1 - c0, 2, x0 * 3.1 + z0 * 1.7 + y0 * 0.9), mat);
+    m.position.set((a0 + a1) / 2, (b0 + b1) / 2, (c0 + c1) / 2);
     group.add(m);
     if (solid) W.add(x0, y0, z0, x1, y1, z1, { tag });
     return m;
