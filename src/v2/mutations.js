@@ -4,7 +4,7 @@
 //   trunk     the Blender meshes it grows on the body itself, so the outline changes
 //   limbK     how much thicker the limb carrying it becomes; massK how much it adds to the trunk's bulk
 //   style     how the arm holds itself with it: rim colour, curl, how far the arm rolls to show its back, weapon = the arm's firing pose
-//   attack    what the trigger does. Every number is [stage 1, stage 2, stage 3]
+//   attack    what the trigger does (melee, shard, arc, hook, blast, rail, seek, slam). Every number is [stage 1, stage 2, stage 3]
 //   mods      what it does to your body wherever you carry it
 //   move      how you move while it is the arm you have raised
 //   role, plus, minus   the same thing in words, for the wheel and the lab
@@ -65,16 +65,47 @@ export const MUTATIONS = {
     move: () => ({ accel: 1.35 }),
     moveNote: () => 'AGILE',
   },
-  acid: {
-    id: 'acid', name: 'ACID GLAND', kind: 'organic', sources: ['bladder'], nodes: ['Mut_Acid', 'Mut_AcidFlesh', 'Mut_AcidGlow'], infect: 0.6,
-    trunk: ['Tor_Acid', 'Tor_AcidFlesh', 'Tor_AcidGlow'], limbK: 0.12, massK: 0.045, hud: '#9aa040',
-    note: 'SPITS A GLOB ON A SLOW ARC. THE POOL EATS MACHINES AND WEAKENS THEM. IT CAN HURT YOU TOO.',
-    role: 'CONTROLLING GROUND', plus: 'POOL DAMAGES, SLOWS, AND MAKES MACHINES TAKE 40% MORE FROM EVERYTHING. ABSORBING HEALS YOU 30% MORE', minus: 'SLOW ARC, EASY TO DODGE. LITTLE DAMAGE AT ONCE. THE POOL BURNS YOU TOO',
-    style: { rim: 0xb0c050, suck: 0x000000, suckI: 0, grip: 0, spread: 0, swell: 0.3, weapon: 0.8, noMouth: false, roll: 2.2 },
-    attack: { type: 'acid', dmg: [8, 11, 14], dot: [12, 16, 21], radius: [2.4, 2.8, 3.2], speed: 14, range: 24, life: 4, rate: [1.0, 0.9, 0.8], cost: [16, 16, 16], corrode: 1.4 },
-    mods: () => ({ absorbHeal: 1.3 }),
+  blast: {
+    id: 'blast', name: 'BLAST BLADDER', kind: 'organic', sources: ['bladder'], nodes: ['Mut_Blast', 'Mut_BlastBone'], infect: 0.4,
+    trunk: ['Tor_Blast', 'Tor_BlastBone'], limbK: 0.14, massK: 0.05, hud: '#d8c0ae',
+    note: 'THE ARM FILLS, THEN VENTS. A CONE OF PRESSURE THAT THROWS EVERYTHING IN FRONT OF YOU BACK. WORST AT A DISTANCE.',
+    role: 'CLOSE AND CROWDED', plus: 'HITS EVERYTHING IN A WIDE CONE AT ONCE. HURLS MACHINES BACK AND OFF THEIR AIM. LOOSES THE ONES CLOSING ON YOU', minus: 'HALF THE POWER BY THE EDGE OF ITS REACH. SHORT RANGE. KICKS YOU BACK A STEP',
+    style: { rim: 0xe4d0c0, suck: 0x000000, suckI: 0, grip: 0, spread: 0, swell: 0.4, weapon: 0.9, noMouth: true, roll: 2.2 },
+    attack: { type: 'blast', dmg: [26, 34, 42], range: [8.5, 9.5, 10.5], cone: 0.62, knock: [3.2, 3.8, 4.4], stun: [0.45, 0.55, 0.65], rate: [0.95, 0.88, 0.8], cost: [20, 20, 20] },
+    mods: () => ({}),
     move: () => ({}),
-    moveNote: () => 'WET, CORROSIVE',
+  },
+  rail: {
+    id: 'rail', name: 'RAIL SPIKE', kind: 'tech', sources: ['drone'], nodes: ['Mut_Rail', 'Mut_RailDark', 'Mut_RailGlow'], infect: 0.9,
+    trunk: ['Tor_Rail', 'Tor_RailDark', 'Tor_RailGlow'], limbK: 0.0, massK: 0.03, hud: '#ffb060',
+    note: 'ONE NEEDLE, ANY DISTANCE, THROUGH EVERYTHING IN ITS LINE. SLOW TO RECOVER. LINE THEM UP.',
+    role: 'ONE PERFECT SHOT', plus: 'NEVER MISSES, NEVER FADES, PASSES THROUGH EVERY MACHINE IN A LINE. HEAVY ARMOUR DOES NOT STOP IT', minus: 'ONE SHOT, THEN A LONG WAIT. EXPENSIVE. NOTHING IF YOU MISS YOUR AIM. USELESS WHEN SURROUNDED',
+    style: { rim: 0xffc890, suck: 0x2a1408, suckI: 0.7, grip: 0, spread: 0, swell: 0.05, weapon: 1, noMouth: true, roll: 2.5 },
+    attack: { type: 'rail', dmg: [56, 72, 90], range: 80, width: 0.22, rate: [1.5, 1.35, 1.2], cost: [32, 32, 32] },
+    mods: () => ({ regen: 0.92 }),
+    move: () => ({ speed: 0.97 }),
+    moveNote: () => 'STEADY',
+  },
+  seek: {
+    id: 'seek', name: 'SEEKER', kind: 'tech', sources: ['armored'], nodes: ['Mut_Seek', 'Mut_SeekSteel', 'Mut_SeekGlow'], infect: 0.85,
+    trunk: ['Tor_Seek', 'Tor_SeekSteel', 'Tor_SeekGlow'], limbK: 0.04, massK: 0.04, hud: '#ff6a50',
+    note: 'A SLOW MISSILE THAT CHOOSES ITS OWN WAY AROUND COVER. MORE OF THEM AS IT DEEPENS. DODGEABLE, BUT SO ARE YOU.',
+    role: 'AROUND CORNERS', plus: 'HOMES IN ON THE NEAREST MACHINE YOU WERE LOOKING AT. BLASTS EVERYTHING AROUND IT. STAGE 2 AND 3 LAUNCH MORE', minus: 'SLOW TO ARRIVE. A FAST MACHINE CAN OUTRUN IT. THE BLAST HURTS YOU TOO',
+    style: { rim: 0xff9078, suck: 0x300c08, suckI: 0.8, grip: 0, spread: 0, swell: 0.1, weapon: 0.9, noMouth: true, roll: 2.4 },
+    attack: { type: 'seek', dmg: [30, 36, 42], radius: [3.0, 3.3, 3.6], count: [1, 2, 3], speed: 11, turn: 2.6, life: 4.5, rate: [1.15, 1.1, 1.05], cost: [24, 24, 24] },
+    mods: () => ({ dmgTaken: 1.04 }),
+    move: () => ({}),
+  },
+  slam: {
+    id: 'slam', name: 'SEISMIC FIST', kind: 'organic', sources: ['brute'], nodes: ['Mut_Slam', 'Mut_SlamSteel', 'Mut_SlamGlow'], infect: 0.6,
+    trunk: ['Tor_Slam', 'Tor_SlamSteel', 'Tor_SlamGlow'], limbK: 0.2, massK: 0.06, hud: '#d88848',
+    note: 'THE FIST COMES DOWN AND THE FLOOR ANSWERS. A WAVE RUNS ALONG THE GROUND, THROWING THEM OFF THEIR FEET.',
+    role: 'CONTROLLING THE FLOOR', plus: 'A GROUND WAVE ALONG THE FLOOR, THROUGH COVER AND OVER LOW WALLS. STAGGERS EVERYTHING IT TOUCHES. YOU ARE HARD TO KNOCK DOWN', minus: 'ONLY HITS WHAT STANDS ON THE FLOOR. TELLS THEM IT IS COMING. SLOWS YOU WHILE RAISED',
+    style: { rim: 0xe0a060, suck: 0x000000, suckI: 0, grip: 0, spread: 0, swell: 0.6, weapon: 0.8, noMouth: true, roll: 2.2 },
+    attack: { type: 'slam', dmg: [30, 40, 52], range: [13, 15, 17], width: 1.5, stagger: [0.7, 0.85, 1.0], rate: [1.0, 0.92, 0.85], cost: [18, 18, 18], hitAt: 0.2, dur: 0.6 },
+    mods: (t) => ({ dmgTaken: 1 - (0.08 + t * 0.02) }),
+    move: () => ({ speed: 0.94, accel: 0.7, jump: 0.92 }),
+    moveNote: () => '6% SLOWER, PLANTED',
   },
 };
 

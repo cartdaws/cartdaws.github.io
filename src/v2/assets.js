@@ -9,7 +9,7 @@ export const v2node = (n) => NODES[n];
 export const v2prefix = (p) => Object.keys(NODES).filter((n) => n.startsWith(p));
 
 // Trypophobia setting: every dense cluster of bumps, sacs, suckers or pores is a shared geometry, so emptying its draw range removes it everywhere at once, live.
-const TRYPO_KEY = 'intruderv2-trypo', CLUSTERS = ['Mut_Acid', 'Mut_AcidGlow', 'Tor_Acid', 'Tor_AcidGlow', 'BladderSacs', 'ArmSuckers', 'ShellPores'];
+const TRYPO_KEY = 'intruderv2-trypo', CLUSTERS = ['BladderSacs', 'ArmSuckers', 'ShellPores'];
 let trypo = false; try { trypo = localStorage.getItem(TRYPO_KEY) === '1'; } catch (e) { /* default off */ }
 export const trypoSafe = () => trypo;
 export function setTrypoSafe(on) {

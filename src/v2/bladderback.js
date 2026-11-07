@@ -3,7 +3,7 @@ import { Enemy } from '../game/enemies/enemy.js';
 import { v2node } from './assets.js';
 import { meltable } from './shellback.js';
 
-// A second harmless grazer: a soft fat thing carrying its stomach on the outside, in swollen sacs that pulse with its breathing. It cannot be shot and it does not fight. Absorbing it is how the body learns to make acid.
+// A second harmless grazer: a soft fat thing carrying its stomach on the outside, in swollen sacs that pulse with its breathing. It cannot be shot and it does not fight. Absorbing it is how the body learns to vent a cone of pressure.
 export class Bladderback extends Enemy {
   constructor(game, x, z) {
     super(game, x, 0, z);

@@ -14,7 +14,7 @@ export const DRONE_VARIANTS = {
 export class SentryDrone extends Enemy {
   constructor(game, x, z, variant = 'std') {
     super(game, x, 2.3, z);
-    this.kind = 'drone';
+    this.kind = 'drone'; this.sourceId = variant === 'armored' ? 'armored' : 'drone';
     this.variant = variant;
     this.v = DRONE_VARIANTS[variant] || DRONE_VARIANTS.std;
     this.heal = this.v.heal;

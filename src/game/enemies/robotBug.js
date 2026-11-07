@@ -17,7 +17,7 @@ export const BUG_VARIANTS = {
 export class RobotBug extends Enemy {
   constructor(game, x, z, variant = 'std') {
     super(game, x, 0, z);
-    this.kind = 'bug';
+    this.kind = 'bug'; this.sourceId = variant === 'brute' ? 'brute' : 'bug';
     this.variant = variant;
     this.v = BUG_VARIANTS[variant] || BUG_VARIANTS.std;
     this.heal = this.v.heal;

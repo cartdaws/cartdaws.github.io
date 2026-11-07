@@ -26,8 +26,9 @@ M = {
   'ceramic': mat('Ceramic', '#6f6a62', 0.34, 0.0),
   'shardglow': mat('ShardGlow', '#8ff5d8', 0.2, 0.0, '#7ff5d0', 3.5),
   'arcglow': mat('ArcGlow', '#a8d8ff', 0.2, 0.0, '#8fc8ff', 4.0),
-  'sac': mat('AcidSac', '#26280f', 0.18, 0.0, '#4c5812', 0.32),
-  'sacglow': mat('AcidDuct', '#6c7a22', 0.3, 0.0, '#a8c030', 1.6),
+  'membrane': mat('Membrane', '#c9b8ac', 0.22, 0.0, '#d8b8a0', 0.18),
+  'railglow': mat('RailGlow', '#ffb060', 0.2, 0.0, '#ff9a3c', 3.2),
+  'seekglow': mat('SeekGlow', '#ff6a50', 0.2, 0.0, '#ff3a28', 3.6),
 }
 
 # ================================================================ THE SKIN
@@ -247,26 +248,51 @@ hd_.tube([surf(0.885, BACK - PI, 0.006), surf(0.905, BACK - PI, 0.006)], [0.06, 
 n_ = 34; pts = [surf(0.9, BACK - PI + 2 * PI * q / (n_ - 1), 0.004) for q in range(n_)]; hd_.tube(pts, [0.009, 0.009], sides=8, rings=n_)
 hs_.make('Mut_Hook', M['steel'], grime=0.26, uv=9.0); hd_.make('Mut_HookDark', M['dark'], grime=0.24, uv=9.0); hc_.make('Mut_HookCable', M['black'], grime=0.1, uv=10.0); hf_.make('Mut_HookFlesh', M['flesh'], uv=8.0)
 
-# ================================================================ ACID GLAND: organic. Bloated sacs swollen out of the back of the arm, ducts running between them, a wet lipped opening at the tip.
-ac_ = B(); af_ = B(); ag_ = B()
-s = 0.2; j = 0
-while s < 0.88:
-    k = (s - 0.2) / 0.68; r0 = 0.05 - 0.024 * k
-    for sg in (-1, 1):
-        if j % 2 == 0 or sg == 1:
-            a = BACK + sg * (0.55 + 0.3 * math.sin(j * 1.7)); c = surf(s + 0.02 * sg * (j % 2), a, r0 * 0.5)
-            ac_.blob(c, r0 * (0.9 + 0.2 * math.sin(j * 2.3 + sg)), sx=1.0, sy=0.9, sz=1.35, seg=14, rows=10)
-            scute(af_, s + 0.02 * sg * (j % 2), r0 * 0.75, a, 0.62, r0 * 0.3, ridge=0.0, nu=8, nv=6)
-    s += r0 * 2.0 / 2.2 * 0.95; j += 1
+# ================================================================ THE FOUR NEW ARMS. Each is one clear shape, not a crowd of small ones.
+def ring(bld, s, th, lift=0.012, n=36, sides=8):
+    bld.tube([surf(s, BACK + 2 * PI * q / n, lift) for q in range(n + 1)], [th, th], sides=sides, rings=n + 1, cap=False)
+def rod(bld, s0, s1, a, lift, r0, r1=None, sides=8):
+    bld.tube([surf(s0, a, lift), surf((s0 + s1) / 2, a, lift), surf(s1, a, lift)], [r0, (r0 + (r1 if r1 is not None else r0)) / 2, r1 if r1 is not None else r0], sides=sides, rings=14)
+
+# --- BLAST BLADDER: one great taut sac on the back of the arm, held in bone straps, with a flared bone nozzle where the hand was. Smooth, pale, nothing wet or clustered.
+bm_ = B(); bb_ = B()
+bm_.blob(surf(0.56, BACK, 0.05), 0.07, sx=1.0, sy=1.05, sz=2.1, seg=24, rows=16)
+bm_.blob(surf(0.3, BACK, 0.03), 0.04, sx=1.0, sy=0.9, sz=1.5, seg=16, rows=12)
+for s0 in (0.43, 0.5, 0.57, 0.64, 0.71): ring(bb_, s0, 0.0075, lift=0.05 + 0.04 * math.sin((s0 - 0.43) / 0.28 * PI) + 0.004, n=44)   # the straps
+for a in (BACK - 0.95, BACK + 0.95): rod(bb_, 0.26, 0.9, a, 0.02, 0.011, 0.007)
+for s0, th in ((0.885, 0.017), (0.915, 0.013), (0.94, 0.0095)): ring(bb_, s0, th, lift=0.012 + (s0 - 0.885) * 0.5, n=40, sides=9)       # the nozzle, flaring
+bm_.make('Mut_Blast', M['membrane'], uv=4.0); bb_.make('Mut_BlastBone', M['bone'], grime=0.12, uv=8.0)
+
+# --- RAIL SPIKE: two long rails down the back with a lit core between them, coils round the pair, a needle of steel past the tip.
+rs_ = B(); rd_ = B(); rg_ = B()
+for sg in (-1, 1): rod(rs_, 0.22, 1.0, BACK + sg * 0.2, 0.034, 0.0125, 0.0085, sides=9)
+rod(rg_, 0.3, 0.98, BACK, 0.028, 0.0058, 0.0042, sides=7)
+for s0 in (0.3, 0.44, 0.58, 0.72, 0.84):
+    rd_.tube([surf(s0, BACK - 0.34, 0.03), surf(s0, BACK - 0.17, 0.052), surf(s0, BACK, 0.058), surf(s0, BACK + 0.17, 0.052), surf(s0, BACK + 0.34, 0.03)], [0.0085] * 5, sides=7, rings=14)
+rd_.blob(surf(0.2, BACK, 0.04), 0.03, sx=1.2, sy=1.0, sz=1.5, seg=12, rows=8)
+rs_.tube([surf(0.97, BACK, 0.03), surf(1.03, BACK, 0.03), surf(1.1, BACK, 0.03)], [0.012, 0.007, 0.0012], sides=8, rings=10)
+rs_.make('Mut_Rail', M['steel'], grime=0.2, uv=9.0); rd_.make('Mut_RailDark', M['dark'], grime=0.2, uv=9.0); rg_.make('Mut_RailGlow', M['railglow'], uv=1.0)
+
+# --- SEEKER: a single launcher tube lying along the back, a sensor eye on a short arm, and the red lens that finds a target.
+sk_ = B(); ss_ = B(); sg_ = B()
+sk_.tube([surf(0.18, BACK, 0.046), surf(0.5, BACK, 0.05), surf(0.8, BACK, 0.046)], [0.042, 0.04, 0.042], sides=16, rings=22)
+sk_.blob(surf(0.17, BACK, 0.046), 0.046, sx=1.0, sy=1.0, sz=1.6, seg=14, rows=9)
+ss_.tube([surf(0.79, BACK, 0.046), surf(0.82, BACK, 0.046), surf(0.84, BACK, 0.046)], [0.05, 0.055, 0.05], sides=16, rings=5)
+for s0 in (0.3, 0.45, 0.6): ss_.tube([surf(s0, BACK - 0.4, 0.02), surf(s0, BACK - 0.22, 0.08), surf(s0, BACK, 0.098), surf(s0, BACK + 0.22, 0.08), surf(s0, BACK + 0.4, 0.02)], [0.007] * 5, sides=6, rings=12)
+ss_.tube([surf(0.5, BACK + 0.55, 0.01), surf(0.5, BACK + 0.8, 0.045), surf(0.5, BACK + 0.95, 0.07)], [0.01, 0.008, 0.007], sides=7, rings=8)
+sg_.blob(surf(0.5, BACK + 0.98, 0.083), 0.02, sx=1.0, sy=1.0, sz=1.0, seg=12, rows=8)
+sg_.tube([surf(0.838, BACK, 0.046), surf(0.846, BACK, 0.046)], [0.034, 0.034], sides=14, rings=3)
+sk_.make('Mut_Seek', M['dark'], grime=0.22, uv=9.0); ss_.make('Mut_SeekSteel', M['steel'], grime=0.2, uv=9.0); sg_.make('Mut_SeekGlow', M['seekglow'], uv=1.0)
+
+# --- SEISMIC FIST: the arm ends in an iron-banded knuckle mass, driven by two pistons, glowing where it has cracked from its own blows.
+sm_ = B(); sc_ = B(); sl_ = B()
+sm_.blob(surf(0.93, BACK, 0.025), 0.088, sx=1.1, sy=1.0, sz=1.05, seg=20, rows=14)
+for s0, th in ((0.84, 0.0135), (0.91, 0.0135), (0.98, 0.0115)): ring(sc_, s0, th, lift=0.012 + 0.02 * (s0 - 0.8), n=40, sides=8)
 for sg in (-1, 1):
-    pts = []; m = 24
-    for q in range(m + 1):
-        k = q / m; pts.append(surf(0.18 + 0.74 * k, BACK + sg * (0.95 + 0.14 * math.sin(k * 19)), 0.003))
-    ag_.tube(pts, [0.0058, 0.005, 0.0035], sides=6, rings=m + 8)
-n_ = 30; pts = [surf(0.93, BACK - PI + 2 * PI * q / (n_ - 1), 0.0, ) for q in range(n_)]; af_.tube(pts, [0.016, 0.016], sides=9, rings=n_)
-n_ = 30; pts = [surf(0.955, BACK - PI + 2 * PI * q / (n_ - 1), -0.004) for q in range(n_)]; af_.tube(pts, [0.012, 0.012], sides=9, rings=n_)
-ag_.blob(surf(0.965, UNDER, -0.04), 0.03, seg=10, rows=6)
-ac_.make('Mut_Acid', M['sac'], uv=4.0); af_.make('Mut_AcidFlesh', M['flesh'], uv=8.0); ag_.make('Mut_AcidGlow', M['sacglow'], uv=1.0)
+    rod(sc_, 0.3, 0.82, BACK + sg * 0.85, 0.03, 0.016, 0.01, sides=9)
+    sc_.tube([surf(0.3, BACK + sg * 0.85, 0.03), surf(0.45, BACK + sg * 0.85, 0.03)], [0.026, 0.026], sides=10, rings=5)
+for a, s0 in ((BACK - 0.5, 0.92), (BACK + 0.3, 0.96), (BACK + 0.7, 0.9)): sl_.tube([surf(s0 - 0.03, a, 0.098), surf(s0, a + 0.1, 0.108), surf(s0 + 0.03, a + 0.05, 0.1)], [0.0035, 0.005, 0.003], sides=5, rings=8)
+sm_.make('Mut_Slam', M['dark'], grime=0.3, uv=9.0); sc_.make('Mut_SlamSteel', M['steel'], grime=0.26, uv=9.0); sl_.make('Mut_SlamGlow', M['railglow'], uv=1.0)
 
 # ================================================================ THE TORSO: what you see of yourself looking down. A heavy soft column from under your line of sight to the floor, folding out into the roots of the six limbs on the ground. Its top is out of view; there are no eyes on it, because you are looking out of them.
 ROOTS = [-1.18, 1.18, -1.96, 1.96, -2.75, 2.75, -0.39, 0.39]       # the limbs' angles in the game: x = sin(a), z = -cos(a)
@@ -425,21 +451,33 @@ for v in (0.16, 0.24):
     tring(rc, v, 0.006, 0.0075, sides=6, n=48)
 rs.make('Tor_Hook', M['steel'], grime=0.26, uv=9.0); rd_.make('Tor_HookDark', M['dark'], grime=0.24, uv=9.0); rc.make('Tor_HookCable', M['black'], grime=0.1, uv=10.0); rf.make('Tor_HookFlesh', M['flesh'], uv=8.0)
 
-# --- ACID: sacs swollen out of the back and flanks, heavy and low, so the body sags with what it carries.
-ts_ = B(); tf_ = B(); tg_ = B()
-SACS = [(PI, 0.46, 0.2), (PI + 0.75, 0.62, 0.17), (PI - 0.75, 0.62, 0.17), (PI + 0.42, 0.26, 0.13), (PI - 0.42, 0.26, 0.13), (PI + 1.5, 0.76, 0.13), (PI - 1.5, 0.76, 0.13), (PI, 0.76, 0.14), (1.0, 0.72, 0.09), (-1.0, 0.72, 0.09)]
-for a0, v0, r0 in SACS:
-    c = ts(a0, v0, r0 * 0.5); ts_.blob(c, r0, sx=1.0, sy=1.12, sz=1.0, seg=20, rows=14)
-    tplate(tf_, a0, r0 * 3.1, v0, r0 * 0.75, r0 * 0.26, nu=9, nv=7, ridge=0.0, shade=False)
-    for q in range(3):
-        an = q * 2.1 + a0 * 3; d0 = c + Vector((math.cos(an) * r0 * 0.98, math.sin(an * 1.3) * r0 * 0.5, math.sin(an) * r0 * 0.98))
-        tg_.tube([d0, ts(a0 + 0.2 * math.cos(an), v0 + 0.1, 0.008)], [0.0065, 0.004], sides=5, rings=5)
-for a0 in ROOTS_:
-    pts = []; m = 10
-    for q in range(m + 1):
-        k = q / m; pts.append(ts(a0 * (0.8 + 0.2 * k) + (PI if a0 > 3 else 0) * 0, 0.58 + 0.28 * k, 0.006))
-    tg_.tube(pts, [0.0075, 0.006, 0.004], sides=6, rings=20)
-ts_.make('Tor_Acid', M['sac'], uv=4.0); tf_.make('Tor_AcidFlesh', M['flesh'], uv=8.0); tg_.make('Tor_AcidGlow', M['sacglow'], uv=1.0)
+# --- BLAST: two great smooth bladders on the back, tied down with bone, so you carry a pressure you can feel.
+tm_ = B(); tb_ = B()
+for a0, v0, r0 in ((PI, 0.46, 0.2), (PI + 0.95, 0.6, 0.14), (PI - 0.95, 0.6, 0.14)): tm_.blob(ts(a0, v0, r0 * 0.5), r0, sx=1.0, sy=1.12, sz=1.0, seg=22, rows=16)
+tring(tb_, 0.4, 0.1, 0.006, n=64); tring(tb_, 0.52, 0.12, 0.006, n=64)
+tm_.make('Tor_Blast', M['membrane'], uv=4.0); tb_.make('Tor_BlastBone', M['bone'], grime=0.12, uv=8.0)
+# --- RAIL: a heavy spine of steel down the back with a lit core, the shoulder rails fanning off it.
+tr_ = B(); td_ = B(); tg2_ = B()
+tr_.tube([ts(PI, 0.12, 0.07), ts(PI, 0.45, 0.085), ts(PI, 0.88, 0.07)], [0.03, 0.034, 0.028], sides=10, rings=28)
+for sg in (-1, 1): tr_.tube([ts(PI + sg * 0.32, 0.14, 0.05), ts(PI + sg * 0.5, 0.45, 0.06), ts(PI + sg * 0.62, 0.8, 0.05)], [0.017, 0.02, 0.014], sides=8, rings=24)
+tg2_.tube([ts(PI, 0.14, 0.108), ts(PI, 0.46, 0.12), ts(PI, 0.86, 0.1)], [0.0085, 0.0095, 0.007], sides=7, rings=24)
+for v0 in (0.22, 0.4, 0.58, 0.76): td_.tube([ts(PI - 0.4, v0, 0.04), ts(PI, v0, 0.1), ts(PI + 0.4, v0, 0.04)], [0.011] * 3, sides=7, rings=14)
+tr_.make('Tor_Rail', M['steel'], grime=0.22, uv=9.0); td_.make('Tor_RailDark', M['dark'], grime=0.2, uv=9.0); tg2_.make('Tor_RailGlow', M['railglow'], uv=1.0)
+# --- SEEKER: a launcher riding the shoulder, with its lens turning to look where you do.
+tk_ = B(); tkg_ = B(); tks_ = B()
+tk_.tube([ts(PI - 0.55, 0.3, 0.1), ts(PI - 0.55, 0.55, 0.12), ts(PI - 0.55, 0.8, 0.1)], [0.05, 0.052, 0.05], sides=16, rings=22)
+tk_.blob(ts(PI - 0.55, 0.28, 0.1), 0.056, sx=1.0, sy=1.2, sz=1.0, seg=14, rows=9)
+tks_.tube([ts(PI - 0.55, 0.8, 0.1), ts(PI - 0.55, 0.83, 0.1), ts(PI - 0.55, 0.86, 0.1)], [0.062, 0.066, 0.06], sides=16, rings=5)
+tkg_.blob(ts(PI + 0.5, 0.42, 0.12), 0.026, seg=12, rows=8)
+tks_.tube([ts(PI + 0.15, 0.4, 0.04), ts(PI + 0.38, 0.41, 0.09), ts(PI + 0.5, 0.42, 0.11)], [0.011, 0.009, 0.008], sides=7, rings=8)
+tk_.make('Tor_Seek', M['dark'], grime=0.22, uv=9.0); tks_.make('Tor_SeekSteel', M['steel'], grime=0.2, uv=9.0); tkg_.make('Tor_SeekGlow', M['seekglow'], uv=1.0)
+# --- SLAM: iron blocks stacked over the shoulders and a cracked glowing seam: you become something that hits the ground for a living.
+tl_ = B(); tlc_ = B(); tlg_ = B()
+for sg in (-1, 1):
+    tplate(tl_, PI + sg * 1.05, 0.34, 0.22, 0.1, 0.07, nu=10, nv=8, ridge=0.1); tplate(tl_, PI + sg * 1.0, 0.3, 0.4, 0.09, 0.06, nu=10, nv=8, ridge=0.1)
+    tlc_.tube([ts(PI + sg * 0.78, 0.18, 0.09), ts(PI + sg * 1.05, 0.2, 0.12), ts(PI + sg * 1.32, 0.22, 0.09)], [0.012] * 3, sides=8, rings=16)
+tlg_.tube([ts(PI - 0.5, 0.52, 0.07), ts(PI - 0.2, 0.46, 0.08), ts(PI + 0.1, 0.55, 0.075), ts(PI + 0.4, 0.5, 0.07)], [0.004, 0.006, 0.0045, 0.003], sides=5, rings=18)
+tl_.make('Tor_Slam', M['dark'], grime=0.3, uv=9.0); tlc_.make('Tor_SlamSteel', M['steel'], grime=0.26, uv=9.0); tlg_.make('Tor_SlamGlow', M['railglow'], uv=1.0)
 
 save_v2(r"art\v2_arm.blend")
 export_all(r"public\models\v2_arm.glb")

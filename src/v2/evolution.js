@@ -218,7 +218,10 @@ export class Evolution {
           if (a.type === 'melee') { vm.strike(a.dur, a.heavy); this.pending = { t: a.hitAt, a }; g.audio.play('dash', { vol: a.heavy ? 0.7 : 0.45 }); }
           else if (a.type === 'arc') { g.arsenal.arcV2({ range: a.range[ti], links: a.links[ti], radius: a.radius, dmg: a.dmg[ti] * kc, stun: a.stun[ti] }); this.regenHold = a.regenHold; }
           else if (a.type === 'hook') this.abilities.hook(a, ti, kc);
-          else if (a.type === 'acid') this.abilities.acid(a, ti, kc);
+          else if (a.type === 'blast') this.abilities.blast(a, ti, kc);
+          else if (a.type === 'rail') this.abilities.rail(a, ti, kc);
+          else if (a.type === 'seek') this.abilities.seek(a, ti, kc);
+          else if (a.type === 'slam') this.abilities.slam(a, ti, kc);
         }
       }
       weapon.step(dt, false, false);
@@ -239,7 +242,6 @@ export class Evolution {
   // What a hit from the raised arm really does, and a record of it for the lab.
   hitDamage(e, dmg) {
     const a = this.active.attack;
-    if (e.corrodeT > 0) dmg *= 1.4;      // the acid leaves it soft
     if (a.armour && e.variant === 'heavy' && e.facing && e.facing(this.g.player.pos.x, this.g.player.pos.z) > 0.15) { dmg *= a.armour; this.g.audio.play('clatter', { vol: 0.2 }); }
     this.noteHit(this.active.id, dmg);
     return dmg;
