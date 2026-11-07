@@ -7,6 +7,7 @@ import { mergeStatic } from './merge.js';
 import { addSign } from './signs.js';
 import { ARENA, HALL_ANCHOR } from './level.js';
 import { rand } from '../core/util.js';
+import { validateRun } from './validate.js';
 
 // Procedural facility: a winding chain of rooms joined by straight hallways, built from the same Blender kit,
 // materials, doors and signage as the hand-made workshop. Every run is different.
@@ -240,6 +241,7 @@ function furnish(B, r, placer, L) {
     kit.solid(B.group, B.W, name, x, z, rot, y);
     const f = kit.footprint(name, rot);
     placer.add(x - f.w / 2, x + f.w / 2, z - f.d / 2, z + f.d / 2);
+    (r.props || (r.props = [])).push({ name, x0: x - f.w / 2, x1: x + f.w / 2, z0: z - f.d / 2, z1: z + f.d / 2, y0: y, y1: y + f.h });
     return f;
   };
   // the kit has no collider for a chair: a small box, so you bump into it like everything else in the room
@@ -412,7 +414,33 @@ function buildHall(B, L, axis, fixed, t0, t1, mats, label, flicker) {
 
 // ---------------------------------------------------------------- the run
 
-export function generateRun(game) {
+// A small seeded generator, so any layout can be reproduced and tested from its number.
+function seededRandom(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+
+// Builds a facility, checks it, and builds another from the next seed if the check fails: a layout that cannot be walked never reaches the player.
+// opts.seed fixes the first attempt; opts.retries is how many more may be tried (0 for a measurement).
+export function generateRun(game, opts = {}) {
+  const seed = (opts.seed ?? Math.floor(Math.random() * 4294967296)) >>> 0, retries = opts.retries ?? 6, rejected = [];
+  let run = null;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const s = (seed + attempt * 7919) >>> 0, orig = Math.random;
+    Math.random = seededRandom(s);
+    try { run = buildRun(game); } finally { Math.random = orig; }
+    run.seed = s; run.attempt = attempt;
+    run.issues = validateRun(game, run);
+    if (!run.issues.length || attempt === retries) break;
+    rejected.push({ seed: s, issues: run.issues.slice(0, 4) });
+    disposeRun(game, run);
+  }
+  run.rejected = rejected;
+  if (run.issues.length) console.warn('generated run still has issues', run.seed, run.issues);
+  return run;
+}
+
+function buildRun(game) {
   const { scene, world, kit } = game;
   const L = game.level;
   const group = new THREE.Group();
